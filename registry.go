@@ -37,6 +37,10 @@ type Registry struct {
 	redisStreamPools     map[string]string
 }
 
+func NewRegistry() *Registry {
+	return &Registry{}
+}
+
 func (r *Registry) Validate() (ValidatedRegistry, error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"

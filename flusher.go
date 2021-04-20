@@ -836,13 +836,19 @@ func (f *flusher) fillRedisSearchFromBind(schema *tableSchema, bind map[string]i
 			}
 		}
 		values := make([]interface{}, 0)
+		idMap, has := schema.mapBindToRedisSearch["ID"]
+		if has {
+			values = append(values, "ID", idMap(id))
+		}
+		hasChangedField := false
 		for k, f := range schema.mapBindToRedisSearch {
 			v, has := bind[k]
 			if has {
 				values = append(values, k, f(v))
+				hasChangedField = true
 			}
 		}
-		if len(values) > 0 {
+		if hasChangedField {
 			f.getRedisFlusher().HSet(schema.searchCacheName, schema.redisSearchPrefix+strconv.FormatUint(id, 10), values...)
 		}
 	}

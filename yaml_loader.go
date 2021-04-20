@@ -6,39 +6,37 @@ import (
 	"strings"
 )
 
-func InitByYaml(yaml map[string]interface{}) (registry *Registry) {
-	registry = &Registry{}
+func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 	for key, data := range yaml {
 		dataAsMap := fixYamlMap(data, "orm")
 		for dataKey, value := range dataAsMap {
 			switch dataKey {
 			case "mysql":
-				validateOrmMysqlURI(registry, value, key)
+				validateOrmMysqlURI(r, value, key)
 			case "elastic":
-				validateElasticURI(registry, value, key, false)
+				validateElasticURI(r, value, key, false)
 			case "elastic_trace":
-				validateElasticURI(registry, value, key, true)
+				validateElasticURI(r, value, key, true)
 			case "clickhouse":
-				validateClickHouseURI(registry, value, key)
+				validateClickHouseURI(r, value, key)
 			case "redis":
-				validateRedisURI(registry, value, key)
+				validateRedisURI(r, value, key)
 			case "sentinel":
-				validateSentinel(registry, value, key)
+				validateSentinel(r, value, key)
 			case "streams":
-				validateStreams(registry, value, key)
+				validateStreams(r, value, key)
 			case "locker":
 				valAsString := validateOrmString(value, key)
-				registry.RegisterLocker(key, valAsString)
+				r.RegisterLocker(key, valAsString)
 			case "mysqlEncoding":
 				valAsString := validateOrmString(value, key)
-				registry.SetDefaultEncoding(valAsString)
+				r.SetDefaultEncoding(valAsString)
 			case "local_cache":
 				number := validateOrmInt(value, key)
-				registry.RegisterLocalCache(number, key)
+				r.RegisterLocalCache(number, key)
 			}
 		}
 	}
-	return registry
 }
 
 func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
