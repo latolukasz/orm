@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"math"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -1000,7 +999,7 @@ var defaultRedisSearchMapperNullableString = func(val interface{}) interface{} {
 
 var defaultRedisSearchMapperNullableNumeric = func(val interface{}) interface{} {
 	if val == nil {
-		return -math.MaxInt64
+		return RedisSearchNullNumber
 	}
 	return val
 }
@@ -1017,7 +1016,7 @@ var defaultRedisSearchMapperNullableBool = func(val interface{}) interface{} {
 
 var defaultRedisSearchMapperNullableTime = func(val interface{}) interface{} {
 	if val == nil {
-		return -math.MaxInt64
+		return RedisSearchNullNumber
 	}
 	v := val.(string)
 	if v[0:10] == "0001-01-01" {

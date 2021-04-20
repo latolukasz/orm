@@ -16,6 +16,8 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+const RedisSearchNullNumber = -math.MaxInt64
+
 const redisSearchIndexFieldText = "TEXT"
 const redisSearchIndexFieldNumeric = "NUMERIC"
 const redisSearchIndexFieldGeo = "GEO"
@@ -252,7 +254,7 @@ func (q *RedisSearchQuery) FilterInt(field string, value ...int64) *RedisSearchQ
 }
 
 func (q *RedisSearchQuery) FilterIntNull(field string) *RedisSearchQuery {
-	return q.FilterInt(field, -math.MaxInt64)
+	return q.FilterInt(field, RedisSearchNullNumber)
 }
 
 func (q *RedisSearchQuery) FilterIntGreaterEqual(field string, value int64) *RedisSearchQuery {
@@ -331,7 +333,7 @@ func (q *RedisSearchQuery) FilterFloatLess(field string, value float64) *RedisSe
 }
 
 func (q *RedisSearchQuery) FilterFloatNull(field string) *RedisSearchQuery {
-	return q.FilterFloat(field, -math.MaxInt64)
+	return q.FilterFloat(field, RedisSearchNullNumber)
 }
 
 func (q *RedisSearchQuery) FilterDateMinMax(field string, min, max time.Time) *RedisSearchQuery {
@@ -344,7 +346,7 @@ func (q *RedisSearchQuery) FilterDate(field string, date time.Time) *RedisSearch
 }
 
 func (q *RedisSearchQuery) FilterDateNull(field string) *RedisSearchQuery {
-	return q.FilterInt(field, -math.MaxInt64)
+	return q.FilterInt(field, RedisSearchNullNumber)
 }
 
 func (q *RedisSearchQuery) FilterDateGreaterEqual(field string, date time.Time) *RedisSearchQuery {
@@ -373,7 +375,7 @@ func (q *RedisSearchQuery) FilterDateTime(field string, date time.Time) *RedisSe
 }
 
 func (q *RedisSearchQuery) FilterDateTimeNull(field string) *RedisSearchQuery {
-	return q.FilterInt(field, -math.MaxInt64)
+	return q.FilterInt(field, RedisSearchNullNumber)
 }
 
 func (q *RedisSearchQuery) FilterDateTimeGreaterEqual(field string, date time.Time) *RedisSearchQuery {
