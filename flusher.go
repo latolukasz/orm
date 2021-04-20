@@ -646,14 +646,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			}
 		}
 		if f.localCacheDeletes != nil {
-			deletesLocalCache, hasLocal := lazyMap["cl"].(map[string][]string)
-			if !hasLocal {
-				deletesLocalCache = make(map[string][]string)
-				lazyMap["cl"] = deletesLocalCache
-			}
-			for cacheCode, keys := range f.localCacheDeletes {
-				deletesLocalCache[cacheCode] = append(deletesLocalCache[cacheCode], keys...)
-			}
+			lazyMap["cl"] = f.localCacheDeletes
 		}
 	} else if isInTransaction {
 		f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
@@ -678,7 +671,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			}
 		}
 	}
-	if f.lazyMap != nil {
+	if len(f.lazyMap) > 0 {
 		f.getRedisFlusher().Publish(lazyChannelName, f.lazyMap)
 		f.lazyMap = nil
 	}
