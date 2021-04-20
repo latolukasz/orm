@@ -788,6 +788,15 @@ func (r *RedisCache) XAck(stream, group string, ids ...string) int64 {
 	return res
 }
 
+func (r *RedisCache) FlushAll() {
+	start := time.Now()
+	_, err := r.client.FlushAll(r.ctx).Result()
+	if r.engine.hasRedisLogger {
+		r.fillLogFields("[ORM][REDIS][FLUSHALL]", start, "flushall", -1, 1, nil, err)
+	}
+	checkError(err)
+}
+
 func (r *RedisCache) FlushDB() {
 	start := time.Now()
 	_, err := r.client.FlushDB(r.ctx).Result()
