@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -275,6 +276,21 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	flusher.Flush()
 	totalRows = engine.CachedSearch(&rows, "IndexAge", NewPager(3, 10), 13)
 	assert.Equal(t, 10, totalRows)
+
+	if localCache {
+		pager = NewPager(1, 100)
+		totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
+		assert.Equal(t, 7, totalRows)
+		rows[0].Age = 17
+		engine.FlushLazy(rows[0])
+		assert.Equal(t, 7, engine.CachedSearch(&rows, "IndexAge", pager, 18))
+
+		receiver := NewAsyncConsumer(engine, "default-consumer")
+		receiver.DisableLoop()
+		receiver.block = time.Millisecond
+		receiver.Digest(context.Background(), 100)
+		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
+	}
 }
 
 func TestCachedSearchErrors(t *testing.T) {

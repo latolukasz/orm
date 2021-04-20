@@ -137,7 +137,7 @@ func (r *AsyncConsumer) handleLazy(event Event) {
 		return
 	}
 	ids := r.handleQueries(r.engine, data)
-	r.handleRedisCache(data, ids)
+	r.handleCache(data, ids)
 	event.Ack()
 }
 
@@ -216,7 +216,7 @@ func (r *AsyncConsumer) handleQueries(engine *Engine, validMap map[string]interf
 	return ids
 }
 
-func (r *AsyncConsumer) handleRedisCache(validMap map[string]interface{}, ids []uint64) {
+func (r *AsyncConsumer) handleCache(validMap map[string]interface{}, ids []uint64) {
 	keys, has := validMap["cr"]
 	if has {
 		idKey := 0
@@ -237,6 +237,18 @@ func (r *AsyncConsumer) handleRedisCache(validMap map[string]interface{}, ids []
 			}
 			cache := r.engine.GetRedis(cacheCode)
 			cache.Del(stringKeys...)
+		}
+	}
+	localCache, has := validMap["cl"]
+	if has {
+		validKeys := localCache.(map[string]interface{})
+		for cacheCode, allKeys := range validKeys {
+			validAllKeys := allKeys.([]interface{})
+			stringKeys := make([]string, len(validAllKeys))
+			for i, v := range validAllKeys {
+				stringKeys[i] = v.(string)
+			}
+			r.engine.GetLocalCache(cacheCode).Remove(stringKeys...)
 		}
 	}
 }

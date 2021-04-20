@@ -621,8 +621,15 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				}
 			}
 		}
-		for cacheCode, allKeys := range f.localCacheDeletes {
-			f.engine.GetLocalCache(cacheCode).Remove(allKeys...)
+		if f.localCacheDeletes != nil {
+			if lazy {
+				lazyMap := f.getLazyMap()
+				lazyMap["cl"] = f.localCacheDeletes
+			} else {
+				for cacheCode, allKeys := range f.localCacheDeletes {
+					f.engine.GetLocalCache(cacheCode).Remove(allKeys...)
+				}
+			}
 		}
 		for cacheCode, keys := range f.localCacheSets {
 			cache := f.engine.GetLocalCache(cacheCode)
