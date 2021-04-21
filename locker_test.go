@@ -14,7 +14,6 @@ import (
 func TestLocker(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
-	registry.RegisterLocker("default", "default")
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
@@ -22,7 +21,7 @@ func TestLocker(t *testing.T) {
 	testLogger := memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
 
-	l := engine.GetLocker()
+	l := engine.GetRedis().GetLocker()
 	lock, has := l.Obtain(engine.context, "test_key", time.Second, 0)
 	assert.True(t, has)
 	assert.NotNil(t, lock)
@@ -67,13 +66,12 @@ func TestLocker(t *testing.T) {
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6389", 15)
-	registry.RegisterLocker("default", "default")
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine()
 	testLogger = memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
-	l = engine.GetLocker()
+	l = engine.GetRedis().GetLocker()
 	assert.Panics(t, func() {
 		_, _ = l.Obtain(engine.context, "test_key", time.Second, time.Millisecond)
 	})

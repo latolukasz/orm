@@ -19,6 +19,7 @@ type RedisCache struct {
 	code    string
 	client  *redis.Client
 	limiter *redis_rate.Limiter
+	locker  *Locker
 }
 
 type GetSetProvider func() interface{}

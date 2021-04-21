@@ -74,10 +74,4 @@ func TestYamlLoader(t *testing.T) {
 	assert.PanicsWithError(t, "orm value for default: test is not valid", func() {
 		NewRegistry().InitByYaml(invalidYaml)
 	})
-
-	invalidYaml = make(map[string]interface{})
-	invalidYaml["default"] = map[string]interface{}{"locker": 1}
-	assert.PanicsWithError(t, "orm value for default: 1 is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
 }

@@ -31,7 +31,6 @@ type Registry struct {
 	redisSearchIndices   map[string]map[string]*RedisSearchIndex
 	elasticIndices       map[string]map[string]ElasticIndexDefinition
 	enums                map[string]Enum
-	locks                map[string]string
 	defaultEncoding      string
 	redisStreamGroups    map[string]map[string]map[string]bool
 	redisStreamPools     map[string]string
@@ -114,13 +113,6 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		}
 		v.db = db
 		registry.clickHouseClients[k] = v
-	}
-
-	if registry.lockServers == nil {
-		registry.lockServers = make(map[string]string)
-	}
-	for k, v := range r.locks {
-		registry.lockServers[k] = v
 	}
 
 	if registry.localCacheContainers == nil {
@@ -336,13 +328,6 @@ func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []s
 		groupsMap[group] = true
 	}
 	r.redisStreamGroups[redisPool][name] = groupsMap
-}
-
-func (r *Registry) RegisterLocker(code string, redisCode string) {
-	if r.locks == nil {
-		r.locks = make(map[string]string)
-	}
-	r.locks[code] = redisCode
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {

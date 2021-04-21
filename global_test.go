@@ -17,7 +17,6 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test_log", "log")
 	}
-	registry.RegisterLocker("default", "default")
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedis("localhost:6382", 14, "default_queue")
 	registry.RegisterRedis("localhost:6382", 0, "search")

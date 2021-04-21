@@ -12,7 +12,6 @@ default:
   elastic_trace: http://localhost:9209
   clickhouse: http://localhost:9002?debug=false
   local_cache: 1000
-  locker: default
 another:
   sentinel:
     master:1:

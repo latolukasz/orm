@@ -24,9 +24,20 @@ func (l *standardLockerClient) Obtain(ctx context.Context, key string, ttl time.
 }
 
 type Locker struct {
-	code   string
 	locker lockerClient
 	engine *Engine
+	code   string
+}
+
+func (r *RedisCache) GetLocker() *Locker {
+	if r.locker != nil {
+		return r.locker
+	}
+	r.engine.redisMutex.Lock()
+	defer r.engine.redisMutex.Unlock()
+	lockerClient := &standardLockerClient{client: redislock.New(r.client)}
+	r.locker = &Locker{locker: lockerClient, engine: r.engine, code: r.code}
+	return r.locker
 }
 
 func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
@@ -143,7 +154,7 @@ func (l *Locker) fillLogFields(message string, start time.Time, key string, oper
 		"microseconds": stop,
 		"operation":    operation,
 		"pool":         l.code,
-		"target":       "locker",
+		"target":       "redis",
 		"started":      start.UnixNano(),
 		"finished":     now.UnixNano(),
 	})

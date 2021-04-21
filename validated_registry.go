@@ -33,7 +33,6 @@ type validatedRegistry struct {
 	redisStreamGroups    map[string]map[string]map[string]bool
 	redisStreamPools     map[string]string
 	elasticServers       map[string]*ElasticConfig
-	lockServers          map[string]string
 	enums                map[string]Enum
 }
 

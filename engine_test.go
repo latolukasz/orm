@@ -38,9 +38,6 @@ func TestEngine(t *testing.T) {
 	assert.PanicsWithError(t, "unregistered clickhouse pool 'test'", func() {
 		engine.GetClickHouse("test")
 	})
-	assert.PanicsWithError(t, "unregistered locker pool 'test'", func() {
-		engine.GetLocker("test")
-	})
 
 	engine.EnableDebug()
 	assert.Len(t, engine.log.logger.handler.Handlers, 2)

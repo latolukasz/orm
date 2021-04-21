@@ -437,7 +437,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, "test_lock", entity7.Name)
 
-	lock, has := engine.GetLocker().Obtain(engine.context, "lock_test", time.Second, time.Second)
+	lock, has := engine.GetRedis().GetLocker().Obtain(engine.context, "lock_test", time.Second, time.Second)
 	assert.True(t, has)
 	assert.PanicsWithError(t, "lock wait timeout", func() {
 		flusher.FlushWithLock("default", "lock_test", time.Second, time.Second)

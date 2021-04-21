@@ -85,7 +85,6 @@ func main() {
 
     /* Redis used to handle locks (explained later) */
     registry.RegisterRedis("localhost:6379", 4, "lockers_pool")
-    registry.RegisterLocker("default", "lockers_pool")
 
     /* ElasticSearch */
     registry.RegisterElastic("http://127.0.0.1:9200")
@@ -116,7 +115,6 @@ default:
     elastic: http://127.0.0.1:9200
     elastic_trace: http://127.0.0.1:9201 //with trace log
     clickhouse: http://127.0.0.1:9000
-    locker: default
     local_cache: 1000
 second_pool:
     mysql: root:root@tcp(localhost:3311)/db2
@@ -1115,9 +1113,8 @@ import "github.com/latolukasz/orm"
 
 func main() {
 
-    // register redis and locker
-    registry.RegisterRedis("localhost:6379", 0, "my_pool")
-    registry.RegisterLocker("default", "my_pool")
+    // register redis
+    registry.RegisterRedis("localhost:6379", 0)
     
     locker, _ := engine.GetLocker()
     lock := locker.Obtain("my_lock", 5 * Time.Second, 1 * Time.Second)

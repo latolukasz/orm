@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/bsm/redislock"
 	"github.com/golang/groupcache/lru"
 
 	logApex "github.com/apex/log"
@@ -34,8 +33,6 @@ type Engine struct {
 	redisSearchMutex          sync.Mutex
 	elastic                   map[string]*Elastic
 	elasticMutex              sync.Mutex
-	locks                     map[string]*Locker
-	locksMutex                sync.Mutex
 	logMetaData               map[string]interface{}
 	logMetaDataMutex          sync.RWMutex
 	dataLoader                *dataLoader
@@ -305,30 +302,6 @@ func (e *Engine) GetElastic(code ...string) *Elastic {
 		}
 	}
 	return elastic
-}
-
-func (e *Engine) GetLocker(code ...string) *Locker {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	e.locksMutex.Lock()
-	defer e.locksMutex.Unlock()
-	locker, has := e.locks[dbCode]
-	if !has {
-		val, has := e.registry.lockServers[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered locker pool '%s'", dbCode))
-		}
-		lockerClient := &standardLockerClient{client: redislock.New(e.registry.redisServers[val].client)}
-		locker = &Locker{locker: lockerClient, code: val, engine: e}
-		if e.locks == nil {
-			e.locks = map[string]*Locker{dbCode: locker}
-		} else {
-			e.locks[dbCode] = locker
-		}
-	}
-	return locker
 }
 
 func (e *Engine) NewFlusher() Flusher {

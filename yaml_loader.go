@@ -25,9 +25,6 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 				validateSentinel(r, value, key)
 			case "streams":
 				validateStreams(r, value, key)
-			case "locker":
-				valAsString := validateOrmString(value, key)
-				r.RegisterLocker(key, valAsString)
 			case "mysqlEncoding":
 				valAsString := validateOrmString(value, key)
 				r.SetDefaultEncoding(valAsString)

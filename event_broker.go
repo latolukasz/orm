@@ -319,7 +319,7 @@ func (r *eventsConsumer) Consume(ctx context.Context, count int, blocking bool, 
 func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler) bool {
 	uniqueLockKey := r.group + "_" + r.name + "_" + r.redis.code
 	runningKey := uniqueLockKey + "_running"
-	locker := r.redis.engine.GetLocker()
+	locker := r.redis.GetLocker()
 	nr := 0
 	var lockName string
 	var lock *Lock

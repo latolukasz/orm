@@ -213,8 +213,8 @@ func (f *flusher) flushWithCheck(transaction bool) error {
 	return err
 }
 
-func (f *flusher) flushWithLock(transaction bool, lockerPool string, lockName string, ttl time.Duration, waitTimeout time.Duration) {
-	locker := f.engine.GetLocker(lockerPool)
+func (f *flusher) flushWithLock(transaction bool, redisPool string, lockName string, ttl time.Duration, waitTimeout time.Duration) {
+	locker := f.engine.GetRedis(redisPool).GetLocker()
 	lock, has := locker.Obtain(f.engine.context, lockName, ttl, waitTimeout)
 	if !has {
 		panic(errors.New("lock wait timeout"))
