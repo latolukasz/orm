@@ -53,10 +53,10 @@ func (enum *enum) Has(value string) bool {
 
 func initEnum(ref interface{}) *enum {
 	enum := &enum{}
-	e := reflect.ValueOf(ref).Elem()
+	e := reflect.ValueOf(ref)
 	enum.mapping = make(map[string]string)
 	enum.fields = make([]string, 0)
-	for i := 1; i < e.Type().NumField(); i++ {
+	for i := 0; i < e.Type().NumField(); i++ {
 		name := e.Field(i).String()
 		enum.fields = append(enum.fields, name)
 		enum.mapping[name] = name

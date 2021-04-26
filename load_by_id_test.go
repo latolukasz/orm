@@ -50,7 +50,7 @@ type loadByIDSubReference2 struct {
 }
 
 type loadByIDBenchmarkEntity struct {
-	ORM     `orm:"localCache"`
+	ORM
 	ID      uint
 	Name    string
 	Int     int
@@ -223,20 +223,40 @@ func TestLoadById(t *testing.T) {
 
 // BenchmarkLoadByIDdLocalCache-12    	 4088002	       294.7 ns/op	       8 B/op	       1 allocs/op
 func BenchmarkLoadByIDdLocalCache(b *testing.B) {
-	benchmarkLoadByIDLocalCache(b, false)
+	benchmarkLoadByIDLocalCache(b, false, true, false)
 }
 
 // BenchmarkLoadByIDLocalCacheLazy-12    	 5783040	       204.4 ns/op	       8 B/op	       1 allocs/op
 func BenchmarkLoadByIDLocalCacheLazy(b *testing.B) {
-	benchmarkLoadByIDLocalCache(b, true)
+	benchmarkLoadByIDLocalCache(b, true, true, false)
 }
 
-func benchmarkLoadByIDLocalCache(b *testing.B, lazy bool) {
+func BenchmarkLoadByIDRedisCacheLazy(b *testing.B) {
+	benchmarkLoadByIDLocalCache(b, true, false, true)
+}
+
+func benchmarkLoadByIDLocalCache(b *testing.B, lazy, local, redis bool) {
 	entity := &loadByIDBenchmarkEntity{}
 	registry := &Registry{}
 	registry.RegisterEnumStruct("orm.TestEnum", TestEnum)
 	registry.RegisterLocalCache(10000)
 	engine := PrepareTables(nil, registry, 5, entity)
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	if local {
+		schema.localCacheName = "default"
+		schema.hasLocalCache = true
+	} else {
+		schema.localCacheName = ""
+		schema.hasLocalCache = false
+	}
+	if redis {
+		schema.redisCacheName = "default"
+		schema.hasRedisCache = true
+	} else {
+		schema.redisCacheName = ""
+		schema.hasRedisCache = false
+	}
+
 	entity.Name = "Name"
 	entity.Int = 1
 	entity.Float = 1.3
