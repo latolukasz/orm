@@ -20,7 +20,7 @@ type validatedRegistryNotRegisteredEntity struct {
 func TestValidatedRegistry(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
-	registry.RegisterEnumMap("enum_map", map[string]string{"a": "a", "b": "b"}, "a")
+	registry.RegisterEnum("enum_map", "a", "b")
 	entity := &validatedRegistryEntity{}
 	registry.RegisterEntity(entity)
 	validated, err := registry.Validate()
@@ -41,7 +41,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.False(t, enum.Has("c"))
 	assert.Len(t, enum.GetMapping(), 2)
 
-	registry.RegisterEnumSlice("enum_map", []string{"a", "b"})
+	registry.RegisterEnum("enum_map", "a", "b")
 	validated, err = registry.Validate()
 	assert.NoError(t, err)
 	enum = validated.GetEnum("enum_map")

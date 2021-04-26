@@ -26,33 +26,33 @@ type Enum interface {
 	GetMapping() map[string]string
 	GetDefault() string
 	Has(value string) bool
-	init(ref interface{})
 }
 
-type EnumModel struct {
+type enum struct {
 	fields       []string
 	mapping      map[string]string
 	defaultValue string
 }
 
-func (enum *EnumModel) GetFields() []string {
+func (enum *enum) GetFields() []string {
 	return enum.fields
 }
 
-func (enum *EnumModel) GetMapping() map[string]string {
+func (enum *enum) GetMapping() map[string]string {
 	return enum.mapping
 }
 
-func (enum *EnumModel) GetDefault() string {
+func (enum *enum) GetDefault() string {
 	return enum.defaultValue
 }
 
-func (enum *EnumModel) Has(value string) bool {
+func (enum *enum) Has(value string) bool {
 	_, has := enum.mapping[value]
 	return has
 }
 
-func (enum *EnumModel) init(ref interface{}) {
+func initEnum(ref interface{}) *enum {
+	enum := &enum{}
 	e := reflect.ValueOf(ref).Elem()
 	enum.mapping = make(map[string]string)
 	enum.fields = make([]string, 0)
@@ -62,6 +62,7 @@ func (enum *EnumModel) init(ref interface{}) {
 		enum.mapping[name] = name
 	}
 	enum.defaultValue = enum.fields[0]
+	return enum
 }
 
 type TableSchema interface {

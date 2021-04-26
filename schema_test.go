@@ -36,14 +36,11 @@ type schemaToDropEntity struct {
 	ID  uint
 }
 
-type testEnum struct {
-	EnumModel
+var TestEnum = struct {
 	A string
 	B string
 	C string
-}
-
-var TestEnum = &testEnum{
+}{
 	A: "a",
 	B: "b",
 	C: "c",

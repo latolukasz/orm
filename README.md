@@ -255,9 +255,6 @@ func main() {
     registry.RegisterEnumSlice("color", []string{"Red", "Blue"})
     validatedRegistry.GetEnum("color").GetFields()
     validatedRegistry.GetEnum("color").Has("Red")
-    
-    //or register enum from map
-    registry.RegisterEnumMap("color", map[string]string{"red": "Red", "blue": "Blue"}, "red")
 }
 ```
 

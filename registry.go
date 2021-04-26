@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -230,38 +229,22 @@ func (r *Registry) RegisterElasticIndex(index ElasticIndexDefinition, serverPool
 	r.elasticIndices[pool][index.GetName()] = index
 }
 
-func (r *Registry) RegisterEnumStruct(code string, val Enum) {
-	val.init(val)
+func (r *Registry) RegisterEnumStruct(code string, val interface{}) {
+	enum := initEnum(val)
 	if r.enums == nil {
 		r.enums = make(map[string]Enum)
 	}
-	r.enums[code] = val
+	r.enums[code] = enum
 }
 
-func (r *Registry) RegisterEnumSlice(code string, val []string) {
-	e := EnumModel{}
+func (r *Registry) RegisterEnum(code string, val ...string) {
+	e := enum{}
 	e.fields = val
 	e.defaultValue = val[0]
 	e.mapping = make(map[string]string)
 	for _, name := range val {
 		e.mapping[name] = name
 	}
-	if r.enums == nil {
-		r.enums = make(map[string]Enum)
-	}
-	r.enums[code] = &e
-}
-
-func (r *Registry) RegisterEnumMap(code string, val map[string]string, defaultValue string) {
-	e := EnumModel{}
-	e.mapping = val
-	e.defaultValue = defaultValue
-	fields := make([]string, 0)
-	for name := range val {
-		fields = append(fields, name)
-	}
-	sort.Strings(fields)
-	e.fields = fields
 	if r.enums == nil {
 		r.enums = make(map[string]Enum)
 	}

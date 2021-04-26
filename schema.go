@@ -944,7 +944,6 @@ func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, index
 	for i := 0; i <= max; i++ {
 		field := t.Field(i)
 		if i == 0 && prefix == "" {
-			//TODO add unique indices
 			for k, v := range tableSchema.uniqueIndicesGlobal {
 				current := &index{Unique: true, Columns: map[int]string{}}
 				for i, l := range v {
