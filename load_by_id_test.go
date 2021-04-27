@@ -221,12 +221,12 @@ func TestLoadById(t *testing.T) {
 	})
 }
 
-// BenchmarkLoadByIDdLocalCache-12    	 4088002	       294.7 ns/op	       8 B/op	       1 allocs/op
+// BenchmarkLoadByIDdLocalCache-12    	 5869000	       203.3 ns/op	       8 B/op	       1 allocs/op
 func BenchmarkLoadByIDdLocalCache(b *testing.B) {
 	benchmarkLoadByIDLocalCache(b, false, true, false)
 }
 
-// BenchmarkLoadByIDLocalCacheLazy-12    	 5783040	       204.4 ns/op	       8 B/op	       1 allocs/op
+// BenchmarkLoadByIDLocalCacheLazy-12    	 9291440	       132.9 ns/op	       8 B/op	       1 allocs/op
 func BenchmarkLoadByIDLocalCacheLazy(b *testing.B) {
 	benchmarkLoadByIDLocalCache(b, true, true, false)
 }
