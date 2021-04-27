@@ -11,22 +11,38 @@ import (
 
 const requestCacheKey = "_request"
 
-type LocalCacheConfig struct {
-	code string
-	lru  *lru.Cache
-	m    sync.Mutex
+type LocalCachePoolConfig interface {
+	GetCode() string
+	GetLimit() int
+}
+
+type localCachePoolConfig struct {
+	code  string
+	limit int
+	m     sync.Mutex
+}
+
+func (p *localCachePoolConfig) GetCode() string {
+	return p.code
+}
+
+func (p *localCachePoolConfig) GetLimit() int {
+	return p.limit
 }
 
 type LocalCache struct {
 	engine *Engine
-	code   string
+	config *localCachePoolConfig
 	lru    *lru.Cache
-	m      *sync.Mutex
 }
 
 type ttlValue struct {
 	value interface{}
 	time  int64
+}
+
+func (c *LocalCache) GetPoolConfig() LocalCachePoolConfig {
+	return c.config
 }
 
 func (c *LocalCache) GetSet(key string, ttlSeconds int, provider GetSetProvider) interface{} {
@@ -44,8 +60,8 @@ func (c *LocalCache) GetSet(key string, ttlSeconds int, provider GetSetProvider)
 }
 
 func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 
 	start := time.Now()
 	value, ok = c.lru.Get(key)
@@ -60,8 +76,8 @@ func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
 }
 
 func (c *LocalCache) MGet(keys ...string) map[string]interface{} {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 
 	start := time.Now()
 	results := make(map[string]interface{}, len(keys))
@@ -81,8 +97,8 @@ func (c *LocalCache) MGet(keys ...string) map[string]interface{} {
 }
 
 func (c *LocalCache) MGetFast(keys ...string) []interface{} {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 
 	start := time.Now()
 	results := make([]interface{}, len(keys))
@@ -103,8 +119,8 @@ func (c *LocalCache) MGetFast(keys ...string) []interface{} {
 
 func (c *LocalCache) Set(key string, value interface{}) {
 	start := time.Now()
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 	c.lru.Add(key, value)
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("[ORM][LOCAL][MGET]", start, "set", -1, map[string]interface{}{"Key": key, "value": value})
@@ -114,8 +130,8 @@ func (c *LocalCache) Set(key string, value interface{}) {
 func (c *LocalCache) MSet(pairs ...interface{}) {
 	start := time.Now()
 	max := len(pairs)
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 	for i := 0; i < max; i += 2 {
 		c.lru.Add(pairs[i], pairs[i+1])
 	}
@@ -125,8 +141,8 @@ func (c *LocalCache) MSet(pairs ...interface{}) {
 }
 
 func (c *LocalCache) HMget(key string, fields ...string) map[string]interface{} {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 
 	start := time.Now()
 	l := len(fields)
@@ -154,8 +170,8 @@ func (c *LocalCache) HMget(key string, fields ...string) map[string]interface{} 
 }
 
 func (c *LocalCache) HMset(key string, fields map[string]interface{}) {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 
 	start := time.Now()
 	m, has := c.lru.Get(key)
@@ -173,8 +189,8 @@ func (c *LocalCache) HMset(key string, fields map[string]interface{}) {
 
 func (c *LocalCache) Remove(keys ...string) {
 	start := time.Now()
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 	for _, v := range keys {
 		c.lru.Remove(v)
 	}
@@ -184,16 +200,16 @@ func (c *LocalCache) Remove(keys ...string) {
 }
 
 func (c *LocalCache) GetObjectsCount() int {
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 
 	return c.lru.Len()
 }
 
 func (c *LocalCache) Clear() {
 	start := time.Now()
-	c.m.Lock()
-	defer c.m.Unlock()
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
 	c.lru.Clear()
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("[ORM][LOCAL][CLEAR]", start, "clear", -1, nil)
@@ -205,7 +221,7 @@ func (c *LocalCache) fillLogFields(message string, start time.Time, operation st
 	e := c.engine.queryLoggers[QueryLoggerSourceLocalCache].log.WithFields(log2.Fields{
 		"microseconds": stop,
 		"operation":    operation,
-		"pool":         c.code,
+		"pool":         c.config.GetCode(),
 		"target":       "local_cache",
 		"time":         start.Unix(),
 		"misses":       misses,

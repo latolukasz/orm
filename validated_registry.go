@@ -14,24 +14,25 @@ type ValidatedRegistry interface {
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
 	GetMySQLPools() map[string]MySQLPoolConfig
+	GetLocalCachePools() map[string]LocalCachePoolConfig
 	GetRedisPools() map[string]RedisPoolConfig
 	GetRedisSearchIndices() map[string][]*RedisSearchIndex
 	GetEntities() map[string]reflect.Type
 }
 
 type validatedRegistry struct {
-	registry             *Registry
-	tableSchemas         map[reflect.Type]*tableSchema
-	entities             map[string]reflect.Type
-	redisSearchIndexes   map[string]map[string]*RedisSearchIndex
-	sqlClients           map[string]MySQLPoolConfig
-	clickHouseClients    map[string]*ClickHouseConfig
-	localCacheContainers map[string]*LocalCacheConfig
-	redisServers         map[string]RedisPoolConfig
-	redisStreamGroups    map[string]map[string]map[string]bool
-	redisStreamPools     map[string]string
-	elasticServers       map[string]*ElasticConfig
-	enums                map[string]Enum
+	registry           *Registry
+	tableSchemas       map[reflect.Type]*tableSchema
+	entities           map[string]reflect.Type
+	redisSearchIndexes map[string]map[string]*RedisSearchIndex
+	clickHouseClients  map[string]*ClickHouseConfig
+	localCacheServers  map[string]LocalCachePoolConfig
+	mySQLServers       map[string]MySQLPoolConfig
+	redisServers       map[string]RedisPoolConfig
+	redisStreamGroups  map[string]map[string]map[string]bool
+	redisStreamPools   map[string]string
+	elasticServers     map[string]*ElasticConfig
+	enums              map[string]Enum
 }
 
 func (r *validatedRegistry) GetSourceRegistry() *Registry {
@@ -70,7 +71,11 @@ func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {
 }
 
 func (r *validatedRegistry) GetMySQLPools() map[string]MySQLPoolConfig {
-	return r.sqlClients
+	return r.mySQLServers
+}
+
+func (r *validatedRegistry) GetLocalCachePools() map[string]LocalCachePoolConfig {
+	return r.localCacheServers
 }
 
 func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {

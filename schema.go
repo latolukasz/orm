@@ -50,8 +50,8 @@ func getAlters(engine *Engine) (alters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
-	if engine.registry.sqlClients != nil {
-		for _, pool := range engine.registry.sqlClients {
+	if engine.registry.mySQLServers != nil {
+		for _, pool := range engine.registry.mySQLServers {
 			poolName := pool.GetCode()
 			tablesInDB[poolName] = make(map[string]bool)
 			pool := engine.GetMysql(poolName)

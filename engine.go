@@ -156,7 +156,7 @@ func (e *Engine) GetMysql(code ...string) *DB {
 	defer e.dbsMutex.Unlock()
 	db, has := e.dbs[dbCode]
 	if !has {
-		config, has := e.registry.sqlClients[dbCode]
+		config, has := e.registry.mySQLServers[dbCode]
 		if !has {
 			panic(fmt.Errorf("unregistered mysql pool '%s'", dbCode))
 		}
@@ -179,10 +179,10 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 	defer e.localCacheMutex.Unlock()
 	cache, has := e.localCache[dbCode]
 	if !has {
-		val, has := e.registry.localCacheContainers[dbCode]
+		config, has := e.registry.localCacheServers[dbCode]
 		if !has {
 			if dbCode == requestCacheKey {
-				cache = &LocalCache{code: dbCode, engine: e, m: &sync.Mutex{}, lru: lru.New(5000)}
+				cache = &LocalCache{config: &localCachePoolConfig{code: dbCode, limit: 5000}, engine: e, lru: lru.New(5000)}
 				if e.localCache == nil {
 					e.localCache = map[string]*LocalCache{dbCode: cache}
 				} else {
@@ -192,7 +192,7 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 			}
 			panic(fmt.Errorf("unregistered local cache pool '%s'", dbCode))
 		}
-		cache = &LocalCache{engine: e, code: val.code, lru: val.lru, m: &val.m}
+		cache = &LocalCache{engine: e, config: config.(*localCachePoolConfig), lru: lru.New(config.GetLimit())}
 		if e.localCache == nil {
 			e.localCache = map[string]*LocalCache{dbCode: cache}
 		} else {

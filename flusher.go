@@ -604,9 +604,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					f.addToLogQueue(schema, id, bind, nil, entity.getORM().logMeta, lazy)
 				}
 				if hasLocalCache {
-					f.addLocalCacheSet(localCache.code, schema.getCacheKey(id), "nil")
+					f.addLocalCacheSet(localCache.config.GetCode(), schema.getCacheKey(id), "nil")
 					keys := f.getCacheQueriesKeys(schema, bind, dbData, true)
-					f.addLocalCacheDeletes(localCache.code, keys...)
+					f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 				} else if f.engine.dataLoader != nil {
 					f.addToDataLoader(schema, id, nil)
 				}
@@ -693,12 +693,12 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 	}
 	if hasLocalCache {
 		if !lazy {
-			f.addLocalCacheSet(localCache.code, schema.getCacheKey(id), buildLocalCacheValue(entity.getORM().dBData))
+			f.addLocalCacheSet(localCache.config.GetCode(), schema.getCacheKey(id), buildLocalCacheValue(entity.getORM().dBData))
 		} else {
-			f.addLocalCacheDeletes(localCache.code, schema.getCacheKey(id))
+			f.addLocalCacheDeletes(localCache.config.GetCode(), schema.getCacheKey(id))
 		}
 		keys := f.getCacheQueriesKeys(schema, bind, entity.getORM().dBData, true)
-		f.addLocalCacheDeletes(localCache.code, keys...)
+		f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 	} else if !lazy && f.engine.dataLoader != nil {
 		f.addToDataLoader(schema, id, buildLocalCacheValue(entity.getORM().dBData))
 	}
@@ -744,11 +744,11 @@ func (f *flusher) updateCacheAfterUpdate(dbData []interface{}, entity Entity, bi
 	}
 	if hasLocalCache {
 		cacheKey := schema.getCacheKey(currentID)
-		f.addLocalCacheSet(localCache.code, cacheKey, buildLocalCacheValue(entity.getORM().dBData))
+		f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, buildLocalCacheValue(entity.getORM().dBData))
 		keys := f.getCacheQueriesKeys(schema, bind, dbData, false)
-		f.addLocalCacheDeletes(localCache.code, keys...)
+		f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 		keys = f.getCacheQueriesKeys(schema, bind, old, false)
-		f.addLocalCacheDeletes(localCache.code, keys...)
+		f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 	} else if f.engine.dataLoader != nil {
 		f.addToDataLoader(schema, currentID, buildLocalCacheValue(entity.getORM().dBData))
 	}

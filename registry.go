@@ -15,24 +15,23 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
-	"github.com/golang/groupcache/lru"
 	"github.com/jmoiron/sqlx"
 	"github.com/olivere/elastic/v7"
 )
 
 type Registry struct {
-	mysqlPools           map[string]MySQLPoolConfig
-	clickHouseClients    map[string]*ClickHouseConfig
-	localCacheContainers map[string]*LocalCacheConfig
-	redisPools           map[string]RedisPoolConfig
-	elasticServers       map[string]*ElasticConfig
-	entities             map[string]reflect.Type
-	redisSearchIndices   map[string]map[string]*RedisSearchIndex
-	elasticIndices       map[string]map[string]ElasticIndexDefinition
-	enums                map[string]Enum
-	defaultEncoding      string
-	redisStreamGroups    map[string]map[string]map[string]bool
-	redisStreamPools     map[string]string
+	mysqlPools         map[string]MySQLPoolConfig
+	clickHouseClients  map[string]*ClickHouseConfig
+	localCachePools    map[string]LocalCachePoolConfig
+	redisPools         map[string]RedisPoolConfig
+	elasticServers     map[string]*ElasticConfig
+	entities           map[string]reflect.Type
+	redisSearchIndices map[string]map[string]*RedisSearchIndex
+	elasticIndices     map[string]map[string]ElasticIndexDefinition
+	enums              map[string]Enum
+	defaultEncoding    string
+	redisStreamGroups  map[string]map[string]map[string]bool
+	redisStreamPools   map[string]string
 }
 
 func NewRegistry() *Registry {
@@ -48,8 +47,8 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 	l := len(r.entities)
 	registry.tableSchemas = make(map[reflect.Type]*tableSchema, l)
 	registry.entities = make(map[string]reflect.Type)
-	if registry.sqlClients == nil {
-		registry.sqlClients = make(map[string]MySQLPoolConfig)
+	if registry.mySQLServers == nil {
+		registry.mySQLServers = make(map[string]MySQLPoolConfig)
 	}
 	for k, v := range r.mysqlPools {
 		db, err := sql.Open("mysql", v.GetDataSourceURI())
@@ -100,7 +99,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		db.SetMaxIdleConns(maxLimit)
 		db.SetConnMaxLifetime(time.Duration(waitTimeout) * time.Second)
 		v.(*mySQLPoolConfig).client = db
-		registry.sqlClients[k] = v
+		registry.mySQLServers[k] = v
 	}
 	if registry.clickHouseClients == nil {
 		registry.clickHouseClients = make(map[string]*ClickHouseConfig)
@@ -114,11 +113,11 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		registry.clickHouseClients[k] = v
 	}
 
-	if registry.localCacheContainers == nil {
-		registry.localCacheContainers = make(map[string]*LocalCacheConfig)
+	if registry.localCacheServers == nil {
+		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
 	}
-	for k, v := range r.localCacheContainers {
-		registry.localCacheContainers[k] = v
+	for k, v := range r.localCachePools {
+		registry.localCacheServers[k] = v
 	}
 	if registry.redisServers == nil {
 		registry.redisServers = make(map[string]RedisPoolConfig)
@@ -268,10 +267,10 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	if r.localCacheContainers == nil {
-		r.localCacheContainers = make(map[string]*LocalCacheConfig)
+	if r.localCachePools == nil {
+		r.localCachePools = make(map[string]LocalCachePoolConfig)
 	}
-	r.localCacheContainers[dbCode] = &LocalCacheConfig{code: dbCode, lru: lru.New(size)}
+	r.localCachePools[dbCode] = &localCachePoolConfig{code: dbCode, limit: size}
 }
 
 func (r *Registry) RegisterRedis(address string, db int, code ...string) {

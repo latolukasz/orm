@@ -17,7 +17,7 @@ type HealthCheckError struct {
 }
 
 func (e *Engine) HealthCheck() (errors []HealthCheckError, warnings []HealthCheckError, valid []HealthCheckStep) {
-	for pool, def := range e.registry.sqlClients {
+	for pool, def := range e.registry.mySQLServers {
 		db := e.GetMysql(pool)
 		step := HealthCheckStep{
 			Name:        "query MySQL " + strings.ToUpper(pool),
