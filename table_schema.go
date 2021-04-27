@@ -266,7 +266,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		localCache = userValue
 	}
 	if localCache != "" {
-		_, has = registry.localCacheContainers[localCache]
+		_, has = registry.localCachePools[localCache]
 		if !has {
 			return nil, fmt.Errorf("local cache pool '%s' not found", localCache)
 		}
