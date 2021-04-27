@@ -21,7 +21,7 @@ func (e *Engine) HealthCheck() (errors []HealthCheckError, warnings []HealthChec
 		db := e.GetMysql(pool)
 		step := HealthCheckStep{
 			Name:        "query MySQL " + strings.ToUpper(pool),
-			Description: "being able to query MySQL " + def.databaseName + " database",
+			Description: "being able to query MySQL " + def.GetDatabase() + " database",
 		}
 		err := healthCheck(func() {
 			arg := 0

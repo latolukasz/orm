@@ -12,14 +12,52 @@ import (
 	"github.com/pkg/errors"
 )
 
-type DBConfig struct {
+type MySQLPoolConfig interface {
+	GetCode() string
+	GetDatabase() string
+	GetDataSourceURI() string
+	GetVersion() int
+	getClient() *sql.DB
+	getAutoincrement() uint64
+	getMaxConnections() int
+}
+
+type mySQLPoolConfig struct {
 	dataSourceName string
 	code           string
 	databaseName   string
-	db             *sql.DB
+	client         *sql.DB
 	autoincrement  uint64
 	version        int
 	maxConnections int
+}
+
+func (p *mySQLPoolConfig) GetCode() string {
+	return p.code
+}
+
+func (p *mySQLPoolConfig) GetDatabase() string {
+	return p.databaseName
+}
+
+func (p *mySQLPoolConfig) GetDataSourceURI() string {
+	return p.dataSourceName
+}
+
+func (p *mySQLPoolConfig) GetVersion() int {
+	return p.version
+}
+
+func (p *mySQLPoolConfig) getClient() *sql.DB {
+	return p.client
+}
+
+func (p *mySQLPoolConfig) getAutoincrement() uint64 {
+	return p.autoincrement
+}
+
+func (p *mySQLPoolConfig) getMaxConnections() int {
+	return p.maxConnections
 }
 
 type ExecResult interface {
@@ -187,19 +225,12 @@ type SQLRow interface {
 type DB struct {
 	engine        *Engine
 	client        sqlClient
-	code          string
-	databaseName  string
-	autoincrement uint64
-	version       int
+	config        MySQLPoolConfig
 	inTransaction bool
 }
 
-func (db *DB) GetDatabaseName() string {
-	return db.databaseName
-}
-
-func (db *DB) GetPoolCode() string {
-	return db.code
+func (db *DB) GetPoolConfig() MySQLPoolConfig {
+	return db.config
 }
 
 func (db *DB) Begin() {
@@ -311,8 +342,8 @@ func (db *DB) fillLogFields(message string, start time.Time, typeCode string, qu
 	now := time.Now()
 	stop := time.Since(start).Microseconds()
 	e := db.engine.queryLoggers[QueryLoggerSourceDB].log.WithFields(log2.Fields{
-		"pool":         db.code,
-		"db":           db.databaseName,
+		"pool":         db.GetPoolConfig().GetCode(),
+		"db":           db.GetPoolConfig().GetDatabase(),
 		"Query":        query,
 		"microseconds": stop,
 		"target":       "mysql",

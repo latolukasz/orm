@@ -13,6 +13,7 @@ type ValidatedRegistry interface {
 	GetSourceRegistry() *Registry
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
+	GetMySQLPools() map[string]MySQLPoolConfig
 	GetRedisPools() map[string]RedisPoolConfig
 	GetRedisSearchIndices() map[string][]*RedisSearchIndex
 	GetEntities() map[string]reflect.Type
@@ -23,7 +24,7 @@ type validatedRegistry struct {
 	tableSchemas         map[reflect.Type]*tableSchema
 	entities             map[string]reflect.Type
 	redisSearchIndexes   map[string]map[string]*RedisSearchIndex
-	sqlClients           map[string]*DBConfig
+	sqlClients           map[string]MySQLPoolConfig
 	clickHouseClients    map[string]*ClickHouseConfig
 	localCacheContainers map[string]*LocalCacheConfig
 	redisServers         map[string]RedisPoolConfig
@@ -66,6 +67,10 @@ func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {
 		}
 	}
 	return res
+}
+
+func (r *validatedRegistry) GetMySQLPools() map[string]MySQLPoolConfig {
+	return r.sqlClients
 }
 
 func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {

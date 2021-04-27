@@ -156,12 +156,11 @@ func (e *Engine) GetMysql(code ...string) *DB {
 	defer e.dbsMutex.Unlock()
 	db, has := e.dbs[dbCode]
 	if !has {
-		val, has := e.registry.sqlClients[dbCode]
+		config, has := e.registry.sqlClients[dbCode]
 		if !has {
 			panic(fmt.Errorf("unregistered mysql pool '%s'", dbCode))
 		}
-		db = &DB{engine: e, code: val.code, databaseName: val.databaseName,
-			client: &standardSQLClient{db: val.db}, autoincrement: val.autoincrement, version: val.version}
+		db = &DB{engine: e, config: config, client: &standardSQLClient{db: config.getClient()}}
 		if e.dbs == nil {
 			e.dbs = map[string]*DB{dbCode: db}
 		} else {

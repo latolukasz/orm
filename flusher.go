@@ -168,7 +168,7 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 		dbPools = make(map[string]*DB)
 		for _, entity := range f.trackedEntities {
 			db := entity.getORM().tableSchema.GetMysql(f.engine)
-			dbPools[db.code] = db
+			dbPools[db.GetPoolConfig().GetCode()] = db
 		}
 		for _, db := range dbPools {
 			db.Begin()
@@ -420,7 +420,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				if dirtyEvent != nil {
 					dirtyEvents = append(dirtyEvents, dirtyEvent)
 				}
-				f.fillLazyQuery(db.GetPoolCode(), sql, nil, logEvents, dirtyEvents)
+				f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, nil, logEvents, dirtyEvents)
 			} else {
 				if f.updateSQLs == nil {
 					f.updateSQLs = make(map[string][]string)
@@ -500,7 +500,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					dirtyEvents = append(dirtyEvents, dirtyEvent)
 				}
 			}
-			f.fillLazyQuery(db.GetPoolCode(), sql, insertArguments[typeOf], logEvents, dirtyEvents)
+			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, insertArguments[typeOf], logEvents, dirtyEvents)
 		} else {
 			res := db.Exec(sql, insertArguments[typeOf]...)
 			id := res.LastInsertId()
@@ -513,7 +513,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					orm.idElem.SetUint(id)
 					orm.dBData[0] = id
 					insertedID = id
-					id = id + db.autoincrement
+					id = id + db.GetPoolConfig().getAutoincrement()
 				}
 				f.updateCacheForInserted(entity, lazy, insertedID, bind)
 			}
@@ -555,7 +555,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			sql := "DELETE FROM `" + schema.tableName + "` WHERE " + NewWhere("`ID` IN ?", ids).String()
 			db := schema.GetMysql(f.engine)
 			if lazy {
-				f.fillLazyQuery(db.GetPoolCode(), sql, ids, logEvents, dirtyEvents)
+				f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, ids, logEvents, dirtyEvents)
 			} else {
 				usage := schema.GetUsage(f.engine.registry)
 				if len(usage) > 0 {

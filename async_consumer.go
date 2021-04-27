@@ -167,14 +167,14 @@ func (r *AsyncConsumer) handleQueries(engine *Engine, validMap map[string]interf
 			if has {
 				for _, row := range logEvents.([]interface{}) {
 					row.(map[string]interface{})["ID"] = id
-					id += db.autoincrement
+					id += db.GetPoolConfig().getAutoincrement()
 				}
 			}
 			dirtyEvents, has := validMap["d"]
 			if has {
 				for _, row := range dirtyEvents.([]interface{}) {
 					row.(map[string]interface{})["Event"].(map[string]interface{})["I"] = id
-					id += db.autoincrement
+					id += db.GetPoolConfig().getAutoincrement()
 				}
 			}
 		} else {

@@ -21,10 +21,10 @@ import (
 )
 
 type Registry struct {
-	sqlClients           map[string]*DBConfig
+	mysqlPools           map[string]MySQLPoolConfig
 	clickHouseClients    map[string]*ClickHouseConfig
 	localCacheContainers map[string]*LocalCacheConfig
-	redisServers         map[string]RedisPoolConfig
+	redisPools           map[string]RedisPoolConfig
 	elasticServers       map[string]*ElasticConfig
 	entities             map[string]reflect.Type
 	redisSearchIndices   map[string]map[string]*RedisSearchIndex
@@ -49,10 +49,10 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 	registry.tableSchemas = make(map[reflect.Type]*tableSchema, l)
 	registry.entities = make(map[string]reflect.Type)
 	if registry.sqlClients == nil {
-		registry.sqlClients = make(map[string]*DBConfig)
+		registry.sqlClients = make(map[string]MySQLPoolConfig)
 	}
-	for k, v := range r.sqlClients {
-		db, err := sql.Open("mysql", v.dataSourceName)
+	for k, v := range r.mysqlPools {
+		db, err := sql.Open("mysql", v.GetDataSourceURI())
 		if err != nil {
 			return nil, err
 		}
@@ -61,7 +61,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		if err != nil {
 			return nil, err
 		}
-		v.version, _ = strconv.Atoi(strings.Split(version, ".")[0])
+		v.(*mySQLPoolConfig).version, _ = strconv.Atoi(strings.Split(version, ".")[0])
 
 		var autoincrement uint64
 		var maxConnections int
@@ -70,7 +70,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		if err != nil {
 			return nil, err
 		}
-		v.autoincrement = autoincrement
+		v.(*mySQLPoolConfig).autoincrement = autoincrement
 
 		err = db.QueryRow("SHOW VARIABLES LIKE 'max_connections'").Scan(&skip, &maxConnections)
 		if err != nil {
@@ -85,7 +85,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		if maxConnections == 0 {
 			maxConnections = 1
 		}
-		maxLimit := v.maxConnections
+		maxLimit := v.getMaxConnections()
 		if maxLimit == 0 {
 			maxLimit = 100
 		}
@@ -99,7 +99,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		db.SetMaxOpenConns(maxLimit)
 		db.SetMaxIdleConns(maxLimit)
 		db.SetConnMaxLifetime(time.Duration(waitTimeout) * time.Second)
-		v.db = db
+		v.(*mySQLPoolConfig).client = db
 		registry.sqlClients[k] = v
 	}
 	if registry.clickHouseClients == nil {
@@ -123,7 +123,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 	if registry.redisServers == nil {
 		registry.redisServers = make(map[string]RedisPoolConfig)
 	}
-	for k, v := range r.redisServers {
+	for k, v := range r.redisPools {
 		registry.redisServers[k] = v
 	}
 	if registry.elasticServers == nil {
@@ -323,9 +323,9 @@ func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
 		and = "&"
 	}
 	dataSourceName += and + "multiStatements=true"
-	db := &DBConfig{code: dbCode, dataSourceName: dataSourceName}
-	if r.sqlClients == nil {
-		r.sqlClients = make(map[string]*DBConfig)
+	db := &mySQLPoolConfig{code: dbCode, dataSourceName: dataSourceName}
+	if r.mysqlPools == nil {
+		r.mysqlPools = make(map[string]MySQLPoolConfig)
 	}
 	parts := strings.Split(dataSourceName, "/")
 	dbName := strings.Split(parts[len(parts)-1], "?")[0]
@@ -341,7 +341,7 @@ func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
 		db.dataSourceName = dataSourceName
 	}
 	db.databaseName = dbName
-	r.sqlClients[dbCode] = db
+	r.mysqlPools[dbCode] = db
 }
 
 func (r *Registry) RegisterClickHouse(url string, code ...string) {
@@ -383,10 +383,10 @@ func (r *Registry) registerRedis(client *redis.Client, code []string, address st
 		dbCode = code[0]
 	}
 	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, db: db}
-	if r.redisServers == nil {
-		r.redisServers = make(map[string]RedisPoolConfig)
+	if r.redisPools == nil {
+		r.redisPools = make(map[string]RedisPoolConfig)
 	}
-	r.redisServers[dbCode] = redisCache
+	r.redisPools[dbCode] = redisCache
 }
 
 type RedisPoolConfig interface {

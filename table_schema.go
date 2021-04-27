@@ -153,13 +153,13 @@ func (tableSchema *tableSchema) GetType() reflect.Type {
 
 func (tableSchema *tableSchema) DropTable(engine *Engine) {
 	pool := tableSchema.GetMysql(engine)
-	pool.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetDatabaseName(), tableSchema.tableName))
+	pool.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
 func (tableSchema *tableSchema) TruncateTable(engine *Engine) {
 	pool := tableSchema.GetMysql(engine)
-	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetDatabaseName(), tableSchema.tableName))
-	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetDatabaseName(), tableSchema.tableName))
+	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
+	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
 func (tableSchema *tableSchema) UpdateSchema(engine *Engine) {
@@ -175,8 +175,8 @@ func (tableSchema *tableSchema) UpdateSchema(engine *Engine) {
 func (tableSchema *tableSchema) UpdateSchemaAndTruncateTable(engine *Engine) {
 	tableSchema.UpdateSchema(engine)
 	pool := tableSchema.GetMysql(engine)
-	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetDatabaseName(), tableSchema.tableName))
-	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetDatabaseName(), tableSchema.tableName))
+	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
+	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
 func (tableSchema *tableSchema) GetMysql(engine *Engine) *DB {
@@ -247,7 +247,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	if !has {
 		mysql = "default"
 	}
-	_, has = registry.sqlClients[mysql]
+	_, has = registry.mysqlPools[mysql]
 	if !has {
 		return nil, fmt.Errorf("mysql pool '%s' not found", mysql)
 	}
@@ -279,7 +279,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		redisCache = userValue
 	}
 	if redisCache != "" {
-		_, has = registry.redisServers[redisCache]
+		_, has = registry.mysqlPools[redisCache]
 		if !has {
 			return nil, fmt.Errorf("redis pool '%s' not found", redisCache)
 		}
@@ -292,7 +292,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		redisSearch = userValue
 	}
 	if redisSearch != "" {
-		_, has = registry.redisServers[redisSearch]
+		_, has = registry.redisPools[redisSearch]
 		if !has {
 			return nil, fmt.Errorf("redis pool '%s' not found", redisSearch)
 		}

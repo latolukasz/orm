@@ -78,8 +78,8 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, "John", name)
 	def()
 
-	assert.Equal(t, "default", db.GetPoolCode())
-	assert.Equal(t, "test", db.GetDatabaseName())
+	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
+	assert.Equal(t, "test", db.GetPoolConfig().GetDatabase())
 }
 
 func TestDBErrors(t *testing.T) {

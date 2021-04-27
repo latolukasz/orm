@@ -52,7 +52,7 @@ func getAlters(engine *Engine) (alters []Alter) {
 
 	if engine.registry.sqlClients != nil {
 		for _, pool := range engine.registry.sqlClients {
-			poolName := pool.code
+			poolName := pool.GetCode()
 			tablesInDB[poolName] = make(map[string]bool)
 			pool := engine.GetMysql(poolName)
 			tables := getAllTables(pool.client)
@@ -73,16 +73,16 @@ func getAlters(engine *Engine) (alters []Alter) {
 				var tableDef string
 				hasLogTable := logPool.QueryRow(NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableSchema.logTableName)), &tableDef)
 				var logTableSchema string
-				if logPool.version == 5 {
+				if logPool.GetPoolConfig().GetVersion() == 5 {
 					logTableSchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint(11) unsigned NOT NULL AUTO_INCREMENT,\n  "+
 						"`entity_id` int(10) unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 						"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-						logPool.databaseName, tableSchema.logTableName)
+						logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName)
 				} else {
 					logTableSchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
 						"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 						"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-						logPool.databaseName, tableSchema.logTableName, defaultCollate)
+						logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName, defaultCollate)
 				}
 
 				if !hasLogTable {
@@ -90,12 +90,12 @@ func getAlters(engine *Engine) (alters []Alter) {
 				} else {
 					var skip, createTableDB string
 					logPool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableSchema.logTableName)), &skip, &createTableDB)
-					createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", logPool.databaseName), 1) + ";"
+					createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", logPool.GetPoolConfig().GetDatabase()), 1) + ";"
 					re := regexp.MustCompile(" AUTO_INCREMENT=[0-9]+ ")
 					createTableDB = re.ReplaceAllString(createTableDB, " ")
 					if logTableSchema != createTableDB {
 						isEmpty := isTableEmptyInPool(engine, tableSchema.logPoolName, tableSchema.logTableName)
-						dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", logPool.databaseName, tableSchema.logTableName)
+						dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName)
 						alters = append(alters, Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: tableSchema.logPoolName})
 						alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName})
 					}
@@ -118,7 +118,7 @@ func getAlters(engine *Engine) (alters []Alter) {
 					alters = append(alters, Alter{SQL: dropForeignKeyAlter, Safe: true, Pool: poolName})
 				}
 				pool := engine.GetMysql(poolName)
-				dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetDatabaseName(), tableName)
+				dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 				isEmpty := isTableEmptyInPool(engine, poolName, tableName)
 				alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
 			}
@@ -184,8 +184,8 @@ func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alter
 	var newIndexes []string
 	var newForeignKeys []string
 	pool := engine.GetMysql(tableSchema.mysqlPoolName)
-	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetDatabaseName(), tableSchema.tableName)
-	createTableForeignKeysSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetDatabaseName(), tableSchema.tableName)
+	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
+	createTableForeignKeysSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
 	columns[0][1] += " AUTO_INCREMENT"
 	for _, value := range columns {
 		createTableSQL += fmt.Sprintf("  %s,\n", value[1])
@@ -207,7 +207,7 @@ func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alter
 
 	createTableSQL += "  PRIMARY KEY (`ID`)\n"
 	collate := ""
-	if pool.version == 8 {
+	if pool.GetPoolConfig().GetVersion() == 8 {
 		collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + defaultCollate
 	}
 	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
@@ -259,7 +259,7 @@ func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alter
 	defer def()
 	for results.Next() {
 		var row indexDB
-		if pool.version == 5 {
+		if pool.GetPoolConfig().GetVersion() == 5 {
 			results.Scan(&row.Skip, &row.NonUnique, &row.KeyName, &row.Seq, &row.Column, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip)
 		} else {
 			results.Scan(&row.Skip, &row.NonUnique, &row.KeyName, &row.Seq, &row.Column, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip, &row.Skip)
@@ -394,15 +394,15 @@ OUTER:
 		return
 	}
 
-	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetDatabaseName(), tableSchema.tableName)
+	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
 	newAlters := make([]string, 0)
 	comments := make([]string, 0)
 	hasAlterAddForeignKey := false
 	hasAlterRemoveForeignKey := false
 
-	alterSQLAddForeignKey := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetDatabaseName(), tableSchema.tableName)
+	alterSQLAddForeignKey := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
 	newAltersAddForeignKey := make([]string, 0)
-	alterSQLRemoveForeignKey := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetDatabaseName(), tableSchema.tableName)
+	alterSQLRemoveForeignKey := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
 	newAltersRemoveForeignKey := make([]string, 0)
 
 	for _, value := range droppedColumns {
@@ -481,7 +481,7 @@ OUTER:
 		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: tableSchema.mysqlPoolName})
 	} else if hasAlterEngineCharset {
 		collate := ""
-		if pool.version == 8 {
+		if pool.GetPoolConfig().GetVersion() == 8 {
 			collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + defaultCollate
 		}
 		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
@@ -506,7 +506,7 @@ func getForeignKeys(engine *Engine, createTableDB string, tableName string, pool
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL " +
 		"AND TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'"
 	pool := engine.GetMysql(poolName)
-	results, def := pool.Query(fmt.Sprintf(query, pool.GetDatabaseName(), tableName))
+	results, def := pool.Query(fmt.Sprintf(query, pool.GetPoolConfig().GetDatabase(), tableName))
 	defer def()
 	for results.Next() {
 		var row foreignKeyDB
@@ -538,7 +538,7 @@ func getDropForeignKeysAlter(engine *Engine, tableName string, poolName string) 
 	var createTableDB string
 	pool := engine.GetMysql(poolName)
 	pool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
-	alter := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetDatabaseName(), tableName)
+	alter := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableName)
 	foreignKeysDB := getForeignKeys(engine, createTableDB, tableName, poolName)
 	if len(foreignKeysDB) == 0 {
 		return ""
@@ -578,7 +578,7 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	columnName := prefix + field.Name
 
 	attributes := schema.tags[columnName]
-	version := schema.GetMysql(engine).version
+	version := schema.GetMysql(engine).GetPoolConfig().GetVersion()
 
 	_, has := attributes["ignore"]
 	if has {
@@ -602,8 +602,8 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 					}
 					pool := refOneSchema.GetMysql(engine)
 					foreignKey := &foreignIndex{Column: prefix + field.Name, Table: refOneSchema.tableName,
-						ParentDatabase: pool.GetDatabaseName(), OnDelete: onDelete}
-					name := fmt.Sprintf("%s:%s:%s", pool.GetDatabaseName(), schema.tableName, prefix+field.Name)
+						ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: onDelete}
+					name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), schema.tableName, prefix+field.Name)
 					foreignKeys[name] = foreignKey
 				}
 			}
