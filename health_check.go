@@ -33,17 +33,17 @@ func (e *Engine) HealthCheck() (errors []HealthCheckError, warnings []HealthChec
 			valid = append(valid, step)
 		}
 	}
-	usedAddreses := make(map[string]bool)
+	usedAddresses := make(map[string]bool)
 	for pool, def := range e.registry.redisServers {
-		_, has := usedAddreses[def.address]
+		_, has := usedAddresses[def.GetAddress()]
 		if has {
 			continue
 		}
-		usedAddreses[def.address] = true
+		usedAddresses[def.GetAddress()] = true
 		r := e.GetRedis(pool)
 		step := HealthCheckStep{
 			Name:        "query Redis " + strings.ToUpper(pool),
-			Description: "being able to query Redis " + def.address,
+			Description: "being able to query Redis " + def.GetAddress(),
 		}
 		err := healthCheck(func() {
 			r.Set("_orm_health_check", "ok", 10)
@@ -55,7 +55,7 @@ func (e *Engine) HealthCheck() (errors []HealthCheckError, warnings []HealthChec
 
 			step := HealthCheckStep{
 				Name:        "memory usage in Redis " + strings.ToUpper(pool),
-				Description: "checking % of used memory in " + def.address,
+				Description: "checking % of used memory in " + def.GetAddress(),
 			}
 			err := healthCheck(func() {
 				info := r.Info("memory")

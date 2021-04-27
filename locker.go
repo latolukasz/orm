@@ -36,7 +36,7 @@ func (r *RedisCache) GetLocker() *Locker {
 	r.engine.redisMutex.Lock()
 	defer r.engine.redisMutex.Unlock()
 	lockerClient := &standardLockerClient{client: redislock.New(r.client)}
-	r.locker = &Locker{locker: lockerClient, engine: r.engine, code: r.code}
+	r.locker = &Locker{locker: lockerClient, engine: r.engine, code: r.config.GetCode()}
 	return r.locker
 }
 

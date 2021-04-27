@@ -212,15 +212,15 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 	defer e.redisMutex.Unlock()
 	cache, has := e.redis[dbCode]
 	if !has {
-		val, has := e.registry.redisServers[dbCode]
+		config, has := e.registry.redisServers[dbCode]
 		if !has {
 			panic(fmt.Errorf("unregistered redis cache pool '%s'", dbCode))
 		}
-		client := val.client
+		client := config.getClient()
 		if client != nil {
 			client = client.WithContext(e.context)
 		}
-		cache = &RedisCache{engine: e, code: val.code, client: client, ctx: context.Background()}
+		cache = &RedisCache{engine: e, config: config, client: client, ctx: context.Background()}
 		if e.redis == nil {
 			e.redis = map[string]*RedisCache{dbCode: cache}
 		} else {
@@ -239,16 +239,16 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 	defer e.redisSearchMutex.Unlock()
 	cache, has := e.redisSearch[dbCode]
 	if !has {
-		val, has := e.registry.redisServers[dbCode]
+		config, has := e.registry.redisServers[dbCode]
 		if !has {
 			panic(fmt.Errorf("unregistered redis cache pool '%s'", dbCode))
 		}
-		client := val.client
+		client := config.getClient()
 		if client != nil {
 			client = client.WithContext(e.context)
 		}
-		redisClient := &RedisCache{engine: e, code: val.code, client: client, ctx: context.Background()}
-		cache = &RedisSearch{engine: e, code: val.code, redis: redisClient, ctx: context.Background()}
+		redisClient := &RedisCache{engine: e, config: config, client: client, ctx: context.Background()}
+		cache = &RedisSearch{engine: e, redis: redisClient, ctx: context.Background()}
 		if e.redisSearch == nil {
 			e.redisSearch = map[string]*RedisSearch{dbCode: cache}
 		} else {

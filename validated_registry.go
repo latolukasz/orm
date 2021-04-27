@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"sort"
-	"strconv"
 )
 
 type ValidatedRegistry interface {
@@ -14,9 +12,8 @@ type ValidatedRegistry interface {
 	GetTableSchemaForEntity(entity Entity) TableSchema
 	GetSourceRegistry() *Registry
 	GetEnum(code string) Enum
-	GetEnums() map[string]Enum
 	GetRedisStreams() map[string]map[string][]string
-	GetRedisPools(groupByAddress bool, db ...int) []string
+	GetRedisPools() map[string]RedisPoolConfig
 	GetRedisSearchIndices() map[string][]*RedisSearchIndex
 	GetEntities() map[string]reflect.Type
 }
@@ -29,7 +26,7 @@ type validatedRegistry struct {
 	sqlClients           map[string]*DBConfig
 	clickHouseClients    map[string]*ClickHouseConfig
 	localCacheContainers map[string]*LocalCacheConfig
-	redisServers         map[string]*RedisCacheConfig
+	redisServers         map[string]RedisPoolConfig
 	redisStreamGroups    map[string]map[string]map[string]bool
 	redisStreamPools     map[string]string
 	elasticServers       map[string]*ElasticConfig
@@ -42,10 +39,6 @@ func (r *validatedRegistry) GetSourceRegistry() *Registry {
 
 func (r *validatedRegistry) GetEntities() map[string]reflect.Type {
 	return r.entities
-}
-
-func (r *validatedRegistry) GetEnums() map[string]Enum {
-	return r.enums
 }
 
 func (r *validatedRegistry) GetRedisSearchIndices() map[string][]*RedisSearchIndex {
@@ -75,24 +68,8 @@ func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {
 	return res
 }
 
-func (r *validatedRegistry) GetRedisPools(groupByAddress bool, db ...int) []string {
-	pools := make([]string, 0)
-	groupedByAddress := make(map[string][]string)
-	for code, v := range r.redisServers {
-		if len(db) > 0 && v.db != db[0] {
-			continue
-		}
-		key := v.address
-		if !groupByAddress {
-			key += strconv.Itoa(v.db)
-		}
-		groupedByAddress[key] = append(groupedByAddress[key], code)
-	}
-	for _, codes := range groupedByAddress {
-		sort.Strings(codes)
-		pools = append(pools, codes[0])
-	}
-	return pools
+func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
+	return r.redisServers
 }
 
 func (r *validatedRegistry) CreateEngine() *Engine {

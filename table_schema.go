@@ -23,7 +23,6 @@ type cachedQueryDefinition struct {
 
 type Enum interface {
 	GetFields() []string
-	GetMapping() map[string]string
 	GetDefault() string
 	Has(value string) bool
 }
@@ -36,10 +35,6 @@ type enum struct {
 
 func (enum *enum) GetFields() []string {
 	return enum.fields
-}
-
-func (enum *enum) GetMapping() map[string]string {
-	return enum.mapping
 }
 
 func (enum *enum) GetDefault() string {

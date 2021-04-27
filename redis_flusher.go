@@ -64,10 +64,10 @@ func (f *redisFlusher) PublishMap(stream string, event EventAsMap) {
 		f.pipelines = make(map[string]*redisFlusherCommands)
 	}
 	r := getRedisForStream(f.engine, stream)
-	commands, has := f.pipelines[r.code]
+	commands, has := f.pipelines[r.config.GetCode()]
 	if !has {
 		commands = &redisFlusherCommands{events: map[string][]EventAsMap{stream: {event}}, diffs: map[int]bool{commandXAdd: true}}
-		f.pipelines[r.code] = commands
+		f.pipelines[r.config.GetCode()] = commands
 		return
 	}
 	commands.diffs[commandXAdd] = true

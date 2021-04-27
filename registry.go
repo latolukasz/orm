@@ -24,7 +24,7 @@ type Registry struct {
 	sqlClients           map[string]*DBConfig
 	clickHouseClients    map[string]*ClickHouseConfig
 	localCacheContainers map[string]*LocalCacheConfig
-	redisServers         map[string]*RedisCacheConfig
+	redisServers         map[string]RedisPoolConfig
 	elasticServers       map[string]*ElasticConfig
 	entities             map[string]reflect.Type
 	redisSearchIndices   map[string]map[string]*RedisSearchIndex
@@ -121,7 +121,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		registry.localCacheContainers[k] = v
 	}
 	if registry.redisServers == nil {
-		registry.redisServers = make(map[string]*RedisCacheConfig)
+		registry.redisServers = make(map[string]RedisPoolConfig)
 	}
 	for k, v := range r.redisServers {
 		registry.redisServers[k] = v
@@ -382,18 +382,41 @@ func (r *Registry) registerRedis(client *redis.Client, code []string, address st
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	redisCache := &RedisCacheConfig{code: dbCode, client: client, address: address, db: db}
+	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, db: db}
 	if r.redisServers == nil {
-		r.redisServers = make(map[string]*RedisCacheConfig)
+		r.redisServers = make(map[string]RedisPoolConfig)
 	}
 	r.redisServers[dbCode] = redisCache
 }
 
-type RedisCacheConfig struct {
+type RedisPoolConfig interface {
+	GetCode() string
+	GetDB() int
+	GetAddress() string
+	getClient() *redis.Client
+}
+
+type redisCacheConfig struct {
 	code    string
 	client  *redis.Client
 	db      int
 	address string
+}
+
+func (p *redisCacheConfig) GetCode() string {
+	return p.code
+}
+
+func (p *redisCacheConfig) GetDB() int {
+	return p.db
+}
+
+func (p *redisCacheConfig) GetAddress() string {
+	return p.address
+}
+
+func (p *redisCacheConfig) getClient() *redis.Client {
+	return p.client
 }
 
 type ElasticConfig struct {

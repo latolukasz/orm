@@ -16,10 +16,10 @@ import (
 type RedisCache struct {
 	engine  *Engine
 	ctx     context.Context
-	code    string
 	client  *redis.Client
 	limiter *redis_rate.Limiter
 	locker  *Locker
+	config  RedisPoolConfig
 }
 
 type GetSetProvider func() interface{}
@@ -52,7 +52,7 @@ func (r *RedisCache) GetSet(key string, ttlSeconds int, provider GetSetProvider)
 }
 
 func (r *RedisCache) PipeLine() *RedisPipeLine {
-	return &RedisPipeLine{ctx: r.client.Context(), pool: r.code, engine: r.engine, pipeLine: r.client.Pipeline()}
+	return &RedisPipeLine{ctx: r.client.Context(), pool: r.config.GetCode(), engine: r.engine, pipeLine: r.client.Pipeline()}
 }
 
 func (r *RedisCache) Info(section ...string) string {
@@ -64,6 +64,10 @@ func (r *RedisCache) Info(section ...string) string {
 			map[string]interface{}{"section": section}, nil)
 	}
 	return val
+}
+
+func (r *RedisCache) GetPoolConfig() RedisPoolConfig {
+	return r.config
 }
 
 func (r *RedisCache) Get(key string) (value string, has bool) {
@@ -813,7 +817,7 @@ func (r *RedisCache) fillLogFields(message string, start time.Time, operation st
 	e := r.engine.queryLoggers[QueryLoggerSourceRedis].log.WithFields(apexLog.Fields{
 		"microseconds": stop,
 		"operation":    operation,
-		"pool":         r.code,
+		"pool":         r.config.GetCode(),
 		"keys":         keys,
 		"target":       "redis",
 		"started":      start.UnixNano(),
@@ -836,7 +840,7 @@ func (r *RedisCache) fillStreamsLogFields(message string, start time.Time, opera
 	e := r.engine.queryLoggers[QueryLoggerSourceStreams].log.WithFields(apexLog.Fields{
 		"microseconds": stop,
 		"operation":    operation,
-		"pool":         r.code,
+		"pool":         r.config,
 		"target":       "redis",
 		"started":      start.UnixNano(),
 		"finished":     now.UnixNano(),

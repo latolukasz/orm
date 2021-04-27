@@ -611,9 +611,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					f.addToDataLoader(schema, id, nil)
 				}
 				if hasRedis {
-					f.getRedisFlusher().Del(redisCache.code, schema.getCacheKey(id))
+					f.getRedisFlusher().Del(redisCache.config.GetCode(), schema.getCacheKey(id))
 					keys := f.getCacheQueriesKeys(schema, bind, dbData, true)
-					f.getRedisFlusher().Del(redisCache.code, keys...)
+					f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 				}
 				if schema.hasSearchCache {
 					key := schema.redisSearchPrefix + strconv.FormatUint(id, 10)
@@ -704,9 +704,9 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 	}
 	redisCache, hasRedis := schema.GetRedisCache(f.engine)
 	if hasRedis {
-		f.getRedisFlusher().Del(redisCache.code, schema.getCacheKey(id))
+		f.getRedisFlusher().Del(redisCache.config.GetCode(), schema.getCacheKey(id))
 		keys := f.getCacheQueriesKeys(schema, bind, entity.getORM().dBData, true)
-		f.getRedisFlusher().Del(redisCache.code, keys...)
+		f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 	}
 	f.fillRedisSearchFromBind(schema, bind, id)
 	return f.addToLogQueue(schema, id, nil, bind, entity.getORM().logMeta, lazy), f.addDirtyQueues(bind, schema, id, "i", lazy)
@@ -754,11 +754,11 @@ func (f *flusher) updateCacheAfterUpdate(dbData []interface{}, entity Entity, bi
 	}
 	if hasRedis {
 		redisFlusher := f.getRedisFlusher()
-		redisFlusher.Del(redisCache.code, schema.getCacheKey(currentID))
+		redisFlusher.Del(redisCache.config.GetCode(), schema.getCacheKey(currentID))
 		keys := f.getCacheQueriesKeys(schema, bind, dbData, false)
-		redisFlusher.Del(redisCache.code, keys...)
+		redisFlusher.Del(redisCache.config.GetCode(), keys...)
 		keys = f.getCacheQueriesKeys(schema, bind, old, false)
-		redisFlusher.Del(redisCache.code, keys...)
+		redisFlusher.Del(redisCache.config.GetCode(), keys...)
 	}
 	f.fillRedisSearchFromBind(schema, bind, entity.GetID())
 	dirtyValue := f.addDirtyQueues(bind, schema, currentID, "u", lazy)

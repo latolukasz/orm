@@ -317,7 +317,7 @@ func (r *eventsConsumer) Consume(ctx context.Context, count int, blocking bool, 
 }
 
 func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler) bool {
-	uniqueLockKey := r.group + "_" + r.name + "_" + r.redis.code
+	uniqueLockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
 	runningKey := uniqueLockKey + "_running"
 	locker := r.redis.GetLocker()
 	nr := 0
@@ -619,7 +619,7 @@ func (r *eventsConsumer) incrementID(id string) string {
 }
 
 func (r *eventsConsumer) garbageCollector(engine *Engine, force bool) {
-	redisGarbage := engine.GetRedis(r.redis.code)
+	redisGarbage := engine.GetRedis(r.redis.config.GetCode())
 	if !force {
 		r.consumedMutex.Lock()
 		if r.consumed == 0 {
@@ -629,7 +629,7 @@ func (r *eventsConsumer) garbageCollector(engine *Engine, force bool) {
 		r.consumed = 0
 		r.consumedMutex.Unlock()
 	}
-	def := engine.registry.redisStreamGroups[redisGarbage.code]
+	def := engine.registry.redisStreamGroups[redisGarbage.config.GetCode()]
 	for _, stream := range r.streams {
 		info := redisGarbage.XInfoGroups(stream)
 		ids := make(map[string][]int64)

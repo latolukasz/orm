@@ -27,7 +27,6 @@ const redisSearchForceIndexKeyPrefix = "_orm_force_index"
 type RedisSearch struct {
 	engine *Engine
 	ctx    context.Context
-	code   string
 	redis  *RedisCache
 }
 
@@ -530,9 +529,9 @@ func (q *RedisSearchQuery) SummarizeOptions(separator string, frags, len int) *R
 }
 
 func (r *RedisSearch) ForceReindex(index string) {
-	def, has := r.engine.registry.redisSearchIndexes[r.code][index]
+	def, has := r.engine.registry.redisSearchIndexes[r.redis.config.GetCode()][index]
 	if !has {
-		panic(errors.Errorf("unknown index %s in pool %s", index, r.code))
+		panic(errors.Errorf("unknown index %s in pool %s", index, r.redis.config.GetCode()))
 	}
 	indexID := time.Now().UnixNano()
 	indexIDString := strconv.FormatInt(indexID, 10)
@@ -1030,8 +1029,12 @@ func EscapeRedisSearchString(val string) string {
 
 func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 	alters = make([]RedisSearchIndexAlter, 0)
-	for _, poolName := range engine.GetRegistry().GetRedisPools(false, 0) {
+	for _, pool := range engine.GetRegistry().GetRedisPools() {
+		poolName := pool.GetCode()
 		r := engine.GetRedis(poolName)
+		if r.GetPoolConfig().GetDB() > 0 {
+			continue
+		}
 		info := r.Info("Modules")
 		lines := strings.Split(info, "\r\n")
 		hasModule := false
@@ -1195,7 +1198,7 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 func (r *RedisSearch) addAlter(index *RedisSearchIndex, documents uint64, changes []string) RedisSearchIndexAlter {
 	query := fmt.Sprintf("%v", r.createIndexArgs(index, index.Name))[1:]
 	query = query[0 : len(query)-1]
-	alter := RedisSearchIndexAlter{Pool: r.code, Query: query, Changes: changes, search: r}
+	alter := RedisSearchIndexAlter{Pool: r.redis.config.GetCode(), Query: query, Changes: changes, search: r}
 	indexToAdd := index.Name
 	alter.Execute = func() {
 		alter.search.ForceReindex(indexToAdd)
@@ -1210,7 +1213,7 @@ func (r *RedisSearch) fillLogFields(message string, start time.Time, operation s
 	e := r.engine.queryLoggers[QueryLoggerSourceRedis].log.WithFields(apexLog.Fields{
 		"microseconds": stop,
 		"operation":    operation,
-		"pool":         r.code,
+		"pool":         r.redis.config.GetCode(),
 		"keys":         keys,
 		"target":       "redis",
 		"started":      start.Unix(),

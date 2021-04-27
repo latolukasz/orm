@@ -30,8 +30,6 @@ func TestValidatedRegistry(t *testing.T) {
 	entities := validated.GetEntities()
 	assert.Len(t, entities, 1)
 	assert.Equal(t, reflect.TypeOf(validatedRegistryEntity{}), entities["orm.validatedRegistryEntity"])
-	enums := validated.GetEnums()
-	assert.Len(t, enums, 1)
 	assert.Nil(t, validated.GetTableSchema("invalid"))
 
 	enum := validated.GetEnum("enum_map")
@@ -39,7 +37,6 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, "a", enum.GetDefault())
 	assert.True(t, enum.Has("a"))
 	assert.False(t, enum.Has("c"))
-	assert.Len(t, enum.GetMapping(), 2)
 
 	registry.RegisterEnum("enum_map", "a", "b")
 	validated, err = registry.Validate()
@@ -49,7 +46,6 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, "a", enum.GetDefault())
 	assert.True(t, enum.Has("a"))
 	assert.False(t, enum.Has("c"))
-	assert.Len(t, enum.GetMapping(), 2)
 
 	assert.PanicsWithError(t, "entity 'orm.validatedRegistryNotRegisteredEntity' is not registered", func() {
 		validated.GetTableSchemaForEntity(&validatedRegistryNotRegisteredEntity{})

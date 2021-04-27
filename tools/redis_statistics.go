@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/latolukasz/orm"
@@ -12,7 +13,7 @@ type RedisStatistics struct {
 }
 
 func GetRedisStatistics(engine *orm.Engine) []*RedisStatistics {
-	pools := engine.GetRegistry().GetRedisPools(true)
+	pools := getRedisPools(engine)
 	results := make([]*RedisStatistics, len(pools))
 	for i, pool := range pools {
 		poolStats := &RedisStatistics{RedisPool: pool, Info: make(map[string]string)}
@@ -33,4 +34,18 @@ func GetRedisStatistics(engine *orm.Engine) []*RedisStatistics {
 		results[i] = poolStats
 	}
 	return results
+}
+
+func getRedisPools(engine *orm.Engine) []string {
+	pools := make([]string, 0)
+	groupedByAddress := make(map[string][]string)
+	for code, v := range engine.GetRegistry().GetRedisPools() {
+		key := v.GetAddress()
+		groupedByAddress[key] = append(groupedByAddress[key], code)
+	}
+	for _, codes := range groupedByAddress {
+		sort.Strings(codes)
+		pools = append(pools, codes[0])
+	}
+	return pools
 }
