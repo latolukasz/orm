@@ -11,9 +11,10 @@ import (
 )
 
 type Alter struct {
-	SQL  string
-	Safe bool
-	Pool string
+	SQL    string
+	Safe   bool
+	Pool   string
+	engine *Engine
 }
 
 type indexDB struct {
@@ -45,6 +46,10 @@ type foreignKeyDB struct {
 }
 
 const defaultCollate = "0900_ai_ci"
+
+func (a Alter) Exec() {
+	a.engine.GetMysql(a.Pool).Exec(a.SQL)
+}
 
 func getAlters(engine *Engine) (alters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
@@ -86,7 +91,7 @@ func getAlters(engine *Engine) (alters []Alter) {
 				}
 
 				if !hasLogTable {
-					alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName})
+					alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName, engine: engine})
 				} else {
 					var skip, createTableDB string
 					logPool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableSchema.logTableName)), &skip, &createTableDB)
@@ -96,8 +101,8 @@ func getAlters(engine *Engine) (alters []Alter) {
 					if logTableSchema != createTableDB {
 						isEmpty := isTableEmptyInPool(engine, tableSchema.logPoolName, tableSchema.logTableName)
 						dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName)
-						alters = append(alters, Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: tableSchema.logPoolName})
-						alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName})
+						alters = append(alters, Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: tableSchema.logPoolName, engine: engine})
+						alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName, engine: engine})
 					}
 				}
 				tablesInEntities[tableSchema.logPoolName][tableSchema.logTableName] = true
@@ -115,12 +120,12 @@ func getAlters(engine *Engine) (alters []Alter) {
 			if !has {
 				dropForeignKeyAlter := getDropForeignKeysAlter(engine, tableName, poolName)
 				if dropForeignKeyAlter != "" {
-					alters = append(alters, Alter{SQL: dropForeignKeyAlter, Safe: true, Pool: poolName})
+					alters = append(alters, Alter{SQL: dropForeignKeyAlter, Safe: true, Pool: poolName, engine: engine})
 				}
 				pool := engine.GetMysql(poolName)
 				dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 				isEmpty := isTableEmptyInPool(engine, poolName, tableName)
-				alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
+				alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName, engine: engine})
 			}
 		}
 	}
@@ -216,10 +221,10 @@ func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alter
 	hasTable := pool.QueryRow(NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableSchema.tableName)), &skip)
 
 	if !hasTable {
-		alters = []Alter{{SQL: createTableSQL, Safe: true, Pool: tableSchema.mysqlPoolName}}
+		alters = []Alter{{SQL: createTableSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine}}
 		if len(newForeignKeys) > 0 {
 			createTableForeignKeysSQL = strings.TrimRight(createTableForeignKeysSQL, ",\n") + ";"
-			alters = append(alters, Alter{SQL: createTableForeignKeysSQL, Safe: true, Pool: tableSchema.mysqlPoolName})
+			alters = append(alters, Alter{SQL: createTableForeignKeysSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
 		}
 		has = true
 		return
@@ -478,22 +483,22 @@ OUTER:
 			isEmpty := isTableEmpty(db.client, tableSchema.tableName)
 			safe = isEmpty
 		}
-		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: tableSchema.mysqlPoolName})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: tableSchema.mysqlPoolName, engine: engine})
 	} else if hasAlterEngineCharset {
 		collate := ""
 		if pool.GetPoolConfig().GetVersion() == 8 {
 			collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + defaultCollate
 		}
 		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
-		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: tableSchema.mysqlPoolName})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
 	}
 	if hasAlterRemoveForeignKey {
 		alterSQLRemoveForeignKey = strings.TrimRight(alterSQLRemoveForeignKey, ",\n") + ";"
-		alters = append(alters, Alter{SQL: alterSQLRemoveForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName})
+		alters = append(alters, Alter{SQL: alterSQLRemoveForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
 	}
 	if hasAlterAddForeignKey {
 		alterSQLAddForeignKey = strings.TrimRight(alterSQLAddForeignKey, ",\n") + ";"
-		alters = append(alters, Alter{SQL: alterSQLAddForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName})
+		alters = append(alters, Alter{SQL: alterSQLAddForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
 	}
 
 	has = true

@@ -452,27 +452,29 @@ func (e *Engine) LoadByIDLazy(id uint64, entity Entity, references ...string) (f
 	return found
 }
 
-func (e *Engine) Load(entity Entity, references ...string) {
-	e.load(entity, false, references...)
+func (e *Engine) Load(entity Entity, references ...string) (found bool) {
+	return e.load(entity, false, references...)
 }
 
 func (e *Engine) LoadLazy(entity Entity, references ...string) {
 	e.load(entity, true, references...)
 }
 
-func (e *Engine) load(entity Entity, lazy bool, references ...string) {
+func (e *Engine) load(entity Entity, lazy bool, references ...string) bool {
 	if entity.IsLoaded() {
 		if len(references) > 0 {
 			orm := entity.getORM()
 			warmUpReferences(e, orm.tableSchema, orm.elem, references, false, lazy)
 		}
-		return
+		return true
 	}
 	orm := initIfNeeded(e.registry, entity)
 	id := orm.GetID()
+	found := false
 	if id > 0 {
-		loadByID(e, id, entity, true, lazy, references...)
+		found, _ = loadByID(e, id, entity, true, lazy, references...)
 	}
+	return found
 }
 
 func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) (missing bool) {

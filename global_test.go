@@ -41,8 +41,7 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 
 	alters := engine.GetAlters()
 	for _, alter := range alters {
-		pool := engine.GetMysql(alter.Pool)
-		pool.Exec(alter.SQL)
+		alter.Exec()
 	}
 
 	altersElastic := engine.GetElasticIndexAlters()
