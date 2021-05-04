@@ -370,7 +370,6 @@ func fillFromDBRow(id uint64, engine *Engine, data []interface{}, entity Entity,
 	orm := initIfNeeded(engine.registry, entity)
 	elem := orm.elem
 	orm.idElem.SetUint(id)
-	data[0] = id
 	if !lazy {
 		_ = fillStruct(engine.registry, 0, data, orm.tableSchema.fields, orm, elem)
 	}
