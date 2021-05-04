@@ -499,7 +499,7 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(0), total)
 
 	query = &RedisSearchQuery{}
-	query.FilterString("title", "has big house")
+	query.FilterString("title", "big house")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
 
