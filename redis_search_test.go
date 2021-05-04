@@ -198,6 +198,7 @@ func TestRedisSearch(t *testing.T) {
 	//engine.EnableQueryDebug()
 	query = &RedisSearchQuery{}
 	query.FilterInt("id", 34, 37)
+	query.Sort("id", false)
 	total, rows = search.Search("test2", query, NewPager(1, 2))
 	assert.Equal(t, uint64(2), total)
 	assert.Len(t, rows, 2)
