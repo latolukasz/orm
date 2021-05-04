@@ -341,6 +341,13 @@ func (e *Engine) ForceDelete(entity Entity) {
 	e.Flush(entity)
 }
 
+func (e *Engine) ForceDeleteMany(entities ...Entity) {
+	for _, entity := range entities {
+		entity.forceMarkToDelete()
+	}
+	e.FlushMany(entities...)
+}
+
 func (e *Engine) DeleteMany(entities ...Entity) {
 	for _, entity := range entities {
 		entity.markToDelete()
