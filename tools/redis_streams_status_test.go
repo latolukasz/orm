@@ -21,7 +21,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	r.FlushDB()
 
 	stats := GetRedisStreamsStatistics(engine)
-	assert.Len(t, stats, 4)
+	assert.Len(t, stats, 2)
 	valid := false
 	for _, stream := range stats {
 		if stream.Stream == "test-stream" {
