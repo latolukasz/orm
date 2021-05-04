@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -70,9 +71,10 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	for _, alter := range altersSearch {
 		alter.Execute()
 	}
-	indexer := NewRedisSearchIndexer(engine)
+	indexer := NewAsyncConsumer(engine, "default-consumer")
 	indexer.DisableLoop()
-	indexer.Run(context.Background())
+	indexer.block = time.Millisecond
+	indexer.Digest(context.Background(), 100)
 
 	return engine
 }

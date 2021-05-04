@@ -22,7 +22,7 @@ const redisSearchIndexFieldText = "TEXT"
 const redisSearchIndexFieldNumeric = "NUMERIC"
 const redisSearchIndexFieldGeo = "GEO"
 const redisSearchIndexFieldTAG = "TAG"
-const redisSearchForceIndexKeyPrefix = "_orm_force_index"
+const redisSearchForceIndexLastIDKeyPrefix = "_orm_force_index"
 
 type RedisSearch struct {
 	engine *Engine
@@ -536,7 +536,8 @@ func (r *RedisSearch) ForceReindex(index string) {
 	indexID := time.Now().UnixNano()
 	indexIDString := strconv.FormatInt(indexID, 10)
 	r.createIndex(def, uint64(indexID))
-	r.redis.HSet(redisSearchForceIndexKeyPrefix+index, indexIDString, "0")
+	event := redisIndexerEvent{Index: index, IndexID: uint64(indexID)}
+	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
 	indexName := def.Name + ":" + indexIDString
 	r.aliasUpdate(def.Name, indexName)
 }

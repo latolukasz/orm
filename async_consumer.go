@@ -7,11 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	jsoniter "github.com/json-iterator/go"
 )
 
 const lazyChannelName = "orm-lazy-channel"
 const logChannelName = "orm-log-channel"
+const redisSearchIndexerChannelName = "orm-redis-search-channel"
 const asyncConsumerGroupName = "orm-async-consumer"
 
 type LogQueueValue struct {
@@ -81,10 +84,13 @@ func (r *AsyncConsumer) Digest(ctx context.Context, count int) {
 	}
 	consumer.Consume(ctx, count, true, func(events []Event) {
 		for _, event := range events {
-			if event.Stream() == lazyChannelName {
+			switch event.Stream() {
+			case lazyChannelName:
 				r.handleLazy(event)
-			} else {
+			case logChannelName:
 				r.handleLogEvent(event)
+			case redisSearchIndexerChannelName:
+				r.handleRedisIndexerEvent(event)
 			}
 		}
 	})
@@ -250,5 +256,69 @@ func (r *AsyncConsumer) handleCache(validMap map[string]interface{}, ids []uint6
 			}
 			r.engine.GetLocalCache(cacheCode).Remove(stringKeys...)
 		}
+	}
+}
+
+func (r *AsyncConsumer) handleRedisIndexerEvent(event Event) {
+	indexEvent := &redisIndexerEvent{}
+	err := event.Unserialize(indexEvent)
+	if err != nil {
+		event.Ack()
+		return
+	}
+	var indexDefinition *RedisSearchIndex
+	redisPool := ""
+	for pool, list := range r.engine.registry.redisSearchIndexes {
+		val, has := list[indexEvent.Index]
+		if has {
+			indexDefinition = val
+			redisPool = pool
+			break
+		}
+	}
+	if indexDefinition == nil {
+		event.Ack()
+		return
+	}
+	search := r.engine.GetRedisSearch(redisPool)
+	pusher := &redisSearchIndexPusher{pipeline: search.redis.PipeLine()}
+	id := uint64(0)
+	idRedisKey := redisSearchForceIndexLastIDKeyPrefix + indexEvent.Index + strconv.FormatUint(indexEvent.IndexID, 10)
+	idInRedis, has := search.redis.Get(idRedisKey)
+	if has {
+		id, _ = strconv.ParseUint(idInRedis, 10, 64)
+	}
+	for {
+		hasMore := false
+		nextID := uint64(0)
+		if indexDefinition.Indexer != nil {
+			newID, hasNext := indexDefinition.Indexer(r.engine, id, pusher)
+			hasMore = hasNext
+			nextID = newID
+			if pusher.pipeline.commands > 0 {
+				pusher.Flush()
+			}
+			if hasMore {
+				search.redis.Set(idRedisKey, strconv.FormatUint(nextID, 10), 86400)
+			}
+		}
+
+		if !hasMore {
+			search.redis.Del(idRedisKey)
+			for _, oldName := range search.ListIndices() {
+				if strings.HasPrefix(oldName, indexDefinition.Name+":") {
+					parts := strings.Split(oldName, ":")
+					oldID, _ := strconv.ParseUint(parts[1], 10, 64)
+					if oldID < indexEvent.IndexID {
+						search.dropIndex(oldName, false)
+					}
+				}
+			}
+			break
+		}
+		if nextID <= id {
+			panic(errors.Errorf("loop detected in indxer for index %s in pool %s", indexDefinition.Name, redisPool))
+		}
+		id = nextID
 	}
 }

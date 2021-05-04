@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"testing"
 
 	"github.com/latolukasz/orm"
@@ -23,20 +22,4 @@ func TestRedisSearchStatistics(t *testing.T) {
 	assert.Len(t, stats, 1)
 	assert.Equal(t, "test", stats[0].Index.Name)
 	assert.Len(t, stats[0].Versions, 1)
-	assert.True(t, stats[0].ForceReindex)
-	assert.Equal(t, uint64(0), stats[0].ForceReindexLastID)
-	assert.Greater(t, stats[0].ForceReindexVersion, uint64(0))
-
-	indexer := orm.NewRedisSearchIndexer(engine)
-	indexer.DisableLoop()
-	indexer.Run(context.Background())
-
-	stats = GetRedisSearchStatistics(engine)
-	assert.Len(t, stats, 1)
-	assert.Equal(t, "test", stats[0].Index.Name)
-	assert.Len(t, stats[0].Versions, 1)
-	assert.True(t, stats[0].Versions[0].Current)
-	assert.False(t, stats[0].ForceReindex)
-	assert.Equal(t, uint64(0), stats[0].ForceReindexLastID)
-	assert.Equal(t, uint64(0), stats[0].ForceReindexVersion)
 }

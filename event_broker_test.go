@@ -338,6 +338,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		events[4].Skip()
 		time.Sleep(time.Millisecond * 200)
 	})
+	time.Sleep(time.Millisecond * 100)
 	assert.Equal(t, 2, iterations)
 	assert.Equal(t, 1, heartBeats)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))

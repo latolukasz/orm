@@ -47,10 +47,10 @@ func TestEngine(t *testing.T) {
 
 	engine.EnableQueryDebug()
 	assert.Len(t, engine.queryLoggers, 5)
-	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 2)
+	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 3)
 	engine.EnableQueryDebug()
 	assert.Len(t, engine.queryLoggers, 5)
-	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 2)
+	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 3)
 }
 
 func BenchmarkEngine(b *testing.B) {

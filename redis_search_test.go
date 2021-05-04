@@ -61,9 +61,10 @@ func TestRedisSearch(t *testing.T) {
 	alters = engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 0)
 
-	indexer := NewRedisSearchIndexer(engine)
+	indexer := NewAsyncConsumer(engine, "default-consumer")
 	indexer.DisableLoop()
-	indexer.Run(context.Background())
+	indexer.block = time.Millisecond
+	indexer.Digest(context.Background(), 100)
 
 	info := search.Info("test")
 	assert.True(t, strings.HasPrefix(info.Name, "test:"))
@@ -115,7 +116,7 @@ func TestRedisSearch(t *testing.T) {
 		return newID, newID < 1000
 	}
 	search.ForceReindex("test2")
-	indexer.Run(context.Background())
+	indexer.Digest(context.Background(), 100)
 
 	testIndex2.AddTextField("title2", 1, false, false, false)
 	testIndex2.AddNumericField("id", true, false)
@@ -131,7 +132,7 @@ func TestRedisSearch(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	search.ForceReindex("test2")
-	indexer.Run(context.Background())
+	indexer.Digest(context.Background(), 100)
 	time.Sleep(time.Millisecond * 100)
 
 	pusher := engine.NewRedisSearchIndexPusher("search")

@@ -21,11 +21,18 @@ func TestRedisStreamsStatus(t *testing.T) {
 	r.FlushDB()
 
 	stats := GetRedisStreamsStatistics(engine)
-	assert.Len(t, stats, 1)
-	assert.Equal(t, "test-stream", stats[0].Stream)
-	assert.Equal(t, "default", stats[0].RedisPool)
-	assert.Equal(t, uint64(0), stats[0].Len)
-	assert.Len(t, stats[0].Groups, 0)
+	assert.Len(t, stats, 4)
+	valid := false
+	for _, stream := range stats {
+		if stream.Stream == "test-stream" {
+			assert.Equal(t, "test-stream", stream.Stream)
+			assert.Equal(t, "default", stream.RedisPool)
+			assert.Equal(t, uint64(0), stream.Len)
+			assert.Len(t, stream.Groups, 0)
+			valid = true
+		}
+	}
+	assert.True(t, valid)
 
 	r.XGroupCreateMkStream("test-stream", "test-group", "0")
 	flusher := engine.GetEventBroker().NewFlusher()
@@ -36,11 +43,18 @@ func TestRedisStreamsStatus(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 
 	stats = GetRedisStreamsStatistics(engine)
-	assert.Equal(t, uint64(10001), stats[0].Len)
-	assert.Len(t, stats[0].Groups, 1)
-	assert.Equal(t, "test-group", stats[0].Groups[0].Group)
-	assert.Equal(t, uint64(0), stats[0].Groups[0].Pending)
-	assert.Len(t, stats[0].Groups[0].Consumers, 0)
+	valid = false
+	for _, stream := range stats {
+		if stream.Stream == "test-stream" {
+			assert.Equal(t, uint64(10001), stream.Len)
+			assert.Len(t, stream.Groups, 1)
+			assert.Equal(t, "test-group", stream.Groups[0].Group)
+			assert.Equal(t, uint64(0), stream.Groups[0].Pending)
+			assert.Len(t, stream.Groups[0].Consumers, 0)
+			valid = true
+		}
+	}
+	assert.True(t, valid)
 
 	consumer := engine.GetEventBroker().Consumer("test-consumer", "test-group")
 	consumer.DisableLoop()
@@ -55,22 +69,29 @@ func TestRedisStreamsStatus(t *testing.T) {
 	})
 
 	stats = GetRedisStreamsStatistics(engine)
-	assert.Equal(t, uint64(10001), stats[0].Len)
-	assert.Len(t, stats[0].Groups, 1)
-	assert.Equal(t, "test-group", stats[0].Groups[0].Group)
-	assert.Equal(t, uint64(10001), stats[0].Groups[0].Pending)
-	assert.Len(t, stats[0].Groups[0].Consumers, 1)
-	assert.Equal(t, "test-consumer-1", stats[0].Groups[0].Consumers[0].Name)
-	assert.Equal(t, uint64(10001), stats[0].Groups[0].Consumers[0].Pending)
-	assert.Equal(t, int64(10001), stats[0].Groups[0].SpeedEvents)
-	assert.GreaterOrEqual(t, stats[0].Groups[0].SpeedMilliseconds, 0.01)
-	assert.LessOrEqual(t, stats[0].Groups[0].SpeedMilliseconds, 0.012)
-	assert.GreaterOrEqual(t, stats[0].Groups[0].RedisQueriesPerEvent, 0.00019)
-	assert.LessOrEqual(t, stats[0].Groups[0].RedisQueriesPerEvent, 0.00021)
-	assert.GreaterOrEqual(t, stats[0].Groups[0].RedisQueriesMillisecondsPerEvent, 0.00001)
-	assert.LessOrEqual(t, stats[0].Groups[0].RedisQueriesMillisecondsPerEvent, 0.001)
-	assert.GreaterOrEqual(t, stats[0].Groups[0].DBQueriesPerEvent, 0.00009)
-	assert.LessOrEqual(t, stats[0].Groups[0].DBQueriesPerEvent, 0.00011)
-	assert.GreaterOrEqual(t, stats[0].Groups[0].DBQueriesMillisecondsPerEvent, 0.00001)
-	assert.LessOrEqual(t, stats[0].Groups[0].DBQueriesMillisecondsPerEvent, 0.0005)
+	valid = false
+	for _, stream := range stats {
+		if stream.Stream == "test-stream" {
+			assert.Equal(t, uint64(10001), stream.Len)
+			assert.Len(t, stream.Groups, 1)
+			assert.Equal(t, "test-group", stream.Groups[0].Group)
+			assert.Equal(t, uint64(10001), stream.Groups[0].Pending)
+			assert.Len(t, stream.Groups[0].Consumers, 1)
+			assert.Equal(t, "test-consumer-1", stream.Groups[0].Consumers[0].Name)
+			assert.Equal(t, uint64(10001), stream.Groups[0].Consumers[0].Pending)
+			assert.Equal(t, int64(10001), stream.Groups[0].SpeedEvents)
+			assert.GreaterOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.01)
+			assert.LessOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.012)
+			assert.GreaterOrEqual(t, stream.Groups[0].RedisQueriesPerEvent, 0.00019)
+			assert.LessOrEqual(t, stream.Groups[0].RedisQueriesPerEvent, 0.00021)
+			assert.GreaterOrEqual(t, stream.Groups[0].RedisQueriesMillisecondsPerEvent, 0.00001)
+			assert.LessOrEqual(t, stream.Groups[0].RedisQueriesMillisecondsPerEvent, 0.001)
+			assert.GreaterOrEqual(t, stream.Groups[0].DBQueriesPerEvent, 0.00009)
+			assert.LessOrEqual(t, stream.Groups[0].DBQueriesPerEvent, 0.00011)
+			assert.GreaterOrEqual(t, stream.Groups[0].DBQueriesMillisecondsPerEvent, 0.00001)
+			assert.LessOrEqual(t, stream.Groups[0].DBQueriesMillisecondsPerEvent, 0.0005)
+			valid = true
+		}
+	}
+	assert.True(t, valid)
 }

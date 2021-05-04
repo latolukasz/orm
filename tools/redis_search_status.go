@@ -1,18 +1,14 @@
 package tools
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/latolukasz/orm"
 )
 
 type RedisSearchStatistics struct {
-	Index               *orm.RedisSearchIndex
-	Versions            []*RedisSearchStatisticsIndexVersion
-	ForceReindex        bool
-	ForceReindexVersion uint64
-	ForceReindexLastID  uint64
+	Index    *orm.RedisSearchIndex
+	Versions []*RedisSearchStatisticsIndexVersion
 }
 
 type RedisSearchStatisticsIndexVersion struct {
@@ -27,7 +23,6 @@ func GetRedisSearchStatistics(engine *orm.Engine) []*RedisSearchStatistics {
 		search := engine.GetRedisSearch(pool)
 		indicesInRedis := search.ListIndices()
 		for _, index := range list {
-			stamps := engine.GetRedis(pool).HGetAll("_orm_force_index" + index.Name)
 			stat := &RedisSearchStatistics{Index: index, Versions: make([]*RedisSearchStatisticsIndexVersion, 0)}
 			current := ""
 			info := search.Info(index.Name)
@@ -40,12 +35,6 @@ func GetRedisSearchStatistics(engine *orm.Engine) []*RedisSearchStatistics {
 					indexStats := &RedisSearchStatisticsIndexVersion{Info: info, Current: current == inRedis}
 					stat.Versions = append(stat.Versions, indexStats)
 				}
-			}
-			for k, v := range stamps {
-				stat.ForceReindex = true
-				stat.ForceReindexVersion, _ = strconv.ParseUint(k, 10, 64)
-				stat.ForceReindexLastID, _ = strconv.ParseUint(v, 10, 64)
-				break
 			}
 			result = append(result, stat)
 		}

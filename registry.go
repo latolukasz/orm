@@ -157,14 +157,6 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		}
 		cachePrefixes[tableSchema.cachePrefix] = tableSchema
 		registry.entities[name] = entityType
-		_, has = r.redisStreamPools[lazyChannelName]
-		if !has {
-			r.RegisterRedisStream(lazyChannelName, "default", []string{asyncConsumerGroupName})
-		}
-		_, has = r.redisStreamPools[logChannelName]
-		if !has {
-			r.RegisterRedisStream(logChannelName, "default", []string{asyncConsumerGroupName})
-		}
 		if tableSchema.redisSearchIndex != nil {
 			index := tableSchema.redisSearchIndex
 			if registry.redisSearchIndexes[index.RedisPool] == nil {
@@ -172,6 +164,18 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 			}
 			registry.redisSearchIndexes[index.RedisPool][index.Name] = index
 		}
+	}
+	_, has := r.redisStreamPools[lazyChannelName]
+	if !has {
+		r.RegisterRedisStream(lazyChannelName, "default", []string{asyncConsumerGroupName})
+	}
+	_, has = r.redisStreamPools[logChannelName]
+	if !has {
+		r.RegisterRedisStream(logChannelName, "default", []string{asyncConsumerGroupName})
+	}
+	_, has = r.redisStreamPools[redisSearchIndexerChannelName]
+	if !has {
+		r.RegisterRedisStream(redisSearchIndexerChannelName, "default", []string{asyncConsumerGroupName})
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools

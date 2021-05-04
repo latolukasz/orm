@@ -1,107 +1,13 @@
 package orm
 
 import (
-	"context"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/pkg/errors"
 )
 
-type RedisSearchIndexer struct {
-	engine            *Engine
-	disableLoop       bool
-	heartBeat         func()
-	heartBeatDuration time.Duration
-}
-
-func NewRedisSearchIndexer(engine *Engine) *RedisSearchIndexer {
-	return &RedisSearchIndexer{engine: engine}
-}
-
-func (r *RedisSearchIndexer) DisableLoop() {
-	r.disableLoop = true
-}
-
-func (r *RedisSearchIndexer) SetHeartBeat(duration time.Duration, beat func()) {
-	r.heartBeatDuration = duration
-	r.heartBeat = beat
-}
-
-func (r *RedisSearchIndexer) Run(ctx context.Context) {
-	for {
-		valid := r.consume(ctx)
-		if valid || r.disableLoop {
-			break
-		}
-		time.Sleep(time.Second * 10)
-	}
-}
-
-func (r *RedisSearchIndexer) consume(ctx context.Context) bool {
-	canceled := false
-	go func() {
-		<-ctx.Done()
-		canceled = true
-	}()
-	for {
-		for pool, defs := range r.engine.registry.redisSearchIndexes {
-			search := r.engine.GetRedisSearch(pool)
-			for index, def := range defs {
-				if canceled {
-					return true
-				}
-				stamps := search.redis.HGetAll(redisSearchForceIndexKeyPrefix + index)
-				for k, v := range stamps {
-					id, _ := strconv.ParseUint(v, 10, 64)
-					indexID, _ := strconv.ParseUint(k, 10, 64)
-					pusher := &redisSearchIndexPusher{pipeline: search.redis.PipeLine()}
-					for {
-						if canceled {
-							return true
-						}
-						hasMore := false
-						nextID := uint64(0)
-						if def.Indexer != nil {
-							newID, hasNext := def.Indexer(r.engine, id, pusher)
-							hasMore = hasNext
-							nextID = newID
-							if pusher.pipeline.commands > 0 {
-								pusher.Flush()
-							}
-							if hasMore {
-								search.redis.HSet(redisSearchForceIndexKeyPrefix+index, k, strconv.FormatUint(nextID, 10))
-							}
-						}
-
-						if !hasMore {
-							search.redis.HDel(redisSearchForceIndexKeyPrefix+index, k)
-							for _, oldName := range search.ListIndices() {
-								if strings.HasPrefix(oldName, def.Name+":") {
-									parts := strings.Split(oldName, ":")
-									oldID, _ := strconv.ParseUint(parts[1], 10, 64)
-									if oldID < indexID {
-										search.dropIndex(oldName, false)
-									}
-								}
-							}
-							break
-						}
-						if nextID <= id {
-							panic(errors.Errorf("loop detected in indxer for index %s in pool %s", index, pool))
-						}
-						id = nextID
-					}
-				}
-			}
-		}
-		if r.disableLoop {
-			break
-		}
-		time.Sleep(time.Second * 15)
-	}
-	return true
+type redisIndexerEvent struct {
+	Index   string
+	IndexID uint64
 }
 
 type RedisSearchIndexPusher interface {
