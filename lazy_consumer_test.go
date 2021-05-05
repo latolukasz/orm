@@ -33,9 +33,9 @@ func TestLazyReceiver(t *testing.T) {
 	engine := PrepareTables(t, registry, 5, entity, ref)
 	engine.GetRedis().FlushDB()
 
-	receiver := NewAsyncConsumer(engine, "default-consumer")
+	receiver := NewAsyncConsumer(engine)
 	receiver.DisableLoop()
-	receiver.block = time.Millisecond
+	receiver.blockTime = time.Millisecond
 
 	e := &lazyReceiverEntity{Name: "John", Age: 18}
 	engine.FlushLazy(e)
@@ -48,7 +48,7 @@ func TestLazyReceiver(t *testing.T) {
 	receiver.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	assert.True(t, validHeartBeat)
 
 	engine.GetLocalCache().Clear()
@@ -75,7 +75,7 @@ func TestLazyReceiver(t *testing.T) {
 	receiver.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	assert.True(t, validHeartBeat)
 
 	e = &lazyReceiverEntity{}
@@ -97,7 +97,7 @@ func TestLazyReceiver(t *testing.T) {
 	e = &lazyReceiverEntity{}
 	engine.LoadByID(1, e)
 	engine.NewFlusher().Delete(e).FlushLazy()
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	loaded = engine.LoadByID(1, e)
 	assert.False(t, loaded)
 }

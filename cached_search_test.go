@@ -285,10 +285,10 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		engine.FlushLazy(rows[0])
 		assert.Equal(t, 7, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 
-		receiver := NewAsyncConsumer(engine, "default-consumer")
+		receiver := NewAsyncConsumer(engine)
 		receiver.DisableLoop()
-		receiver.block = time.Millisecond
-		receiver.Digest(context.Background(), 100)
+		receiver.blockTime = time.Millisecond
+		receiver.Digest(context.Background())
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
 }

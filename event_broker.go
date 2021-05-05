@@ -241,14 +241,26 @@ func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
 	speedPrefixKey := group + "_" + redisPool
 	speedLogger := &speedHandler{}
 	eb.engine.AddQueryLogger(speedLogger, logApex.InfoLevel, QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
-	return &eventsConsumer{redis: eb.engine.GetRedis(redisPool), name: name, streams: streams, group: group,
-		loop: true, block: time.Second * 30, lockTTL: time.Second * 90, lockTick: time.Minute,
+	return &eventsConsumer{eventConsumerBase: eventConsumerBase{loop: true, limit: 1, blockTime: time.Second * 30},
+		redis: eb.engine.GetRedis(redisPool), name: name, streams: streams, group: group,
+		lockTTL: time.Second * 90, lockTick: time.Minute,
 		garbageTick: time.Second * 30, minIdle: pendingClaimCheckDuration,
 		claimDuration: pendingClaimCheckDuration, speedLimit: 10000, speedPrefixKey: speedPrefixKey,
-		speedLogger: speedLogger, maxConsumers: 1}
+		speedLogger: speedLogger}
+}
+
+type eventConsumerBase struct {
+	loop              bool
+	limit             int
+	errorHandler      ConsumerErrorHandler
+	heartBeat         func()
+	heartBeatDuration time.Duration
+	heartBeatTime     time.Time
+	blockTime         time.Duration
 }
 
 type eventsConsumer struct {
+	eventConsumerBase
 	redis                  *RedisCache
 	name                   string
 	nr                     int
@@ -258,7 +270,6 @@ type eventsConsumer struct {
 	speedDBQueries         int
 	speedDBMicroseconds    int64
 	speedRedisQueries      int
-	maxConsumers           int
 	speedRedisMicroseconds int64
 	speedLogger            *speedHandler
 	speedTimeMicroseconds  int64
@@ -266,12 +277,6 @@ type eventsConsumer struct {
 	nrString               string
 	streams                []string
 	group                  string
-	loop                   bool
-	block                  time.Duration
-	heartBeatTime          time.Time
-	heartBeat              func()
-	errorHandler           ConsumerErrorHandler
-	heartBeatDuration      time.Duration
 	lockTTL                time.Duration
 	lockTick               time.Duration
 	garbageTick            time.Duration
@@ -282,27 +287,27 @@ type eventsConsumer struct {
 	consumedMutex          sync.Mutex
 }
 
-func (r *eventsConsumer) DisableLoop() {
-	r.loop = false
+func (b *eventConsumerBase) DisableLoop() {
+	b.loop = false
 }
 
-func (r *eventsConsumer) SetLimit(limit int) {
-	r.maxConsumers = limit
+func (b *eventConsumerBase) SetLimit(limit int) {
+	b.limit = limit
 }
 
-func (r *eventsConsumer) SetHeartBeat(duration time.Duration, beat func()) {
-	r.heartBeat = beat
-	r.heartBeatDuration = duration
+func (b *eventConsumerBase) SetHeartBeat(duration time.Duration, beat func()) {
+	b.heartBeat = beat
+	b.heartBeatDuration = duration
 }
 
-func (r *eventsConsumer) SetErrorHandler(handler ConsumerErrorHandler) {
-	r.errorHandler = handler
+func (b *eventConsumerBase) SetErrorHandler(handler ConsumerErrorHandler) {
+	b.errorHandler = handler
 }
 
-func (r *eventsConsumer) HeartBeat(force bool) {
-	if r.heartBeat != nil && (force || time.Since(r.heartBeatTime) >= r.heartBeatDuration) {
-		r.heartBeat()
-		r.heartBeatTime = time.Now()
+func (b *eventConsumerBase) HeartBeat(force bool) {
+	if b.heartBeat != nil && (force || time.Since(b.heartBeatTime) >= b.heartBeatDuration) {
+		b.heartBeat()
+		b.heartBeatTime = time.Now()
 	}
 }
 
@@ -328,10 +333,10 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 		lockName = uniqueLockKey + "-" + strconv.Itoa(nr)
 		locked, has := locker.Obtain(ctx, lockName, r.lockTTL, 0)
 		if !has {
-			if nr < r.maxConsumers {
+			if nr < r.limit {
 				continue
 			}
-			panic(fmt.Errorf("consumer %s for group %s limit %d reached", r.name, r.group, r.maxConsumers))
+			panic(fmt.Errorf("consumer %s for group %s limit %d reached", r.name, r.group, r.limit))
 		}
 		lock = locked
 		r.nr = nr
@@ -399,7 +404,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	}
 	pendingChecked := false
 	var pendingCheckedTime time.Time
-	b := r.block
+	b := r.blockTime
 	if !blocking {
 		b = -1
 	}

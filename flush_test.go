@@ -492,9 +492,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, 2, entity2.Age)
 
-	receiver := NewAsyncConsumer(engine, "default-consumer")
+	receiver := NewAsyncConsumer(engine)
 	receiver.DisableLoop()
-	receiver.block = time.Millisecond
+	receiver.blockTime = time.Millisecond
 
 	testLogger := memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceDB)
@@ -512,7 +512,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity1, entity2, entity3)
 	flusher.Flush()
 
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	if local {
 		assert.Len(t, testLogger.Entries, 1)
 		assert.Equal(t, "UPDATE flushEntity SET `Age`=99 WHERE `ID` = 10;UPDATE flushEntity SET `Uint`=99 "+

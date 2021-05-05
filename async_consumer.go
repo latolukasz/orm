@@ -34,55 +34,27 @@ type dirtyQueueValue struct {
 }
 
 type AsyncConsumer struct {
-	engine            *Engine
-	name              string
-	block             time.Duration
-	disableLoop       bool
-	heartBeat         func()
-	heartBeatDuration time.Duration
-	errorHandler      ConsumerErrorHandler
-	logLogger         func(log *LogQueueValue)
-	redisFlusher      RedisFlusher
-	limit             int
+	eventConsumerBase
+	engine       *Engine
+	logLogger    func(log *LogQueueValue)
+	redisFlusher RedisFlusher
 }
 
-func NewAsyncConsumer(engine *Engine, name string) *AsyncConsumer {
-	return &AsyncConsumer{engine: engine, name: name, block: time.Minute, limit: 1, redisFlusher: engine.NewRedisFlusher()}
-}
-
-func (r *AsyncConsumer) DisableLoop() {
-	r.disableLoop = true
-}
-
-func (r *AsyncConsumer) SetLimit(limit int) {
-	r.limit = limit
-}
-
-func (r *AsyncConsumer) SetErrorHandler(handler ConsumerErrorHandler) {
-	r.errorHandler = handler
-}
-
-func (r *AsyncConsumer) SetHeartBeat(duration time.Duration, beat func()) {
-	r.heartBeatDuration = duration
-	r.heartBeat = beat
+func NewAsyncConsumer(engine *Engine) *AsyncConsumer {
+	return &AsyncConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
 }
 
 func (r *AsyncConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
 	r.logLogger = logger
 }
 
-func (r *AsyncConsumer) Digest(ctx context.Context, count int) {
-	consumer := r.engine.GetEventBroker().Consumer(r.name, asyncConsumerGroupName)
-	consumer.SetErrorHandler(r.errorHandler)
-	consumer.SetLimit(r.limit)
-	consumer.(*eventsConsumer).block = r.block
-	if r.disableLoop {
-		consumer.DisableLoop()
-	}
+func (r *AsyncConsumer) Digest(ctx context.Context) {
+	consumer := r.engine.GetEventBroker().Consumer("default-consumer", asyncConsumerGroupName).(*eventsConsumer)
+	consumer.eventConsumerBase = r.eventConsumerBase
 	if r.heartBeat != nil {
 		consumer.SetHeartBeat(r.heartBeatDuration, r.heartBeat)
 	}
-	consumer.Consume(ctx, count, true, func(events []Event) {
+	consumer.Consume(ctx, 100, true, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:

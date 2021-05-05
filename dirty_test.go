@@ -30,10 +30,10 @@ func TestDirtyConsumer(t *testing.T) {
 
 	consumer := engine.GetEventBroker().Consumer("default-consumer", "test-group-1")
 	consumer.DisableLoop()
-	consumer.(*eventsConsumer).block = time.Millisecond
+	consumer.(*eventsConsumer).blockTime = time.Millisecond
 	consumer2 := engine.GetEventBroker().Consumer("default-consumer", "test-group-2")
 	consumer2.DisableLoop()
-	consumer2.(*eventsConsumer).block = time.Millisecond
+	consumer2.(*eventsConsumer).blockTime = time.Millisecond
 
 	e := &dirtyReceiverEntity{Name: "John", Age: 18}
 	engine.Flush(e)
@@ -187,10 +187,10 @@ func TestDirtyConsumer(t *testing.T) {
 	})
 	assert.False(t, valid)
 
-	receiver := NewAsyncConsumer(engine, "default-consumer")
+	receiver := NewAsyncConsumer(engine)
 	receiver.DisableLoop()
-	receiver.block = time.Millisecond
-	receiver.Digest(context.Background(), 100)
+	receiver.blockTime = time.Millisecond
+	receiver.Digest(context.Background())
 
 	consumer.Consume(ctx, 1, true, func(events []Event) {
 		assert.Len(t, events, 1)
@@ -212,7 +212,7 @@ func TestDirtyConsumer(t *testing.T) {
 		valid = true
 	})
 	assert.False(t, valid)
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	consumer.Consume(ctx, 1, true, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -234,7 +234,7 @@ func TestDirtyConsumer(t *testing.T) {
 		valid = true
 	})
 	assert.False(t, valid)
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	consumer.Consume(ctx, 1, true, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -257,7 +257,7 @@ func TestDirtyConsumer(t *testing.T) {
 	engine.GetMysql().Commit()
 
 	valid = false
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	consumer.Consume(ctx, 1, true, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])

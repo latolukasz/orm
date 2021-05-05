@@ -36,9 +36,9 @@ func TestLogReceiver(t *testing.T) {
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetRedis().FlushDB()
 
-	consumer := NewAsyncConsumer(engine, "default-consumer")
+	consumer := NewAsyncConsumer(engine)
 	consumer.DisableLoop()
-	consumer.block = time.Millisecond
+	consumer.blockTime = time.Millisecond
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
 	engine.Flush(e1)
@@ -53,7 +53,7 @@ func TestLogReceiver(t *testing.T) {
 	consumer.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	consumer.Digest(context.Background(), 100)
+	consumer.Digest(context.Background())
 	assert.True(t, valid)
 	assert.True(t, validHeartBeat)
 
@@ -84,7 +84,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher.Track(e2)
 	flusher.Flush()
 
-	consumer.Digest(context.Background(), 100)
+	consumer.Digest(context.Background())
 
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 2")
 	engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
@@ -102,14 +102,14 @@ func TestLogReceiver(t *testing.T) {
 
 	e1.Country = "Germany"
 	engine.Flush(e1)
-	consumer.Digest(context.Background(), 100)
+	consumer.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
 	found := engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.False(t, found)
 
 	e1.LastName = "Summer"
 	engine.Flush(e1)
-	consumer.Digest(context.Background(), 100)
+	consumer.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -119,7 +119,7 @@ func TestLogReceiver(t *testing.T) {
 	assert.Equal(t, "{\"user_id\": 12}", meta.String)
 
 	engine.Delete(e1)
-	consumer.Digest(context.Background(), 100)
+	consumer.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 4")
 	var changesNullable sql.NullString
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNullable)
@@ -131,10 +131,10 @@ func TestLogReceiver(t *testing.T) {
 
 	e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
 	engine.FlushLazy(e3)
-	receiver := NewAsyncConsumer(engine, "default-consumer")
+	receiver := NewAsyncConsumer(engine)
 	receiver.DisableLoop()
-	receiver.block = time.Millisecond
-	receiver.Digest(context.Background(), 100)
+	receiver.blockTime = time.Millisecond
+	receiver.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 5")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -146,7 +146,7 @@ func TestLogReceiver(t *testing.T) {
 	engine.LoadByID(3, e3)
 	e3.Name = "Eva"
 	engine.FlushLazy(e3)
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 6")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -160,7 +160,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher = engine.NewFlusher()
 	flusher.Delete(e3)
 	flusher.FlushLazy()
-	receiver.Digest(context.Background(), 100)
+	receiver.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 7")
 	var changesNull sql.NullString
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNull)
