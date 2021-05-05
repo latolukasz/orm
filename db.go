@@ -285,6 +285,7 @@ func (db *DB) Rollback() {
 	checkError(err)
 	db.engine.afterCommitLocalCacheSets = nil
 	db.engine.afterCommitRedisFlusher = nil
+	db.inTransaction = false
 }
 
 func (db *DB) Exec(query string, args ...interface{}) ExecResult {

@@ -429,59 +429,36 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, "test_transaction_2", entity6.Name)
 
-	entity7 := &flushEntity{Name: "test_lock", EnumNotNull: "a"}
+	entity7 := &flushEntity{Name: "test_check", EnumNotNull: "a"}
 	flusher.Track(entity7)
-	flusher.FlushWithLock("default", "lock_test", time.Second, time.Second)
+	err := flusher.FlushWithCheck()
+	assert.NoError(t, err)
 	entity7 = &flushEntity{}
 	found = engine.LoadByID(15, entity7)
 	assert.True(t, found)
-	assert.Equal(t, "test_lock", entity7.Name)
+	assert.Equal(t, "test_check", entity7.Name)
 
-	lock, has := engine.GetRedis().GetLocker().Obtain(engine.context, "lock_test", time.Second, time.Second)
-	assert.True(t, has)
-	assert.PanicsWithError(t, "lock wait timeout", func() {
-		flusher.FlushWithLock("default", "lock_test", time.Second, time.Second)
-	})
-	lock.Release()
-
-	entity8 := &flushEntity{Name: "test_check", EnumNotNull: "a"}
-	flusher.Track(entity8)
-	err := flusher.FlushWithCheck()
-	assert.NoError(t, err)
-	entity8 = &flushEntity{}
-	found = engine.LoadByID(16, entity8)
-	assert.True(t, found)
-	assert.Equal(t, "test_check", entity8.Name)
-
-	entity8 = &flushEntity{Name: "test_check", EnumNotNull: "a"}
-	flusher.Track(entity8)
+	entity7 = &flushEntity{Name: "test_check", EnumNotNull: "a"}
+	flusher.Track(entity7)
 	err = flusher.FlushWithCheck()
 	assert.EqualError(t, err, "Duplicate entry 'test_check' for key 'name'")
-	entity8 = &flushEntity{Name: "test_check_2", EnumNotNull: "a", ReferenceOne: &flushEntityReference{ID: 100}}
-	err = engine.FlushWithCheck(entity8)
+	entity7 = &flushEntity{Name: "test_check_2", EnumNotNull: "a", ReferenceOne: &flushEntityReference{ID: 100}}
+	err = engine.FlushWithCheck(entity7)
 	assert.EqualError(t, err, "foreign key error in key `test:flushEntity:ReferenceOne`")
 
-	entity8 = &flushEntity{Name: "test_check_3", EnumNotNull: "Y"}
-	flusher.Track(entity8)
+	entity7 = &flushEntity{Name: "test_check_3", EnumNotNull: "Y"}
+	flusher.Track(entity7)
 	err = flusher.FlushWithFullCheck()
 	assert.EqualError(t, err, "Error 1265: Data truncated for column 'EnumNotNull' at row 1")
-	flusher.Track(entity8)
+	flusher.Track(entity7)
 	assert.Panics(t, func() {
 		_ = flusher.FlushWithCheck()
 	})
 
-	entity9 := &flushEntity{Name: "test_check", EnumNotNull: "a"}
-	flusher.Track(entity9)
+	entity8 := &flushEntity{Name: "test_check", EnumNotNull: "a"}
+	flusher.Track(entity8)
 	err = flusher.FlushInTransactionWithCheck()
 	assert.EqualError(t, err, "Duplicate entry 'test_check' for key 'name'")
-
-	entity9 = &flushEntity{Name: "test_check_5", EnumNotNull: "a"}
-	flusher.Track(entity9)
-	flusher.FlushInTransactionWithLock("default", "lock_test", time.Second, time.Second)
-	entity9 = &flushEntity{}
-	found = engine.LoadByID(20, entity9)
-	assert.True(t, found)
-	assert.Equal(t, "test_check_5", entity9.Name)
 
 	assert.PanicsWithError(t, "track limit 10000 exceeded", func() {
 		for i := 1; i <= 10001; i++ {
@@ -568,11 +545,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint(3), ref2.ID)
 
 	entity1 = &flushEntity{}
-	engine.LoadByID(14, entity1)
+	engine.LoadByID(13, entity1)
 	entity2 = &flushEntity{}
-	engine.LoadByID(15, entity2)
+	engine.LoadByID(14, entity2)
 	entity3 = &flushEntity{}
-	engine.LoadByID(16, entity3)
+	engine.LoadByID(15, entity3)
 
 	flusher = engine.NewFlusher()
 	entity1.ReferenceOne = &flushEntityReference{ID: 1}
@@ -585,7 +562,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Flush()
 
 	entities := make([]*flushEntity, 0)
-	engine.LoadByIDs([]uint64{14, 15, 16}, &entities, "ReferenceOne")
+	engine.LoadByIDs([]uint64{13, 14, 15}, &entities, "ReferenceOne")
 	flusher = engine.NewFlusher()
 	for _, e := range entities {
 		newRef := &flushEntityReference{}
@@ -600,18 +577,18 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	flusher.Flush()
 	entities = make([]*flushEntity, 0)
-	engine.LoadByIDs([]uint64{14, 15, 16}, &entities, "ReferenceOne")
-	assert.Equal(t, "1435", entities[0].Name)
-	assert.Equal(t, "1535", entities[1].Name)
-	assert.Equal(t, "1635", entities[2].Name)
-	assert.Equal(t, "1433", entities[0].ReferenceOne.Name)
-	assert.Equal(t, "1533", entities[1].ReferenceOne.Name)
-	assert.Equal(t, "1633", entities[2].ReferenceOne.Name)
+	engine.LoadByIDs([]uint64{13, 14, 15}, &entities, "ReferenceOne")
+	assert.Equal(t, "1335", entities[0].Name)
+	assert.Equal(t, "1435", entities[1].Name)
+	assert.Equal(t, "1535", entities[2].Name)
+	assert.Equal(t, "1333", entities[0].ReferenceOne.Name)
+	assert.Equal(t, "1433", entities[1].ReferenceOne.Name)
+	assert.Equal(t, "1533", entities[2].ReferenceOne.Name)
 	entitiesRefs := make([]*flushEntityReference, 0)
 	engine.LoadByIDs([]uint64{1, 2, 3}, &entitiesRefs)
-	assert.Equal(t, "1434", entitiesRefs[0].Name)
-	assert.Equal(t, "1534", entitiesRefs[1].Name)
-	assert.Equal(t, "1634", entitiesRefs[2].Name)
+	assert.Equal(t, "1334", entitiesRefs[0].Name)
+	assert.Equal(t, "1434", entitiesRefs[1].Name)
+	assert.Equal(t, "1534", entitiesRefs[2].Name)
 }
 
 // 17 allocs/op - 6 for Exec

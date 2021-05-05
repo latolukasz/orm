@@ -7,8 +7,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type Bind map[string]interface{}
@@ -41,8 +39,6 @@ type Flusher interface {
 	FlushWithFullCheck() error
 	FlushLazy()
 	FlushInTransaction()
-	FlushWithLock(lockerPool string, lockName string, ttl time.Duration, waitTimeout time.Duration)
-	FlushInTransactionWithLock(lockerPool string, lockName string, ttl time.Duration, waitTimeout time.Duration)
 	Clear()
 	MarkDirty(entity Entity, queueCode string, ids ...uint64)
 	Delete(entity ...Entity) Flusher
@@ -132,14 +128,6 @@ func (f *flusher) FlushInTransaction() {
 	f.flushTrackedEntities(false, true)
 }
 
-func (f *flusher) FlushWithLock(lockerPool string, lockName string, ttl time.Duration, waitTimeout time.Duration) {
-	f.flushWithLock(false, lockerPool, lockName, ttl, waitTimeout)
-}
-
-func (f *flusher) FlushInTransactionWithLock(lockerPool string, lockName string, ttl time.Duration, waitTimeout time.Duration) {
-	f.flushWithLock(true, lockerPool, lockName, ttl, waitTimeout)
-}
-
 func (f *flusher) Clear() {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
@@ -211,16 +199,6 @@ func (f *flusher) flushWithCheck(transaction bool) error {
 		f.flushTrackedEntities(false, transaction)
 	}()
 	return err
-}
-
-func (f *flusher) flushWithLock(transaction bool, redisPool string, lockName string, ttl time.Duration, waitTimeout time.Duration) {
-	locker := f.engine.GetRedis(redisPool).GetLocker()
-	lock, has := locker.Obtain(f.engine.context, lockName, ttl, waitTimeout)
-	if !has {
-		panic(errors.New("lock wait timeout"))
-	}
-	defer lock.Release()
-	f.flushTrackedEntities(false, transaction)
 }
 
 func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Entity) {
