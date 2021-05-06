@@ -283,8 +283,6 @@ type eventsConsumer struct {
 	minIdle                time.Duration
 	claimDuration          time.Duration
 	garbageCollectorSha1   string
-	consumed               int
-	consumedMutex          sync.Mutex
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -378,7 +376,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	garbageTicker := time.NewTicker(r.garbageTick)
 	engine := r.redis.engine.registry.CreateEngine()
 	go func() {
-		r.garbageCollector(engine, true)
+		r.garbageCollector(ctx, engine)
 		for {
 			select {
 			case <-ctx.Done():
@@ -386,7 +384,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 			case <-done:
 				return
 			case <-garbageTicker.C:
-				r.garbageCollector(engine, false)
+				r.garbageCollector(ctx, engine)
 			}
 		}
 	}()
@@ -517,9 +515,6 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 					}
 				}
 				r.speedEvents += totalMessages
-				r.consumedMutex.Lock()
-				r.consumed += totalMessages
-				r.consumedMutex.Unlock()
 				r.speedLogger.Clear()
 				start := time.Now()
 				func() {
@@ -621,16 +616,14 @@ func (r *eventsConsumer) incrementID(id string) string {
 	return s[0] + "-" + strconv.Itoa(counter+1)
 }
 
-func (r *eventsConsumer) garbageCollector(engine *Engine, force bool) {
+func (r *eventsConsumer) garbageCollector(ctx context.Context, engine *Engine) {
 	redisGarbage := engine.GetRedis(r.redis.config.GetCode())
-	if !force {
-		r.consumedMutex.Lock()
-		if r.consumed == 0 {
-			r.consumedMutex.Unlock()
+	if r.limit > 1 {
+		lockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
+		_, has := redisGarbage.GetLocker().Obtain(ctx, lockKey, time.Second*20, 0)
+		if !has {
 			return
 		}
-		r.consumed = 0
-		r.consumedMutex.Unlock()
 	}
 	def := engine.registry.redisStreamGroups[redisGarbage.config.GetCode()]
 	for _, stream := range r.streams {

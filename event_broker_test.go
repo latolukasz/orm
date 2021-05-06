@@ -40,7 +40,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 
 	consumer2.Consume(context.Background(), 1, true, func(events []Event) {})
 	time.Sleep(time.Millisecond * 20)
-	consumer2.(*eventsConsumer).garbageCollector(engine, true)
+	consumer2.(*eventsConsumer).garbageCollector(context.Background(), engine)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 }
 
@@ -92,7 +92,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
 	})
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(engine, true)
+	consumer.(*eventsConsumer).garbageCollector(context.Background(), engine)
 	assert.Equal(t, 20, i)
 	assert.Equal(t, 10, j)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
@@ -129,7 +129,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	assert.Equal(t, 11, i)
 	assert.Equal(t, 10, j)
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(engine, true)
+	consumer.(*eventsConsumer).garbageCollector(context.Background(), engine)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(9), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 
@@ -287,7 +287,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, 2, iterations)
 	assert.Equal(t, 2, heartBeats)
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(engine, true)
+	consumer.(*eventsConsumer).garbageCollector(context.Background(), engine)
 	time.Sleep(time.Second)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(10), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
