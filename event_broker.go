@@ -375,23 +375,21 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 			}
 		}
 	}()
-	if r.nr == 1 {
-		garbageTicker := time.NewTicker(r.garbageTick)
-		engine := r.redis.engine.registry.CreateEngine()
-		go func() {
-			r.garbageCollector(engine, true)
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-done:
-					return
-				case <-garbageTicker.C:
-					r.garbageCollector(engine, false)
-				}
+	garbageTicker := time.NewTicker(r.garbageTick)
+	engine := r.redis.engine.registry.CreateEngine()
+	go func() {
+		r.garbageCollector(engine, true)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-garbageTicker.C:
+				r.garbageCollector(engine, false)
 			}
-		}()
-	}
+		}
+	}()
 
 	lastIDs := make(map[string]string)
 	for _, stream := range r.streams {
