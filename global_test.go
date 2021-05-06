@@ -71,7 +71,7 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	for _, alter := range altersSearch {
 		alter.Execute()
 	}
-	indexer := NewAsyncConsumer(engine)
+	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
 	indexer.Digest(context.Background())

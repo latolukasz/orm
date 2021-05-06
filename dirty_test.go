@@ -187,7 +187,7 @@ func TestDirtyConsumer(t *testing.T) {
 	})
 	assert.False(t, valid)
 
-	receiver := NewAsyncConsumer(engine)
+	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())

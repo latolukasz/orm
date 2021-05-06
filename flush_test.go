@@ -492,7 +492,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, 2, entity2.Age)
 
-	receiver := NewAsyncConsumer(engine)
+	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 

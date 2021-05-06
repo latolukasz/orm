@@ -40,7 +40,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry.RegisterEnumStruct("orm.TestEnum", TestEnum)
 	engine := PrepareTables(t, registry, 5, entity)
 
-	indexer := NewAsyncConsumer(engine)
+	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
 
@@ -193,7 +193,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.False(t, info.Fields[18].Sortable)
 	assert.False(t, info.Fields[18].NoIndex)
 
-	query := &RedisSearchQuery{}
+	query := NewRedisSearchQuery()
 	query.Sort("Age", false)
 	ids, total := engine.RedisSearchIds(entity, query, NewPager(1, 10))
 	assert.Equal(t, uint64(50), total)
@@ -571,7 +571,7 @@ func TestEntityRedisSearch(t *testing.T) {
 
 	entity.Age = 101
 	engine.FlushLazy(entity)
-	receiver := NewAsyncConsumer(engine)
+	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())

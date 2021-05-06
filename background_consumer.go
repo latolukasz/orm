@@ -33,22 +33,22 @@ type dirtyQueueValue struct {
 	Streams []string
 }
 
-type AsyncConsumer struct {
+type BackgroundConsumer struct {
 	eventConsumerBase
 	engine       *Engine
 	logLogger    func(log *LogQueueValue)
 	redisFlusher RedisFlusher
 }
 
-func NewAsyncConsumer(engine *Engine) *AsyncConsumer {
-	return &AsyncConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
+func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
+	return &BackgroundConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
 }
 
-func (r *AsyncConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
+func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
 	r.logLogger = logger
 }
 
-func (r *AsyncConsumer) Digest(ctx context.Context) {
+func (r *BackgroundConsumer) Digest(ctx context.Context) {
 	consumer := r.engine.GetEventBroker().Consumer("default-consumer", asyncConsumerGroupName).(*eventsConsumer)
 	consumer.eventConsumerBase = r.eventConsumerBase
 	if r.heartBeat != nil {
@@ -68,7 +68,7 @@ func (r *AsyncConsumer) Digest(ctx context.Context) {
 	})
 }
 
-func (r *AsyncConsumer) handleLogEvent(event Event) {
+func (r *BackgroundConsumer) handleLogEvent(event Event) {
 	var value LogQueueValue
 	err := event.Unserialize(&value)
 	if err != nil {
@@ -79,7 +79,7 @@ func (r *AsyncConsumer) handleLogEvent(event Event) {
 	event.Ack()
 }
 
-func (r *AsyncConsumer) handleLog(value *LogQueueValue) {
+func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 	poolDB := r.engine.GetMysql(value.PoolName)
 	/* #nosec */
 	query := "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
@@ -107,7 +107,7 @@ func (r *AsyncConsumer) handleLog(value *LogQueueValue) {
 	}()
 }
 
-func (r *AsyncConsumer) handleLazy(event Event) {
+func (r *BackgroundConsumer) handleLazy(event Event) {
 	var data map[string]interface{}
 	err := event.Unserialize(&data)
 	if err != nil {
@@ -119,7 +119,7 @@ func (r *AsyncConsumer) handleLazy(event Event) {
 	event.Ack()
 }
 
-func (r *AsyncConsumer) handleQueries(engine *Engine, validMap map[string]interface{}) []uint64 {
+func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]interface{}) []uint64 {
 	queries := validMap["q"]
 	if queries == nil {
 		return nil
@@ -194,7 +194,7 @@ func (r *AsyncConsumer) handleQueries(engine *Engine, validMap map[string]interf
 	return ids
 }
 
-func (r *AsyncConsumer) handleCache(validMap map[string]interface{}, ids []uint64) {
+func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []uint64) {
 	keys, has := validMap["cr"]
 	if has {
 		idKey := 0
@@ -231,7 +231,7 @@ func (r *AsyncConsumer) handleCache(validMap map[string]interface{}, ids []uint6
 	}
 }
 
-func (r *AsyncConsumer) handleRedisIndexerEvent(event Event) {
+func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 	indexEvent := &redisIndexerEvent{}
 	err := event.Unserialize(indexEvent)
 	if err != nil {

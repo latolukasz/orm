@@ -61,7 +61,7 @@ func TestRedisSearch(t *testing.T) {
 	alters = engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 0)
 
-	indexer := NewAsyncConsumer(engine)
+	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
 	indexer.Digest(context.Background())

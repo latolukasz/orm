@@ -173,6 +173,10 @@ type RedisSearchIndexInfoField struct {
 	TagSeparator string
 }
 
+func NewRedisSearchQuery() *RedisSearchQuery {
+	return &RedisSearchQuery{}
+}
+
 type RedisSearchQuery struct {
 	query              string
 	filtersNumeric     map[string][][]string

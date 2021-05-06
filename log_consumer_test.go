@@ -36,7 +36,7 @@ func TestLogReceiver(t *testing.T) {
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetRedis().FlushDB()
 
-	consumer := NewAsyncConsumer(engine)
+	consumer := NewBackgroundConsumer(engine)
 	consumer.DisableLoop()
 	consumer.blockTime = time.Millisecond
 
@@ -131,7 +131,7 @@ func TestLogReceiver(t *testing.T) {
 
 	e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
 	engine.FlushLazy(e3)
-	receiver := NewAsyncConsumer(engine)
+	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())
