@@ -73,7 +73,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
-				if val != "nil" {
+				if val != cacheNilValue {
 					e := schema.newEntity()
 					newSlice.Index(i).Set(e.getORM().value)
 					fillFromDBRow(ids[i], engine, val.([]interface{}), e, false, lazy)
@@ -112,7 +112,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
-				if val != "nil" {
+				if val != cacheNilValue {
 					k := i
 					if hasLocalCache {
 						k = cacheMap[k]
@@ -130,7 +130,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 				} else {
 					missing = true
 					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKeys[i], "nil")
+						localCacheToSet = append(localCacheToSet, cacheKeys[i], cacheNilValue)
 					}
 				}
 			} else {
@@ -193,10 +193,10 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 				if newSlice.Index(k).IsZero() {
 					cacheKey := schema.getCacheKey(id)
 					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKey, "nil")
+						localCacheToSet = append(localCacheToSet, cacheKey, cacheNilValue)
 					}
 					if hasRedis {
-						redisCacheToSet = append(redisCacheToSet, cacheKey, "nil")
+						redisCacheToSet = append(redisCacheToSet, cacheKey, cacheNilValue)
 					}
 				}
 			}
@@ -349,7 +349,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 				break
 			}
 			fromCache, has := engine.GetLocalCache(k).Get(key)
-			if has && fromCache != "nil" {
+			if has && fromCache != cacheNilValue {
 				data := fromCache.([]interface{})
 				for _, r := range v[key] {
 					fillFromDBRow(data[0].(uint64), engine, data, r, false, lazy)
@@ -436,7 +436,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			if e.IsLoaded() {
 				values = append(values, cacheKey, buildRedisValue(e.getORM().dBData))
 			} else {
-				values = append(values, cacheKey, "nil")
+				values = append(values, cacheKey, cacheNilValue)
 			}
 		}
 		engine.GetRedis(pool).MSet(values...)
@@ -451,7 +451,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			if e.IsLoaded() {
 				values = append(values, cacheKey, buildLocalCacheValue(e.getORM().dBData))
 			} else {
-				values = append(values, cacheKey, "nil")
+				values = append(values, cacheKey, cacheNilValue)
 			}
 		}
 		engine.GetLocalCache(pool).MSet(values...)

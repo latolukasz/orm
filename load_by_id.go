@@ -7,6 +7,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+const cacheNilValue = ""
+
 func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool, references ...string) (found bool, schema *tableSchema) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema = orm.tableSchema
@@ -35,7 +37,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 			cacheKey = schema.getCacheKey(id)
 			e, has := localCache.Get(cacheKey)
 			if has {
-				if e == "nil" {
+				if e == cacheNilValue {
 					return false, schema
 				}
 				data := e.([]interface{})
@@ -50,7 +52,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 			cacheKey = schema.getCacheKey(id)
 			row, has := redisCache.Get(cacheKey)
 			if has {
-				if row == "nil" {
+				if row == cacheNilValue {
 					return false, schema
 				}
 				decoded := make([]interface{}, len(schema.columnNames))
@@ -68,10 +70,10 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	found, _, data := searchRow(false, engine, NewWhere("`ID` = ?", id), entity, lazy, nil)
 	if !found {
 		if localCache != nil {
-			localCache.Set(cacheKey, "nil")
+			localCache.Set(cacheKey, cacheNilValue)
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, "nil", 60)
+			redisCache.Set(cacheKey, cacheNilValue, 60)
 		}
 		return false, schema
 	}

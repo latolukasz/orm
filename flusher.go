@@ -582,7 +582,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					f.addToLogQueue(schema, id, bind, nil, entity.getORM().logMeta, lazy)
 				}
 				if hasLocalCache {
-					f.addLocalCacheSet(localCache.config.GetCode(), schema.getCacheKey(id), "nil")
+					f.addLocalCacheSet(localCache.config.GetCode(), schema.getCacheKey(id), cacheNilValue)
 					keys := f.getCacheQueriesKeys(schema, bind, dbData, true)
 					f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 				} else if f.engine.dataLoader != nil {

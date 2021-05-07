@@ -189,7 +189,7 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 					val := resultsKeys[key]
 					var toSet interface{}
 					if val == nil {
-						toSet = "nil"
+						toSet = cacheNilValue
 					} else {
 						encoded, _ := jsoniter.ConfigFastest.Marshal(val)
 						toSet = string(encoded)
@@ -217,7 +217,7 @@ func (b *dataLoaderBatch) getKeysForNils(l *dataLoader, schema *tableSchema, row
 		if v == nil {
 			keys = append(keys, k)
 		} else {
-			if v == "nil" {
+			if v == cacheNilValue {
 				resultsKeys[k] = nil
 			} else {
 				var decoded []interface{}
