@@ -840,7 +840,7 @@ func (r *RedisCache) fillStreamsLogFields(message string, start time.Time, opera
 	e := r.engine.queryLoggers[QueryLoggerSourceStreams].log.WithFields(apexLog.Fields{
 		"microseconds": stop,
 		"operation":    operation,
-		"pool":         r.config,
+		"pool":         r.config.GetCode(),
 		"target":       "redis",
 		"started":      start.UnixNano(),
 		"finished":     now.UnixNano(),
