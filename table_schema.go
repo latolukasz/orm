@@ -150,8 +150,7 @@ type tableFields struct {
 	strings             []int
 	stringsEnums        []int
 	enums               []Enum
-	sliceStringsSets    []int
-	sets                []Enum
+	sliceStrings        []int
 	bytes               []int
 	fakeDelete          int
 	booleans            []int
@@ -167,16 +166,8 @@ type tableFields struct {
 	jsons               []int
 	structs             map[int]*tableFields
 	refs                []int
-	refs8               []int
-	refs16              []int
-	refs32              []int
-	refs64              []int
 	refsTypes           []reflect.Type
 	refsMany            []int
-	refsMany8           []int
-	refsMany16          []int
-	refsMany32          []int
-	refsMany64          []int
 	refsManyTypes       []reflect.Type
 }
 
