@@ -8,10 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shamaton/msgpack"
+
 	logApex "github.com/apex/log"
 
 	"github.com/go-redis/redis/v8"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const countPending = 100
@@ -64,7 +65,7 @@ func (ev *event) Unserialize(value interface{}) error {
 	if !has {
 		return fmt.Errorf("event without struct data")
 	}
-	return jsoniter.ConfigFastest.UnmarshalFromString(val.(string), &value)
+	return msgpack.Unmarshal([]byte(val.(string)), &value)
 }
 
 func (ev *event) IsSerialized() bool {
@@ -106,7 +107,7 @@ func (ef *eventFlusher) PublishMap(stream string, event EventAsMap) {
 }
 
 func (ef *eventFlusher) Publish(stream string, event interface{}) {
-	asJSON, err := jsoniter.ConfigFastest.Marshal(event)
+	asJSON, err := msgpack.Marshal(event)
 	if err != nil {
 		panic(err)
 	}
@@ -165,7 +166,7 @@ func (eb *eventBroker) PublishMap(stream string, event EventAsMap) (id string) {
 }
 
 func (eb *eventBroker) Publish(stream string, event interface{}) (id string) {
-	asJSON, err := jsoniter.ConfigFastest.Marshal(event)
+	asJSON, err := msgpack.Marshal(event)
 	if err != nil {
 		panic(err)
 	}

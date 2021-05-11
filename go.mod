@@ -18,6 +18,7 @@ require (
 	github.com/olivere/elastic/v7 v7.0.24
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/fasthash v1.0.3
+	github.com/shamaton/msgpack v1.2.1
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/otel v0.20.0 // indirect
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4 // indirect

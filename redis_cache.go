@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	apexLog "github.com/apex/log"
+	"github.com/shamaton/msgpack"
 
-	jsoniter "github.com/json-iterator/go"
+	apexLog "github.com/apex/log"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redis_rate/v9"
@@ -42,12 +42,12 @@ func (r *RedisCache) GetSet(key string, ttlSeconds int, provider GetSetProvider)
 	val, has := r.Get(key)
 	if !has {
 		userVal := provider()
-		encoded, _ := jsoniter.ConfigFastest.Marshal(userVal)
+		encoded, _ := msgpack.Marshal(userVal)
 		r.Set(key, string(encoded), ttlSeconds)
 		return userVal
 	}
 	var data interface{}
-	_ = jsoniter.ConfigFastest.UnmarshalFromString(val, &data)
+	_ = msgpack.Unmarshal([]byte(val), &data)
 	return data
 }
 
@@ -840,7 +840,7 @@ func (r *RedisCache) fillStreamsLogFields(message string, start time.Time, opera
 	e := r.engine.queryLoggers[QueryLoggerSourceStreams].log.WithFields(apexLog.Fields{
 		"microseconds": stop,
 		"operation":    operation,
-		"pool":         r.config,
+		"pool":         r.config.GetCode(),
 		"target":       "redis",
 		"started":      start.UnixNano(),
 		"finished":     now.UnixNano(),

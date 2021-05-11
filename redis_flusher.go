@@ -3,7 +3,7 @@ package orm
 import (
 	"sync"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/shamaton/msgpack"
 )
 
 const (
@@ -84,7 +84,7 @@ func (f *redisFlusher) PublishMap(stream string, event EventAsMap) {
 }
 
 func (f *redisFlusher) Publish(stream string, event interface{}) {
-	asJSON, err := jsoniter.ConfigFastest.Marshal(event)
+	asJSON, err := msgpack.Marshal(event)
 	if err != nil {
 		panic(err)
 	}

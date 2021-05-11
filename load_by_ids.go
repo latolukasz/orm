@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/shamaton/msgpack"
 )
 
 func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references []string, lazy bool) (missing bool, schema *tableSchema) {
@@ -118,8 +119,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 						k = cacheMap[k]
 					}
 					var decoded []interface{}
-					_ = jsoniter.ConfigFastest.UnmarshalFromString(val.(string), &decoded)
-					convertDataFromJSON(schema.fields, 0, decoded)
+					_ = msgpack.Unmarshal([]byte(val.(string)), &decoded)
 					e := schema.newEntity()
 					newSlice.Index(k).Set(e.getORM().value)
 					fillFromDBRow(ids[k], engine, decoded, e, false, lazy)
@@ -404,8 +404,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			if fromCache != nil {
 				schema := v[key][0].(Entity).getORM().tableSchema
 				decoded := make([]interface{}, len(schema.columnNames))
-				_ = jsoniter.ConfigFastest.UnmarshalFromString(fromCache.(string), &decoded)
-				convertDataFromJSON(schema.fields, 0, decoded)
+				_ = msgpack.Unmarshal([]byte(fromCache.(string)), &decoded)
 				for _, r := range v[key] {
 					fillFromDBRow(decoded[0].(uint64), engine, decoded, r, false, lazy)
 				}

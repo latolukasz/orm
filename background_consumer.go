@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/shamaton/msgpack"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 )
 
 const lazyChannelName = "orm-lazy-channel"
@@ -85,13 +85,13 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 	query := "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 	var meta, before, changes interface{}
 	if value.Meta != nil {
-		meta, _ = jsoniter.ConfigFastest.Marshal(value.Meta)
+		meta, _ = msgpack.Marshal(value.Meta)
 	}
 	if value.Before != nil {
-		before, _ = jsoniter.ConfigFastest.Marshal(value.Before)
+		before, _ = msgpack.Marshal(value.Before)
 	}
 	if value.Changes != nil {
-		changes, _ = jsoniter.ConfigFastest.Marshal(value.Changes)
+		changes, _ = msgpack.Marshal(value.Changes)
 	}
 	func() {
 		if r.logLogger != nil {
@@ -198,7 +198,7 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 	keys, has := validMap["cr"]
 	if has {
 		idKey := 0
-		validKeys := keys.(map[string]interface{})
+		validKeys := keys.(map[interface{}]interface{})
 		for cacheCode, allKeys := range validKeys {
 			validAllKeys := allKeys.([]interface{})
 			stringKeys := make([]string, len(validAllKeys))
@@ -213,20 +213,20 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 				}
 				stringKeys[i] = strings.Join(parts, ":")
 			}
-			cache := r.engine.GetRedis(cacheCode)
+			cache := r.engine.GetRedis(cacheCode.(string))
 			cache.Del(stringKeys...)
 		}
 	}
 	localCache, has := validMap["cl"]
 	if has {
-		validKeys := localCache.(map[string]interface{})
+		validKeys := localCache.(map[interface{}]interface{})
 		for cacheCode, allKeys := range validKeys {
 			validAllKeys := allKeys.([]interface{})
 			stringKeys := make([]string, len(validAllKeys))
 			for i, v := range validAllKeys {
 				stringKeys[i] = v.(string)
 			}
-			r.engine.GetLocalCache(cacheCode).Remove(stringKeys...)
+			r.engine.GetLocalCache(cacheCode.(string)).Remove(stringKeys...)
 		}
 	}
 }

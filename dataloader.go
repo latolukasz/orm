@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/shamaton/msgpack"
 )
 
 const dataLoaderMaxPatch = 200
@@ -191,7 +191,7 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 					if val == nil {
 						toSet = cacheNilValue
 					} else {
-						encoded, _ := jsoniter.ConfigFastest.Marshal(val)
+						encoded, _ := msgpack.Marshal(val)
 						toSet = string(encoded)
 					}
 					pairs[i+1] = toSet
@@ -221,8 +221,7 @@ func (b *dataLoaderBatch) getKeysForNils(l *dataLoader, schema *tableSchema, row
 				resultsKeys[k] = nil
 			} else {
 				var decoded []interface{}
-				_ = jsoniter.ConfigFastest.UnmarshalFromString(v.(string), &decoded)
-				convertDataFromJSON(schema.fields, 0, decoded)
+				_ = msgpack.Unmarshal([]byte(v.(string)), &decoded)
 				resultsKeys[k] = decoded
 				results[l.key(schema, keyMapping[k])] = decoded
 			}

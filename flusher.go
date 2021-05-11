@@ -211,7 +211,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	var referencesToFlash map[Entity]Entity
 
 	for _, entity := range entities {
-		initIfNeeded(f.engine.registry, entity).initDBData()
+		initIfNeeded(f.engine.registry, entity)
 		if entity.IsLazy() {
 			panic(fmt.Errorf("lazy entity and can't be flushed: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
 		}
@@ -223,7 +223,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			refValue := entity.getORM().elem.FieldByName(refName)
 			if refValue.IsValid() && !refValue.IsNil() {
 				refEntity := refValue.Interface().(Entity)
-				initIfNeeded(f.engine.registry, refEntity).initDBData()
+				initIfNeeded(f.engine.registry, refEntity)
 				if refEntity.GetID() == 0 {
 					if referencesToFlash == nil {
 						referencesToFlash = make(map[Entity]Entity)
@@ -850,7 +850,6 @@ func (f *flusher) convertDBDataToMap(schema *tableSchema, data []interface{}) ma
 func (f *flusher) injectBind(entity Entity, bind map[string]interface{}) {
 	orm := entity.getORM()
 	mapping := orm.tableSchema.columnMapping
-	orm.initDBData()
 	for key, value := range bind {
 		orm.dBData[mapping[key]] = value
 	}
