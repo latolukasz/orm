@@ -29,7 +29,7 @@ func TestLazyReceiver(t *testing.T) {
 	var ref *lazyReceiverReference
 
 	registry := &Registry{}
-	registry.RegisterEnum("orm.TestEnum", "a", "b", "c")
+	registry.RegisterEnum("orm.TestEnum", []string{"a", "b", "c"})
 	engine := PrepareTables(t, registry, 5, entity, ref)
 	engine.GetRedis().FlushDB()
 

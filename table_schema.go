@@ -46,7 +46,7 @@ func (enum *enum) Has(value string) bool {
 	return has
 }
 
-func initEnum(ref interface{}) *enum {
+func initEnum(ref interface{}, defaultValue ...string) *enum {
 	enum := &enum{}
 	e := reflect.ValueOf(ref)
 	enum.mapping = make(map[string]string)
@@ -56,7 +56,11 @@ func initEnum(ref interface{}) *enum {
 		enum.fields = append(enum.fields, name)
 		enum.mapping[name] = name
 	}
-	enum.defaultValue = enum.fields[0]
+	if len(defaultValue) > 0 {
+		enum.defaultValue = defaultValue[0]
+	} else {
+		enum.defaultValue = enum.fields[0]
+	}
 	return enum
 }
 

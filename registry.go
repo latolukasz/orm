@@ -240,20 +240,23 @@ func (r *Registry) RegisterElasticIndex(index ElasticIndexDefinition, serverPool
 	r.elasticIndices[pool][index.GetName()] = index
 }
 
-func (r *Registry) RegisterEnumStruct(code string, val interface{}) {
-	enum := initEnum(val)
+func (r *Registry) RegisterEnumStruct(code string, val interface{}, defaultValue ...string) {
+	enum := initEnum(val, defaultValue...)
 	if r.enums == nil {
 		r.enums = make(map[string]Enum)
 	}
 	r.enums[code] = enum
 }
 
-func (r *Registry) RegisterEnum(code string, val ...string) {
+func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...string) {
 	e := enum{}
-	e.fields = val
-	e.defaultValue = val[0]
+	e.fields = values
+	e.defaultValue = values[0]
+	if len(defaultValue) > 0 {
+		e.defaultValue = defaultValue[0]
+	}
 	e.mapping = make(map[string]string)
-	for _, name := range val {
+	for _, name := range values {
 		e.mapping[name] = name
 	}
 	if r.enums == nil {
