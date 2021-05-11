@@ -148,12 +148,21 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		ids = ids[0:j]
 		cacheKeys = cacheKeys[0:j]
 	}
+	var duplicates map[uint64][]int
 	if len(ids) > 0 {
 		query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(ids[0], 10)
 		idsMap := map[uint64]int{ids[0]: 0}
 		for i, id := range ids[1:] {
 			query += "," + strconv.FormatUint(id, 10)
-			idsMap[id] = i + 1
+			_, hasDuplicates := idsMap[id]
+			if hasDuplicates {
+				if duplicates == nil {
+					duplicates = make(map[uint64][]int)
+				}
+				duplicates[id] = append(duplicates[id], i+1)
+			} else {
+				idsMap[id] = i + 1
+			}
 		}
 		query += ")"
 		pool := schema.GetMysql(engine)
@@ -183,6 +192,12 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			}
 			hasValid = true
 			found++
+			if duplicates != nil {
+				for _, duplicate := range duplicates[id] {
+					newSlice.Index(duplicate).Set(e.getORM().value)
+					found++
+				}
+			}
 		}
 		if hasCache && found < len(ids) {
 			for _, id := range ids {

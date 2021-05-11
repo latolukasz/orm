@@ -134,6 +134,17 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		engine.LoadByIDs([]uint64{1}, &rows, "Name")
 	})
 
+	rows = make([]*loadByIdsEntity, 0)
+	missing = engine.LoadByIDs([]uint64{1, 1, 1}, &rows)
+	assert.False(t, missing)
+	assert.Len(t, rows, 3)
+	assert.NotNil(t, rows[0])
+	assert.Equal(t, "a", rows[0].Name)
+	assert.NotNil(t, rows[1])
+	assert.Equal(t, "a", rows[1].Name)
+	assert.NotNil(t, rows[2])
+	assert.Equal(t, "a", rows[2].Name)
+
 	engine = PrepareTables(t, &Registry{}, 5)
 	assert.PanicsWithError(t, "entity 'orm.loadByIdsEntity' is not registered", func() {
 		engine.LoadByIDs([]uint64{1}, &rows)
