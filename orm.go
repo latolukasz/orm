@@ -465,18 +465,33 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 	}
 	k := 0
 	for _, i := range fields.refs8 {
-		f := elem.Field(i)
-		id := serializer.GetUInt8()
-		if id > 0 {
-			e := getTableSchema(registry, fields.refsTypes[k]).newEntity()
-			o := e.getORM()
-			o.idElem.SetUint(uint64(id))
-			o.inDB = true
-			f.Set(o.value)
-		} else if !f.IsNil() {
-			elem.Field(i).Set(reflect.Zero(fields.refsTypes[k]))
-		}
+		orm.deserializeRef(elem, i, k, registry, fields, uint64(serializer.GetUInt8()))
 		k++
+	}
+	for _, i := range fields.refs16 {
+		orm.deserializeRef(elem, i, k, registry, fields, uint64(serializer.GetUInt16()))
+		k++
+	}
+	for _, i := range fields.refs32 {
+		orm.deserializeRef(elem, i, k, registry, fields, uint64(serializer.GetUInt32()))
+		k++
+	}
+	for _, i := range fields.refs64 {
+		orm.deserializeRef(elem, i, k, registry, fields, serializer.GetUInt64())
+		k++
+	}
+}
+
+func (orm *ORM) deserializeRef(elem reflect.Value, i, k int, registry *validatedRegistry, fields *tableFields, id uint64) {
+	f := elem.Field(i)
+	if id > 0 {
+		e := getTableSchema(registry, fields.refsTypes[k]).newEntity()
+		o := e.getORM()
+		o.idElem.SetUint(id)
+		o.inDB = true
+		f.Set(o.value)
+	} else if !f.IsNil() {
+		elem.Field(i).Set(reflect.Zero(fields.refsTypes[k]))
 	}
 }
 
