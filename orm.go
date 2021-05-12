@@ -419,11 +419,11 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	}
 }
 
-func (orm *ORM) deserialize(serializer *serializer) {
-	orm.deserializeFields(serializer, orm.tableSchema.fields, orm.elem)
+func (orm *ORM) deserialize(serializer *serializer, registry *validatedRegistry) {
+	orm.deserializeFields(serializer, registry, orm.tableSchema.fields, orm.elem)
 }
 
-func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
+func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedRegistry, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.uintegers8 {
 		elem.Field(i).SetUint(uint64(serializer.GetUInt8()))
 	}
@@ -450,6 +450,33 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 	}
 	for _, i := range fields.booleans {
 		elem.Field(i).SetBool(serializer.GetBool())
+	}
+	for _, i := range fields.floats32 {
+		elem.Field(i).SetFloat(float64(serializer.GetFloat32()))
+	}
+	for _, i := range fields.floats64 {
+		elem.Field(i).SetFloat(serializer.GetFloat64())
+	}
+	for _, i := range fields.times {
+		elem.Field(i).Set(reflect.ValueOf(time.Unix(int64(serializer.GetUInt32()), 0)))
+	}
+	if fields.fakeDelete > 0 {
+		elem.Field(fields.fakeDelete).SetBool(serializer.GetBool())
+	}
+	k := 0
+	for _, i := range fields.refs8 {
+		f := elem.Field(i)
+		id := serializer.GetUInt8()
+		if id > 0 {
+			e := getTableSchema(registry, fields.refsTypes[k]).newEntity()
+			o := e.getORM()
+			o.idElem.SetUint(uint64(id))
+			o.inDB = true
+			f.Set(o.value)
+		} else if !f.IsNil() {
+			elem.Field(i).Set(reflect.Zero(fields.refsTypes[k]))
+		}
+		k++
 	}
 }
 
