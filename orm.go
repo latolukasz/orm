@@ -245,13 +245,17 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 	for _, i := range fields.strings {
 		serializer.String(orm.elem.Field(i).String())
 	}
-	for _, i := range fields.sliceStrings {
+	for k, i := range fields.sliceStringsSets {
 		f := orm.elem.Field(i)
-		str := ""
-		if !f.IsNil() {
-			str = strings.Join(f.Interface().([]string), ",")
+		values := f.Interface().([]string)
+		l := len(values)
+		serializer.Uvarint(uint64(l))
+		if l > 0 {
+			set := fields.sets[k]
+			for _, val := range values {
+				serializer.UInt8(uint8(set.Index(val)))
+			}
 		}
-		serializer.String(str)
 	}
 	for _, i := range fields.bytes {
 		serializer.Bytes(orm.elem.Field(i).Bytes())
@@ -317,8 +321,38 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 			serializer.Bytes(encoded)
 		}
 	}
-	// TODO sets store index
-	// TODO refs
+	for _, i := range fields.refs8 {
+		e := orm.elem.Field(i).Interface().(Entity)
+		id := uint8(0)
+		if e != nil {
+			id = uint8(e.GetID())
+		}
+		serializer.UInt8(id)
+	}
+	for _, i := range fields.refs16 {
+		e := orm.elem.Field(i).Interface().(Entity)
+		id := uint16(0)
+		if e != nil {
+			id = uint16(e.GetID())
+		}
+		serializer.UInt16(id)
+	}
+	for _, i := range fields.refs32 {
+		e := orm.elem.Field(i).Interface().(Entity)
+		id := uint32(0)
+		if e != nil {
+			id = uint32(e.GetID())
+		}
+		serializer.UInt32(id)
+	}
+	for _, i := range fields.refs64 {
+		e := orm.elem.Field(i).Interface().(Entity)
+		id := uint64(0)
+		if e != nil {
+			id = e.GetID()
+		}
+		serializer.UInt64(id)
+	}
 	// TODO refsMany
 	// TODO structs
 	copy(orm.binary, serializer.output.Bytes())
@@ -869,7 +903,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 			}
 		}
 	}
-	for _, i := range fields.sliceStrings {
+	for _, i := range fields.sliceStringsSets {
 		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
 		value := field.Interface().([]string)
 		var valueAsString string

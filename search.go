@@ -43,12 +43,17 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
+	for i := 0; i < len(fields.stringsEnums); i++ {
+		v := sql.NullString{}
+		pointers[start] = &v
+		start++
+	}
 	for i := 0; i < len(fields.strings); i++ {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.sliceStrings); i++ {
+	for i := 0; i < len(fields.sliceStringsSets); i++ {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
@@ -150,7 +155,7 @@ func convertScan(fields *tableFields, start int, pointers []interface{}) int {
 		}
 		start++
 	}
-	for i := 0; i < len(fields.sliceStrings); i++ {
+	for i := 0; i < len(fields.sliceStringsSets); i++ {
 		v := pointers[start].(*sql.NullString)
 		if v.Valid {
 			pointers[start] = v.String
@@ -458,7 +463,7 @@ func fillStruct(registry *validatedRegistry, index uint16, data []interface{}, f
 		}
 		index++
 	}
-	for _, i := range fields.sliceStrings {
+	for _, i := range fields.sliceStringsSets {
 		field := value.Field(i)
 		if data[index] != nil {
 			if data[index] == "" {

@@ -150,7 +150,8 @@ type tableFields struct {
 	strings             []int
 	stringsEnums        []int
 	enums               []Enum
-	sliceStrings        []int
+	sliceStringsSets    []int
+	sets                []Enum
 	bytes               []int
 	fakeDelete          int
 	booleans            []int
@@ -166,6 +167,10 @@ type tableFields struct {
 	jsons               []int
 	structs             map[int]*tableFields
 	refs                []int
+	refs8               []int
+	refs16              []int
+	refs32              []int
+	refs64              []int
 	refsTypes           []reflect.Type
 	refsMany            []int
 	refsManyTypes       []reflect.Type
@@ -700,7 +705,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
 	fields := &tableFields{t: t, prefix: prefix, uintegers: make([]int, 0), uintegersNullable: make([]int, 0),
 		integers: make([]int, 0), integersNullable: make([]int, 0), strings: make([]int, 0), fields: make(map[int]reflect.StructField),
-		sliceStrings: make([]int, 0), bytes: make([]int, 0), booleans: make([]int, 0), booleansNullable: make([]int, 0), floats: make([]int, 0),
+		sliceStringsSets: make([]int, 0), bytes: make([]int, 0), booleans: make([]int, 0), booleansNullable: make([]int, 0), floats: make([]int, 0),
 		timesNullable: make([]int, 0), times: make([]int, 0), jsons: make([]int, 0), structs: make(map[int]*tableFields),
 		floatsNullable: make([]int, 0), refs: make([]int, 0), refsTypes: make([]reflect.Type, 0), refsMany: make([]int, 0), refsManyTypes: make([]reflect.Type, 0)}
 	for i := start; i < t.NumField(); i++ {
@@ -884,10 +889,16 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				return nil
 			}
 		case "[]string":
-			fields.sliceStrings = append(fields.sliceStrings, i)
-			if hasSearchable || hasSortable {
-				index.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
-				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
+			setCode, hasSet := tags["set"]
+			if hasSet {
+				fields.sliceStringsSets = append(fields.sliceStringsSets, i)
+				fields.sets = append(fields.sets, registry.enums[setCode])
+				if hasSearchable || hasSortable {
+					index.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
+					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
+				}
+			} else {
+				fields.jsons = append(fields.jsons, i)
 			}
 			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
@@ -979,6 +990,16 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				if f.Type.Implements(modelType) {
 					fields.refs = append(fields.refs, i)
 					fields.refsTypes = append(fields.refsTypes, f.Type)
+					switch f.Type.Field(1).Type.String() {
+					case "uint8":
+						fields.refs8 = append(fields.refs8, i)
+					case "uint16":
+						fields.refs16 = append(fields.refs16, i)
+					case "uint32":
+						fields.refs32 = append(fields.refs32, i)
+					default:
+						fields.refs64 = append(fields.refs64, i)
+					}
 					if hasSearchable || hasSortable {
 						index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 						mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -1109,7 +1130,7 @@ func (fields *tableFields) getColumnNames() []string {
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.integersNullable...)
 	ids = append(ids, fields.strings...)
-	ids = append(ids, fields.sliceStrings...)
+	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.bytes...)
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
