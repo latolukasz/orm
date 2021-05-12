@@ -138,20 +138,94 @@ func (orm *ORM) getDirtyBind() (bind Bind, updateBind map[string]string, has boo
 }
 
 func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
+	orm.serializeFields(serializer, fields, orm.elem)
+	copy(orm.binary, serializer.output.Bytes())
+	serializer.output.Reset()
+}
+
+func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.uintegers8 {
-		serializer.UInt8(uint8(orm.elem.Field(i).Uint()))
+		serializer.UInt8(uint8(elem.Field(i).Uint()))
 	}
 	for _, i := range fields.uintegers16 {
-		serializer.UInt16(uint16(orm.elem.Field(i).Uint()))
+		serializer.UInt16(uint16(elem.Field(i).Uint()))
 	}
 	for _, i := range fields.uintegers32 {
-		serializer.UInt32(uint32(orm.elem.Field(i).Uint()))
+		serializer.UInt32(uint32(elem.Field(i).Uint()))
 	}
 	for _, i := range fields.uintegers64 {
-		serializer.UInt64(orm.elem.Field(i).Uint())
+		serializer.UInt64(elem.Field(i).Uint())
+	}
+	for _, i := range fields.integers8 {
+		serializer.Int8(int8(elem.Field(i).Int()))
+	}
+	for _, i := range fields.integers16 {
+		serializer.Int16(int16(elem.Field(i).Int()))
+	}
+	for _, i := range fields.integers32 {
+		serializer.Int32(int32(elem.Field(i).Int()))
+	}
+	for _, i := range fields.integers64 {
+		serializer.Int64(elem.Field(i).Int())
+	}
+	for _, i := range fields.booleans {
+		serializer.Bool(elem.Field(i).Bool())
+	}
+	for _, i := range fields.floats32 {
+		serializer.Float32(float32(elem.Field(i).Float()))
+	}
+	for _, i := range fields.floats64 {
+		serializer.Float64(elem.Field(i).Float())
+	}
+	for _, i := range fields.floats64 {
+		f := elem.Field(i)
+		if f.IsNil() {
+			serializer.Nullable(true)
+		} else {
+			serializer.Nullable(false)
+			serializer.Float64(f.Float())
+		}
+	}
+	for _, i := range fields.times {
+		serializer.UInt32(uint32(elem.Field(i).Interface().(time.Time).Unix()))
+	}
+	if fields.fakeDelete > 0 {
+		serializer.Bool(elem.Field(fields.fakeDelete).Uint() > 0)
+	}
+	for _, i := range fields.refs8 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint8(0)
+		if e != nil {
+			id = uint8(e.GetID())
+		}
+		serializer.UInt8(id)
+	}
+	for _, i := range fields.refs16 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint16(0)
+		if e != nil {
+			id = uint16(e.GetID())
+		}
+		serializer.UInt16(id)
+	}
+	for _, i := range fields.refs32 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint32(0)
+		if e != nil {
+			id = uint32(e.GetID())
+		}
+		serializer.UInt32(id)
+	}
+	for _, i := range fields.refs64 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint64(0)
+		if e != nil {
+			id = e.GetID()
+		}
+		serializer.UInt64(id)
 	}
 	for _, i := range fields.uintegers8Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -160,7 +234,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.uintegers16Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -169,7 +243,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.uintegers32Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -178,7 +252,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.uintegers64Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -186,20 +260,8 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 			serializer.UInt64(f.Uint())
 		}
 	}
-	for _, i := range fields.integers8 {
-		serializer.Int8(int8(orm.elem.Field(i).Int()))
-	}
-	for _, i := range fields.integers16 {
-		serializer.Int16(int16(orm.elem.Field(i).Int()))
-	}
-	for _, i := range fields.integers32 {
-		serializer.Int32(int32(orm.elem.Field(i).Int()))
-	}
-	for _, i := range fields.integers64 {
-		serializer.Int64(orm.elem.Field(i).Int())
-	}
 	for _, i := range fields.integers8Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -208,7 +270,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.integers16Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -217,7 +279,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.integers32Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -226,7 +288,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.integers64Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -235,7 +297,7 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for k, i := range fields.stringsEnums {
-		val := orm.elem.Field(i).String()
+		val := elem.Field(i).String()
 		if val == "" {
 			serializer.UInt8(0)
 		} else {
@@ -243,10 +305,13 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 		}
 	}
 	for _, i := range fields.strings {
-		serializer.String(orm.elem.Field(i).String())
+		serializer.String(elem.Field(i).String())
+	}
+	for _, i := range fields.bytes {
+		serializer.Bytes(elem.Field(i).Bytes())
 	}
 	for k, i := range fields.sliceStringsSets {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		values := f.Interface().([]string)
 		l := len(values)
 		serializer.Uvarint(uint64(l))
@@ -257,14 +322,8 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 			}
 		}
 	}
-	for _, i := range fields.bytes {
-		serializer.Bytes(orm.elem.Field(i).Bytes())
-	}
-	for _, i := range fields.booleans {
-		serializer.Bool(orm.elem.Field(i).Bool())
-	}
 	for _, i := range fields.booleansNullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -272,14 +331,8 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 			serializer.Bool(f.Bool())
 		}
 	}
-	for _, i := range fields.floats32 {
-		serializer.Float32(float32(orm.elem.Field(i).Float()))
-	}
-	for _, i := range fields.floats64 {
-		serializer.Float64(orm.elem.Field(i).Float())
-	}
 	for _, i := range fields.floats32Nullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -287,32 +340,22 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 			serializer.Float32(float32(f.Float()))
 		}
 	}
-	for _, i := range fields.floats64 {
-		f := orm.elem.Field(i)
-		if f.IsNil() {
-			serializer.Nullable(true)
-		} else {
-			serializer.Nullable(false)
-			serializer.Float64(f.Float())
-		}
-	}
-	for _, i := range fields.times {
-		serializer.UInt32(uint32(orm.elem.Field(i).Interface().(time.Time).Unix()))
-	}
 	for _, i := range fields.timesNullable {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
 			serializer.Nullable(false)
-			serializer.UInt32(uint32(orm.elem.Field(i).Interface().(time.Time).Unix()))
+			serializer.UInt32(uint32(elem.Field(i).Interface().(time.Time).Unix()))
 		}
 	}
-	if fields.fakeDelete > 0 {
-		serializer.Bool(orm.elem.Field(fields.fakeDelete).Uint() > 0)
+	for i, subField := range fields.structs {
+		orm.serializeFields(serializer, subField, elem.Field(i).Elem())
 	}
+	// dynamic
+
 	for _, i := range fields.jsons {
-		f := orm.elem.Field(i)
+		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.Nullable(true)
 		} else {
@@ -321,42 +364,61 @@ func (orm *ORM) serialize(serializer *serializer, fields *tableFields) {
 			serializer.Bytes(encoded)
 		}
 	}
-	for _, i := range fields.refs8 {
-		e := orm.elem.Field(i).Interface().(Entity)
-		id := uint8(0)
-		if e != nil {
-			id = uint8(e.GetID())
+	for _, i := range fields.refsMany8 {
+		e := elem.Field(i)
+		if e.IsNil() {
+			serializer.Uvarint(uint64(0))
+		} else {
+			l := e.Len()
+			for k := 0; k < l; k++ {
+				serializer.UInt8(uint8(e.Index(k).Interface().(Entity).GetID()))
+			}
 		}
-		serializer.UInt8(id)
 	}
-	for _, i := range fields.refs16 {
-		e := orm.elem.Field(i).Interface().(Entity)
-		id := uint16(0)
-		if e != nil {
-			id = uint16(e.GetID())
+	for _, i := range fields.refsMany16 {
+		e := elem.Field(i)
+		if e.IsNil() {
+			serializer.Uvarint(uint64(0))
+		} else {
+			l := e.Len()
+			for k := 0; k < l; k++ {
+				serializer.UInt16(uint16(e.Index(k).Interface().(Entity).GetID()))
+			}
 		}
-		serializer.UInt16(id)
 	}
-	for _, i := range fields.refs32 {
-		e := orm.elem.Field(i).Interface().(Entity)
-		id := uint32(0)
-		if e != nil {
-			id = uint32(e.GetID())
+	for _, i := range fields.refsMany32 {
+		e := elem.Field(i)
+		if e.IsNil() {
+			serializer.Uvarint(uint64(0))
+		} else {
+			l := e.Len()
+			for k := 0; k < l; k++ {
+				serializer.UInt32(uint32(e.Index(k).Interface().(Entity).GetID()))
+			}
 		}
-		serializer.UInt32(id)
 	}
-	for _, i := range fields.refs64 {
-		e := orm.elem.Field(i).Interface().(Entity)
-		id := uint64(0)
-		if e != nil {
-			id = e.GetID()
+	for _, i := range fields.refsMany32 {
+		e := elem.Field(i)
+		if e.IsNil() {
+			serializer.Uvarint(uint64(0))
+		} else {
+			l := e.Len()
+			for k := 0; k < l; k++ {
+				serializer.UInt32(uint32(e.Index(k).Interface().(Entity).GetID()))
+			}
 		}
-		serializer.UInt64(id)
 	}
-	// TODO refsMany
-	// TODO structs
-	copy(orm.binary, serializer.output.Bytes())
-	serializer.output.Reset()
+	for _, i := range fields.refsMany64 {
+		e := elem.Field(i)
+		if e.IsNil() {
+			serializer.Uvarint(uint64(0))
+		} else {
+			l := e.Len()
+			for k := 0; k < l; k++ {
+				serializer.UInt64(e.Index(k).Interface().(Entity).GetID())
+			}
+		}
+	}
 }
 
 func (orm *ORM) SetField(field string, value interface{}) error {

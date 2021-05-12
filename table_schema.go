@@ -173,6 +173,10 @@ type tableFields struct {
 	refs64              []int
 	refsTypes           []reflect.Type
 	refsMany            []int
+	refsMany8           []int
+	refsMany16          []int
+	refsMany32          []int
+	refsMany64          []int
 	refsManyTypes       []reflect.Type
 }
 
@@ -1014,6 +1018,16 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 					if t.Implements(modelType) {
 						fields.refsMany = append(fields.refsMany, i)
 						fields.refsManyTypes = append(fields.refsManyTypes, t)
+						switch t.String() {
+						case "uint8":
+							fields.refsMany8 = append(fields.refsMany8, i)
+						case "uint16":
+							fields.refsMany16 = append(fields.refsMany16, i)
+						case "uint32":
+							fields.refsMany32 = append(fields.refsMany32, i)
+						default:
+							fields.refsMany64 = append(fields.refsMany64, i)
+						}
 						continue
 					}
 				}
