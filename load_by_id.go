@@ -7,7 +7,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const cacheNilValue = ""
+const cacheNilValue = "n"
 
 func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool, references ...string) (found bool, schema *tableSchema) {
 	orm := initIfNeeded(engine.registry, entity)
