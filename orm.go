@@ -544,6 +544,12 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 		var v *int64
 		elem.Field(i).Set(reflect.ValueOf(&v))
 	}
+	for _, i := range fields.strings {
+		elem.Field(i).SetString(serializer.GetString())
+	}
+	for _, i := range fields.bytes {
+		elem.Field(i).SetBytes(serializer.GetBytes())
+	}
 }
 
 func (orm *ORM) deserializeRef(elem reflect.Value, i, k int, registry *validatedRegistry, fields *tableFields, id uint64) {

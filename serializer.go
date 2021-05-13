@@ -89,13 +89,17 @@ func (s *serializer) SetFloat64(v float64) {
 
 func (s *serializer) SetString(v string) {
 	str := str2Bytes(v)
-	s.SetUvarint(uint64(len(str)))
-	_, _ = s.buffer.Write(str)
+	l := len(str)
+	s.SetUvarint(uint64(l))
+	if l > 0 {
+		_, _ = s.buffer.Write(str)
+	}
 }
 
 func (s *serializer) SetBytes(val []byte) {
-	s.SetUvarint(uint64(len(val)))
-	if val != nil {
+	l := len(val)
+	s.SetUvarint(uint64(l))
+	if l > 0 {
 		_, _ = s.buffer.Write(val)
 	}
 }
@@ -172,12 +176,19 @@ func (s *serializer) GetFixed(ln int) []byte {
 }
 
 func (s *serializer) GetString() string {
-	str := s.GetFixed(int(s.GetUvarint()))
-	return string(str)
+	l := s.GetUvarint()
+	if l == 0 {
+		return ""
+	}
+	return string(s.GetFixed(int(l)))
 }
 
 func (s *serializer) GetBytes() []byte {
-	return s.GetFixed(int(s.GetUvarint()))
+	l := s.GetUvarint()
+	if l == 0 {
+		return nil
+	}
+	return s.GetFixed(int(l))
 }
 
 func (s *serializer) ReadByte() (byte, error) {
