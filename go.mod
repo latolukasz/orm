@@ -20,7 +20,6 @@ require (
 	github.com/segmentio/fasthash v1.0.3
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/otel v0.20.0 // indirect
-	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4 // indirect
-	golang.org/x/tools v0.1.0 // indirect
+	golang.org/x/tools v0.1.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )

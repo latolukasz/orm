@@ -200,11 +200,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			}
 		}
 		if hasCache && found < len(ids) {
-			for _, id := range ids {
-				k := idsMap[id]
-				if dbMap != nil {
-					k = dbMap[k]
-				}
+			for k, id := range ids {
 				if newSlice.Index(k).IsZero() {
 					cacheKey := schema.getCacheKey(id)
 					if hasLocalCache {
