@@ -109,6 +109,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 	if hasRedis && len(ids) > 0 {
 		redisCache, _ = schema.GetRedisCache(engine)
 		inCache := redisCache.MGetFast(cacheKeys...)
+		fmt.Printf("%v\n", inCache)
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
@@ -200,14 +201,19 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			}
 		}
 		if hasCache && found < len(ids) {
-			for k, id := range ids {
+			for _, id := range ids {
+				k := idsMap[id]
+				if dbMap != nil {
+					k = dbMap[k]
+				}
 				if newSlice.Index(k).IsZero() {
 					cacheKey := schema.getCacheKey(id)
 					if hasLocalCache {
 						localCacheToSet = append(localCacheToSet, cacheKey, cacheNilValue)
 					}
 					if hasRedis {
-						redisCacheToSet = append(redisCacheToSet, cacheKey, cacheNilValue)
+						// TODO why?
+						//redisCacheToSet = append(redisCacheToSet, cacheKey, cacheNilValue)
 					}
 				}
 			}

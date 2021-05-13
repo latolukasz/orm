@@ -73,7 +73,8 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 			localCache.Set(cacheKey, cacheNilValue)
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, cacheNilValue, 60)
+			// TODO why?
+			//redisCache.Set(cacheKey, cacheNilValue, 60)
 		}
 		return false, schema
 	}
