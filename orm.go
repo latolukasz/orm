@@ -218,72 +218,72 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.uintegers8Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetUInt8(uint8(f.Uint()))
 		}
 	}
 	for _, i := range fields.uintegers16Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetUInt16(uint16(f.Uint()))
 		}
 	}
 	for _, i := range fields.uintegers32Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetUInt32(uint32(f.Uint()))
 		}
 	}
 	for _, i := range fields.uintegers64Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetUInt64(f.Uint())
 		}
 	}
 	for _, i := range fields.integers8Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetInt8(int8(f.Int()))
 		}
 	}
 	for _, i := range fields.integers16Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetInt16(int16(f.Int()))
 		}
 	}
 	for _, i := range fields.integers32Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetInt32(int32(f.Int()))
 		}
 	}
 	for _, i := range fields.integers64Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetInt64(f.Int())
 		}
 	}
@@ -316,36 +316,36 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.booleansNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetBool(f.Bool())
 		}
 	}
 	for _, i := range fields.floats32Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetFloat32(float32(f.Float()))
 		}
 	}
 	for _, i := range fields.floats64Nullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetFloat64(f.Float())
 		}
 	}
 	for _, i := range fields.timesNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			serializer.SetUInt32(uint32(elem.Field(i).Interface().(time.Time).Unix()))
 		}
 	}
@@ -355,9 +355,9 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.jsons {
 		f := elem.Field(i)
 		if f.IsNil() {
-			serializer.SetNullable(true)
+			serializer.SetBool(false)
 		} else {
-			serializer.SetNullable(false)
+			serializer.SetBool(true)
 			encoded, _ := jsoniter.ConfigFastest.Marshal(f.Interface())
 			serializer.SetBytes(encoded)
 		}
@@ -479,6 +479,14 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 	for _, i := range fields.refs64 {
 		orm.deserializeRef(elem, i, k, registry, fields, serializer.GetUInt64())
 		k++
+	}
+	for _, i := range fields.uintegers8Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetUInt8()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *uint8
+		elem.Field(i).Set(reflect.ValueOf(&v))
 	}
 }
 

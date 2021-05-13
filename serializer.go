@@ -19,14 +19,6 @@ type serializer struct {
 	scratch [binary.MaxVarintLen64]byte
 }
 
-func (s *serializer) SetNullable(isNull bool) {
-	nullablePrefix := uint8(0)
-	if !isNull {
-		nullablePrefix = uint8(1)
-	}
-	_, _ = s.buffer.Write([]byte{nullablePrefix})
-}
-
 func (s *serializer) SetUvarint(v uint64) {
 	ln := binary.PutUvarint(s.scratch[:binary.MaxVarintLen64], v)
 	_, _ = s.buffer.Write(s.scratch[0:ln])
