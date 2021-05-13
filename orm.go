@@ -488,6 +488,62 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 		var v *uint8
 		elem.Field(i).Set(reflect.ValueOf(&v))
 	}
+	for _, i := range fields.uintegers16Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetUInt16()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *uint16
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
+	for _, i := range fields.uintegers32Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetUInt32()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *uint32
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
+	for _, i := range fields.uintegers64Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetUInt64()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *uint64
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
+	for _, i := range fields.integers8Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetInt8()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *int8
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
+	for _, i := range fields.integers16Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetInt16()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *int16
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
+	for _, i := range fields.integers32Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetInt32()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *int32
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
+	for _, i := range fields.integers64Nullable {
+		if serializer.GetBool() {
+			v := serializer.GetInt64()
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		var v *int64
+		elem.Field(i).Set(reflect.ValueOf(&v))
+	}
 }
 
 func (orm *ORM) deserializeRef(elem reflect.Value, i, k int, registry *validatedRegistry, fields *tableFields, id uint64) {
