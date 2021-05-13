@@ -14,6 +14,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 	lenIDs := len(ids)
 	newSlice := reflect.MakeSlice(entities.Type(), lenIDs, lenIDs)
 	if lenIDs == 0 {
+		entities.Set(newSlice)
 		return
 	}
 	t, has, name := getEntityTypeForSlice(engine.registry, entities.Type(), true)
@@ -110,7 +111,6 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 	if hasRedis && len(ids) > 0 {
 		redisCache, _ = schema.GetRedisCache(engine)
 		inCache := redisCache.MGetFast(cacheKeys...)
-		fmt.Printf("%v\n", inCache)
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
@@ -195,6 +195,9 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			found++
 			if duplicates != nil {
 				for _, duplicate := range duplicates[id] {
+					if dbMap != nil {
+						duplicate = dbMap[duplicate]
+					}
 					newSlice.Index(duplicate).Set(e.getORM().value)
 					found++
 				}
@@ -212,8 +215,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 						localCacheToSet = append(localCacheToSet, cacheKey, cacheNilValue)
 					}
 					if hasRedis {
-						// TODO why?
-						//redisCacheToSet = append(redisCacheToSet, cacheKey, cacheNilValue)
+						redisCacheToSet = append(redisCacheToSet, cacheKey, cacheNilValue)
 					}
 				}
 			}
