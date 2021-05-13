@@ -110,8 +110,12 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, "r2", rows[1].ReferenceOne.GetFieldLazy("Name"))
 	assert.Equal(t, "", rows[2].Name)
 	assert.Equal(t, "c", rows[2].GetFieldLazy("Name"))
-	missing = engine.LoadByIDsLazy([]uint64{1, 2, 3, 4}, &rows, "*")
+	missing = engine.LoadByIDsLazy([]uint64{1, 2, 4, 3}, &rows, "*")
 	assert.True(t, missing)
+	assert.NotNil(t, rows[0])
+	assert.NotNil(t, rows[1])
+	assert.Nil(t, rows[2])
+	assert.NotNil(t, rows[3])
 
 	missing = engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "ReferenceOne/ReferenceTwo")
 	assert.True(t, missing)
