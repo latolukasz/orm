@@ -1007,6 +1007,38 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 			updateBind[name] = strconv.FormatUint(uint64(val), 10)
 		}
 	}
+	for _, i := range fields.uintegers32 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := uint32(value.Field(i).Uint())
+		if hasOld {
+			if hasOld && orm.getUInt32(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatUint(uint64(val), 10)
+		}
+	}
+	for _, i := range fields.uintegers64 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := value.Field(i).Uint()
+		if hasOld {
+			if hasOld && orm.getUInt64(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatUint(val, 10)
+		}
+	}
 }
 
 func (orm *ORM) getUInt8(i int, fromCache bool, serializer *serializer) uint8 {
@@ -1021,6 +1053,20 @@ func (orm *ORM) getUInt16(i int, fromCache bool, serializer *serializer) uint16 
 		return serializer.GetUInt16()
 	}
 	return orm.databaseData[i].(uint16)
+}
+
+func (orm *ORM) getUInt32(i int, fromCache bool, serializer *serializer) uint32 {
+	if fromCache {
+		return serializer.GetUInt32()
+	}
+	return orm.databaseData[i].(uint32)
+}
+
+func (orm *ORM) getUInt64(i int, fromCache bool, serializer *serializer) uint64 {
+	if fromCache {
+		return serializer.GetUInt64()
+	}
+	return orm.databaseData[i].(uint64)
 }
 
 func (orm *ORM) fillBindToRemove(id uint64, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
