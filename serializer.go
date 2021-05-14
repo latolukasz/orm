@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"math"
 	"reflect"
+	"sync"
 	"unsafe"
 )
 
@@ -15,6 +16,7 @@ func newSerializer() *serializer {
 }
 
 type serializer struct {
+	mutex   sync.Mutex
 	buffer  *bytes.Buffer
 	scratch [binary.MaxVarintLen64]byte
 }

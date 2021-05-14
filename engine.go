@@ -52,6 +52,8 @@ type Engine struct {
 	afterCommitRedisFlusher   *redisFlusher
 	afterCommitDataLoaderSets dataLoaderSets
 	eventBroker               *eventBroker
+	serializer                *serializer
+	serializerOnce            sync.Once
 }
 
 func (e *Engine) Log() Log {
@@ -504,4 +506,11 @@ func (e *Engine) GetRedisSearchIndexAlters() (alters []RedisSearchIndexAlter) {
 
 func (e *Engine) GetElasticIndexAlters() (alters []ElasticIndexAlter) {
 	return getElasticIndexAlters(e)
+}
+
+func (e *Engine) getSerializer() *serializer {
+	e.serializerOnce.Do(func() {
+		e.serializer = newSerializer()
+	})
+	return e.serializer
 }

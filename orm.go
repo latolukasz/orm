@@ -22,8 +22,8 @@ type Entity interface {
 	IsLoaded() bool
 	IsLazy() bool
 	Fill(engine *Engine)
-	IsDirty() bool
-	GetDirtyBind() (bind Bind, has bool)
+	IsDirty(engine *Engine) bool
+	GetDirtyBind(engine *Engine) (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
@@ -32,6 +32,7 @@ type Entity interface {
 
 type ORM struct {
 	binary               []byte
+	databaseData         []interface{}
 	tableSchema          *tableSchema
 	onDuplicateKeyUpdate map[string]interface{}
 	initialised          bool
@@ -61,11 +62,7 @@ func (orm *ORM) GetFieldLazy(field string) interface{} {
 	if !orm.lazy {
 		panic(fmt.Errorf("entity is not lazy"))
 	}
-	i, has := orm.tableSchema.columnMapping[field]
-	if !has {
-		panic(fmt.Errorf("unknown field %s", field))
-	}
-	return orm.dBData[i]
+	return "TODO"
 }
 
 func (orm *ORM) markToDelete() {
@@ -86,7 +83,7 @@ func (orm *ORM) IsLazy() bool {
 
 func (orm *ORM) Fill(engine *Engine) {
 	if orm.lazy && orm.loaded {
-		fillStruct(engine.registry, 0, orm.dBData, orm.tableSchema.fields, orm, orm.elem)
+		orm.deserialize(engine.getSerializer(), engine.registry)
 		orm.lazy = false
 	}
 }
@@ -102,20 +99,20 @@ func (orm *ORM) SetEntityLogMeta(key string, value interface{}) {
 	orm.logMeta[key] = value
 }
 
-func (orm *ORM) IsDirty() bool {
+func (orm *ORM) IsDirty(engine *Engine) bool {
 	if !orm.loaded {
 		return true
 	}
-	_, is := orm.GetDirtyBind()
+	_, is := orm.GetDirtyBind(engine)
 	return is
 }
 
-func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
-	bind, _, has = orm.getDirtyBind()
+func (orm *ORM) GetDirtyBind(engine *Engine) (bind Bind, has bool) {
+	bind, _, has = orm.getDirtyBind(engine)
 	return bind, has
 }
 
-func (orm *ORM) getDirtyBind() (bind Bind, updateBind map[string]string, has bool) {
+func (orm *ORM) getDirtyBind(engine *Engine) (bind Bind, updateBind map[string]string, has bool) {
 	if orm.delete {
 		return nil, nil, true
 	}
@@ -132,7 +129,13 @@ func (orm *ORM) getDirtyBind() (bind Bind, updateBind map[string]string, has boo
 	if orm.inDB && !orm.delete {
 		updateBind = make(map[string]string)
 	}
-	orm.fillBind(id, bind, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, orm.dBData, "")
+	var serializer *serializer
+	if orm.binary != nil {
+		serializer = engine.getSerializer()
+		serializer.mutex.Lock()
+		defer serializer.mutex.Unlock()
+	}
+	orm.buildBind(id, serializer, bind, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "")
 	has = id == 0 || len(bind) > 0
 	return bind, updateBind, has
 }
@@ -415,6 +418,8 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 }
 
 func (orm *ORM) deserialize(serializer *serializer, registry *validatedRegistry) {
+	serializer.mutex.Lock()
+	defer serializer.mutex.Unlock()
 	orm.deserializeFields(serializer, registry, orm.tableSchema.fields, orm.elem)
 }
 
@@ -944,16 +949,6 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 	return nil
 }
 
-func (orm *ORM) prepareFieldBind(prefix string, schema *tableSchema, fields *tableFields, value reflect.Value,
-	oldData []interface{}, index int) (reflect.Value, string, interface{}) {
-	name := prefix + fields.fields[index].Name
-	field := value.Field(index)
-	if orm.inDB {
-		return field, name, oldData[schema.columnMapping[name]]
-	}
-	return field, name, nil
-}
-
 func (orm *ORM) checkNil(field reflect.Value, name string, hasOld bool, old interface{}, bind Bind, updateBind map[string]string) bool {
 	isNil := field.IsZero()
 	if isNil {
@@ -969,15 +964,74 @@ func (orm *ORM) checkNil(field reflect.Value, name string, hasOld bool, old inte
 	return true
 }
 
-func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
-	fields *tableFields, value reflect.Value, oldData []interface{}, prefix string) {
+func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
+	fields *tableFields, value reflect.Value, prefix string) {
+	fromCache := orm.binary != nil
+	hasUpdate := updateBind != nil
+	noPrefix := prefix == ""
+	var hasOld = orm.inDB
+	if fromCache {
+		serializer.buffer.Reset()
+		serializer.buffer.Write(orm.binary)
+		serializer.buffer.Reset()
+	}
+	for _, i := range fields.uintegers8 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := uint8(value.Field(i).Uint())
+		if hasOld {
+			if hasOld && orm.getUInt8(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatUint(uint64(val), 10)
+		}
+	}
+	for _, i := range fields.uintegers16 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := uint16(value.Field(i).Uint())
+		if hasOld {
+			if hasOld && orm.getUInt16(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatUint(uint64(val), 10)
+		}
+	}
+}
+
+func (orm *ORM) getUInt8(i int, fromCache bool, serializer *serializer) uint8 {
+	if fromCache {
+		return serializer.GetUInt8()
+	}
+	return orm.databaseData[i].(uint8)
+}
+
+func (orm *ORM) getUInt16(i int, fromCache bool, serializer *serializer) uint16 {
+	if fromCache {
+		return serializer.GetUInt16()
+	}
+	return orm.databaseData[i].(uint16)
+}
+
+func (orm *ORM) fillBindToRemove(id uint64, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
+	fields *tableFields, value reflect.Value, prefix string) {
 	var hasOld = orm.inDB
 	hasUpdate := updateBind != nil
 	for _, i := range fields.uintegers {
 		if i == 1 && prefix == "" {
 			continue
 		}
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		val := field.Uint()
 		if hasOld && old == val {
 			continue
@@ -988,7 +1042,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.uintegersNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
 			continue
 		}
@@ -1002,7 +1056,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.integers {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		val := field.Int()
 		if hasOld && old == val {
 			continue
@@ -1013,7 +1067,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.integersNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
 			continue
 		}
@@ -1027,7 +1081,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.strings {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := field.String()
 		if hasOld && (old == value || (old == nil && value == "")) {
 			continue
@@ -1054,7 +1108,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.bytes {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := field.Bytes()
 		valueAsString := string(value)
 		if hasOld && ((old == nil && valueAsString == "") || (old != nil && old.(string) == valueAsString)) {
@@ -1073,7 +1127,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	if fields.fakeDelete > 0 {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, fields.fakeDelete)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, fields.fakeDelete)
 		value := uint64(0)
 		if field.Bool() {
 			value = id
@@ -1086,7 +1140,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.booleans {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := field.Bool()
 		if hasOld && old == value {
 			continue
@@ -1101,7 +1155,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.booleansNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
 			continue
 		}
@@ -1119,7 +1173,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.floats {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		val := field.Float()
 		precision := 16
 		fieldAttributes := tableSchema.tags[name]
@@ -1157,7 +1211,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.floatsNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
 			continue
 		}
@@ -1206,7 +1260,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.times {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := field.Interface().(time.Time)
 		layout := "2006-01-02"
 		var valueAsString string
@@ -1231,7 +1285,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.timesNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
 			continue
 		}
@@ -1262,7 +1316,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.sliceStringsSets {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := field.Interface().([]string)
 		var valueAsString string
 		if value != nil {
@@ -1293,11 +1347,11 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for i, subFields := range fields.structs {
-		field, _, _ := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
-		orm.fillBind(0, bind, updateBind, tableSchema, subFields, reflect.ValueOf(field.Interface()), oldData, fields.fields[i].Name)
+		field, _, _ := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+		orm.fillBind(0, bind, updateBind, tableSchema, subFields, reflect.ValueOf(field.Interface()), fields.fields[i].Name)
 	}
 	for _, i := range fields.refs {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := uint64(0)
 		if !field.IsNil() {
 			value = field.Elem().Field(1).Uint()
@@ -1318,7 +1372,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.refsMany {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
 			continue
 		}
@@ -1348,7 +1402,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		}
 	}
 	for _, i := range fields.jsons {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, oldData, i)
+		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		value := field.Interface()
 		var valString string
 		if !field.IsZero() {
