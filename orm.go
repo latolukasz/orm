@@ -657,24 +657,19 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 	}
 	k = 0
 	for _, i := range fields.refsMany8 {
-		l := int(serializer.GetUvarint())
-		f := elem.Field(i)
-		refType := fields.refsManyTypes[k]
-		if l > 0 {
-			slice := reflect.MakeSlice(reflect.SliceOf(refType), l, l)
-			for j := 0; j < l; j++ {
-				e := getTableSchema(registry, fields.refsTypes[k]).newEntity()
-				o := e.getORM()
-				o.idElem.SetUint(uint64(serializer.GetUInt8()))
-				o.inDB = true
-				slice.Index(j).Set(o.value)
-				f.Set(o.value)
-			}
-		} else {
-			if !f.IsNil() {
-				f.Set(reflect.Zero(reflect.SliceOf(refType)))
-			}
-		}
+		orm.deserializeRefMany(8, elem, serializer, i, k, registry, fields)
+		k++
+	}
+	for _, i := range fields.refsMany16 {
+		orm.deserializeRefMany(16, elem, serializer, i, k, registry, fields)
+		k++
+	}
+	for _, i := range fields.refsMany32 {
+		orm.deserializeRefMany(32, elem, serializer, i, k, registry, fields)
+		k++
+	}
+	for _, i := range fields.refsMany64 {
+		orm.deserializeRefMany(64, elem, serializer, i, k, registry, fields)
 		k++
 	}
 }
@@ -689,6 +684,36 @@ func (orm *ORM) deserializeRef(elem reflect.Value, i, k int, registry *validated
 		f.Set(o.value)
 	} else if !f.IsNil() {
 		elem.Field(i).Set(reflect.Zero(fields.refsTypes[k]))
+	}
+}
+
+func (orm *ORM) deserializeRefMany(size int, elem reflect.Value, serializer *serializer, i, k int, registry *validatedRegistry, fields *tableFields) {
+	l := int(serializer.GetUvarint())
+	f := elem.Field(i)
+	refType := fields.refsManyTypes[k]
+	if l > 0 {
+		slice := reflect.MakeSlice(reflect.SliceOf(refType), l, l)
+		for j := 0; j < l; j++ {
+			e := getTableSchema(registry, fields.refsTypes[k]).newEntity()
+			o := e.getORM()
+			switch size {
+			case 8:
+				o.idElem.SetUint(uint64(serializer.GetUInt8()))
+			case 16:
+				o.idElem.SetUint(uint64(serializer.GetUInt16()))
+			case 32:
+				o.idElem.SetUint(uint64(serializer.GetUInt32()))
+			default:
+				o.idElem.SetUint(serializer.GetUInt64())
+			}
+			o.inDB = true
+			slice.Index(j).Set(o.value)
+			f.Set(o.value)
+		}
+	} else {
+		if !f.IsNil() {
+			f.Set(reflect.Zero(reflect.SliceOf(refType)))
+		}
 	}
 }
 
