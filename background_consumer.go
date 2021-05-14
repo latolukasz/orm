@@ -41,7 +41,11 @@ type BackgroundConsumer struct {
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
-	return &BackgroundConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
+	c := &BackgroundConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
+	c.loop = true
+	c.limit = 1
+	c.blockTime = time.Second * 30
+	return c
 }
 
 func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
@@ -51,9 +55,6 @@ func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
 func (r *BackgroundConsumer) Digest(ctx context.Context) {
 	consumer := r.engine.GetEventBroker().Consumer("default-consumer", asyncConsumerGroupName).(*eventsConsumer)
 	consumer.eventConsumerBase = r.eventConsumerBase
-	if r.heartBeat != nil {
-		consumer.SetHeartBeat(r.heartBeatDuration, r.heartBeat)
-	}
 	consumer.Consume(ctx, 100, true, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
