@@ -27,7 +27,7 @@ type Entity interface {
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
-	GetFieldLazy(field string) interface{}
+	GetFieldLazy(engine *Engine, field string) interface{}
 }
 
 type ORM struct {
@@ -58,11 +58,68 @@ func (orm *ORM) GetID() uint64 {
 	return orm.idElem.Uint()
 }
 
-func (orm *ORM) GetFieldLazy(field string) interface{} {
+func (orm *ORM) GetFieldLazy(engine *Engine, field string) interface{} {
 	if !orm.lazy {
 		panic(fmt.Errorf("entity is not lazy"))
 	}
-	return "TODO"
+	index, has := orm.tableSchema.columnMapping[field]
+	if !has {
+		panic(fmt.Errorf("uknown field " + field))
+	}
+	fields := orm.tableSchema.fields
+	serializer := engine.getSerializer()
+	serializer.mutex.Lock()
+	defer serializer.mutex.Unlock()
+	serializer.Reset(orm.binary)
+	for _, i := range fields.uintegers8 {
+		if i == index {
+			return serializer.GetUInt8()
+		}
+		serializer.buffer.Next(1)
+	}
+	for _, i := range fields.uintegers16 {
+		if i == index {
+			return serializer.GetUInt16()
+		}
+		serializer.buffer.Next(2)
+	}
+	for _, i := range fields.uintegers32 {
+		if i == index {
+			return serializer.GetUInt32()
+		}
+		serializer.buffer.Next(4)
+	}
+	for _, i := range fields.uintegers64 {
+		if i == index {
+			return serializer.GetUInt64()
+		}
+		serializer.buffer.Next(8)
+	}
+	for _, i := range fields.integers8 {
+		if i == index {
+			return serializer.GetInt8()
+		}
+		serializer.buffer.Next(1)
+	}
+	for _, i := range fields.integers16 {
+		if i == index {
+			return serializer.GetInt16()
+		}
+		serializer.buffer.Next(2)
+	}
+	for _, i := range fields.integers32 {
+		if i == index {
+			return serializer.GetInt32()
+		}
+		serializer.buffer.Next(4)
+	}
+	for _, i := range fields.integers64 {
+		if i == index {
+			return serializer.GetInt64()
+		}
+		serializer.buffer.Next(8)
+	}
+	return nil
 }
 
 func (orm *ORM) markToDelete() {
@@ -971,9 +1028,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 	noPrefix := prefix == ""
 	var hasOld = orm.inDB
 	if fromCache {
-		serializer.buffer.Reset()
-		serializer.buffer.Write(orm.binary)
-		serializer.buffer.Reset()
+		serializer.Reset(orm.binary)
 	}
 	for _, i := range fields.uintegers8 {
 		if i == 1 && noPrefix {
@@ -1039,6 +1094,70 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 			updateBind[name] = strconv.FormatUint(val, 10)
 		}
 	}
+	for _, i := range fields.integers8 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := int8(value.Field(i).Int())
+		if hasOld {
+			if hasOld && orm.getInt8(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatInt(int64(val), 10)
+		}
+	}
+	for _, i := range fields.integers16 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := int16(value.Field(i).Int())
+		if hasOld {
+			if hasOld && orm.getInt16(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatInt(int64(val), 10)
+		}
+	}
+	for _, i := range fields.integers32 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := int32(value.Field(i).Int())
+		if hasOld {
+			if hasOld && orm.getInt32(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatInt(int64(val), 10)
+		}
+	}
+	for _, i := range fields.integers64 {
+		if i == 1 && noPrefix {
+			continue
+		}
+		val := value.Field(i).Int()
+		if hasOld {
+			if hasOld && orm.getInt64(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatInt(val, 10)
+		}
+	}
 }
 
 func (orm *ORM) getUInt8(i int, fromCache bool, serializer *serializer) uint8 {
@@ -1069,24 +1188,45 @@ func (orm *ORM) getUInt64(i int, fromCache bool, serializer *serializer) uint64 
 	return orm.databaseData[i].(uint64)
 }
 
+func (orm *ORM) getInt8(i int, fromCache bool, serializer *serializer) int8 {
+	if fromCache {
+		return serializer.GetInt8()
+	}
+	return orm.databaseData[i].(int8)
+}
+
+func (orm *ORM) getInt16(i int, fromCache bool, serializer *serializer) int16 {
+	if fromCache {
+		return serializer.GetInt16()
+	}
+	return orm.databaseData[i].(int16)
+}
+
+func (orm *ORM) getInt32(i int, fromCache bool, serializer *serializer) int32 {
+	if fromCache {
+		return serializer.GetInt32()
+	}
+	return orm.databaseData[i].(int32)
+}
+
+func (orm *ORM) getInt64(i int, fromCache bool, serializer *serializer) int64 {
+	if fromCache {
+		return serializer.GetInt64()
+	}
+	return orm.databaseData[i].(int64)
+}
+
+func (orm *ORM) getBool(i int, fromCache bool, serializer *serializer) bool {
+	if fromCache {
+		return serializer.GetBool()
+	}
+	return orm.databaseData[i].(bool)
+}
+
 func (orm *ORM) fillBindToRemove(id uint64, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
 	fields *tableFields, value reflect.Value, prefix string) {
 	var hasOld = orm.inDB
 	hasUpdate := updateBind != nil
-	for _, i := range fields.uintegers {
-		if i == 1 && prefix == "" {
-			continue
-		}
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		val := field.Uint()
-		if hasOld && old == val {
-			continue
-		}
-		bind[name] = val
-		if hasUpdate {
-			updateBind[name] = strconv.FormatUint(val, 10)
-		}
-	}
 	for _, i := range fields.uintegersNullable {
 		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
 		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
@@ -1099,17 +1239,6 @@ func (orm *ORM) fillBindToRemove(id uint64, bind Bind, updateBind map[string]str
 		bind[name] = val
 		if hasUpdate {
 			updateBind[name] = strconv.FormatUint(val, 10)
-		}
-	}
-	for _, i := range fields.integers {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		val := field.Int()
-		if hasOld && old == val {
-			continue
-		}
-		bind[name] = val
-		if hasUpdate {
-			updateBind[name] = strconv.FormatInt(val, 10)
 		}
 	}
 	for _, i := range fields.integersNullable {

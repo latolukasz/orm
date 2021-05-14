@@ -21,6 +21,12 @@ type serializer struct {
 	scratch [binary.MaxVarintLen64]byte
 }
 
+func (s *serializer) Reset(binary []byte) {
+	s.buffer.Reset()
+	s.buffer.Write(binary)
+	s.buffer.Reset()
+}
+
 func (s *serializer) SetUvarint(v uint64) {
 	ln := binary.PutUvarint(s.scratch[:binary.MaxVarintLen64], v)
 	_, _ = s.buffer.Write(s.scratch[0:ln])
