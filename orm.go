@@ -1095,9 +1095,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 		}
 	}
 	for _, i := range fields.integers8 {
-		if i == 1 && noPrefix {
-			continue
-		}
 		val := int8(value.Field(i).Int())
 		if hasOld {
 			if hasOld && orm.getInt8(i, fromCache, serializer) == val {
@@ -1111,9 +1108,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 		}
 	}
 	for _, i := range fields.integers16 {
-		if i == 1 && noPrefix {
-			continue
-		}
 		val := int16(value.Field(i).Int())
 		if hasOld {
 			if hasOld && orm.getInt16(i, fromCache, serializer) == val {
@@ -1127,9 +1121,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 		}
 	}
 	for _, i := range fields.integers32 {
-		if i == 1 && noPrefix {
-			continue
-		}
 		val := int32(value.Field(i).Int())
 		if hasOld {
 			if hasOld && orm.getInt32(i, fromCache, serializer) == val {
@@ -1143,9 +1134,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 		}
 	}
 	for _, i := range fields.integers64 {
-		if i == 1 && noPrefix {
-			continue
-		}
 		val := value.Field(i).Int()
 		if hasOld {
 			if hasOld && orm.getInt64(i, fromCache, serializer) == val {
@@ -1156,6 +1144,23 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind Bind, updateBi
 		bind[name] = val
 		if hasUpdate {
 			updateBind[name] = strconv.FormatInt(val, 10)
+		}
+	}
+	for _, i := range fields.booleans {
+		val := value.Field(i).Bool()
+		if hasOld {
+			if hasOld && orm.getBool(i, fromCache, serializer) == val {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = val
+		if hasUpdate {
+			if val {
+				updateBind[name] = "1"
+			} else {
+				updateBind[name] = "0"
+			}
 		}
 	}
 }
