@@ -93,17 +93,6 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	return true, schema
 }
 
-func buildRedisValue(data []interface{}) string {
-	encoded, _ := msgpack.Marshal(buildLocalCacheValue(data))
-	return string(encoded)
-}
-
-func buildLocalCacheValue(data []interface{}) []interface{} {
-	b := make([]interface{}, len(data))
-	copy(b, data)
-	return b
-}
-
 func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {
 	orm := entity.getORM()
 	if !orm.initialised {

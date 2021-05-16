@@ -138,7 +138,6 @@ func searchRow(skipFakeDelete bool, engine *Engine, where *Where, entity Entity,
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
-	convertScan(schema.fields, 0, pointers)
 	id := pointers[0].(uint64)
 	fillFromDBRow(id, engine, pointers, entity, true, lazy)
 	if len(references) > 0 {

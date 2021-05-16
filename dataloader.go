@@ -243,7 +243,6 @@ func (b *dataLoaderBatch) search(schema *tableSchema, engine *Engine, ids []uint
 	for results.Next() {
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
-		convertScan(schema.fields, 0, pointers)
 		id := pointers[0].(uint64)
 		result[id] = pointers
 		i++

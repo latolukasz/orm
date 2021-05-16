@@ -2,13 +2,11 @@ package orm
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/pkg/errors"
@@ -1204,14 +1202,14 @@ func (orm *ORM) getInt16(i int, fromCache bool, serializer *serializer) int16 {
 	if fromCache {
 		return serializer.GetInt16()
 	}
-	return orm.databaseData[i].(int16)
+	return int16(orm.databaseData[i].(int64))
 }
 
 func (orm *ORM) getInt32(i int, fromCache bool, serializer *serializer) int32 {
 	if fromCache {
 		return serializer.GetInt32()
 	}
-	return orm.databaseData[i].(int32)
+	return int32(orm.databaseData[i].(int64))
 }
 
 func (orm *ORM) getInt64(i int, fromCache bool, serializer *serializer) int64 {
@@ -1221,6 +1219,13 @@ func (orm *ORM) getInt64(i int, fromCache bool, serializer *serializer) int64 {
 	return orm.databaseData[i].(int64)
 }
 
+func (orm *ORM) getFloat32(i int, fromCache bool, serializer *serializer) float32 {
+	if fromCache {
+		return serializer.GetFloat32()
+	}
+	return orm.databaseData[i].(float32)
+}
+
 func (orm *ORM) getBool(i int, fromCache bool, serializer *serializer) bool {
 	if fromCache {
 		return serializer.GetBool()
@@ -1228,405 +1233,405 @@ func (orm *ORM) getBool(i int, fromCache bool, serializer *serializer) bool {
 	return orm.databaseData[i].(bool)
 }
 
-func (orm *ORM) fillBindToRemove(id uint64, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
-	fields *tableFields, value reflect.Value, prefix string) {
-	var hasOld = orm.inDB
-	hasUpdate := updateBind != nil
-	for _, i := range fields.uintegersNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
-			continue
-		}
-		val := field.Elem().Uint()
-		if hasOld && old == val {
-			continue
-		}
-		bind[name] = val
-		if hasUpdate {
-			updateBind[name] = strconv.FormatUint(val, 10)
-		}
-	}
-	for _, i := range fields.integersNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
-			continue
-		}
-		val := field.Elem().Int()
-		if hasOld && old == val {
-			continue
-		}
-		bind[name] = val
-		if hasUpdate {
-			updateBind[name] = strconv.FormatInt(val, 10)
-		}
-	}
-	for _, i := range fields.strings {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := field.String()
-		if hasOld && (old == value || (old == nil && value == "")) {
-			continue
-		}
-		if value != "" {
-			bind[name] = value
-			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(value)
-			}
-		} else {
-			attributes := tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				bind[name] = ""
-				if hasUpdate {
-					updateBind[name] = "''"
-				}
-			} else {
-				bind[name] = nil
-				if hasUpdate {
-					updateBind[name] = "NULL"
-				}
-			}
-		}
-	}
-	for _, i := range fields.bytes {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := field.Bytes()
-		valueAsString := string(value)
-		if hasOld && ((old == nil && valueAsString == "") || (old != nil && old.(string) == valueAsString)) {
-			continue
-		}
-		if valueAsString == "" {
-			bind[name] = nil
-			if hasUpdate {
-				updateBind[name] = "NULL"
-			}
-		} else {
-			bind[name] = valueAsString
-			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(valueAsString)
-			}
-		}
-	}
-	if fields.fakeDelete > 0 {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, fields.fakeDelete)
-		value := uint64(0)
-		if field.Bool() {
-			value = id
-		}
-		if !hasOld || old != value {
-			bind[name] = value
-			if hasUpdate {
-				updateBind[name] = strconv.FormatUint(value, 10)
-			}
-		}
-	}
-	for _, i := range fields.booleans {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := field.Bool()
-		if hasOld && old == value {
-			continue
-		}
-		bind[name] = value
-		if hasUpdate {
-			if value {
-				updateBind[name] = "1"
-			} else {
-				updateBind[name] = "0"
-			}
-		}
-	}
-	for _, i := range fields.booleansNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
-			continue
-		}
-		value := field.Elem().Bool()
-		if hasOld && old == value {
-			continue
-		}
-		bind[name] = value
-		if hasUpdate {
-			if value {
-				updateBind[name] = "1"
-			} else {
-				updateBind[name] = "0"
-			}
-		}
-	}
-	for _, i := range fields.floats {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		val := field.Float()
-		precision := 16
-		fieldAttributes := tableSchema.tags[name]
-		precisionAttribute, has := fieldAttributes["precision"]
-		if has {
-			userPrecision, _ := strconv.Atoi(precisionAttribute)
-			precision = userPrecision
-		}
-		attributes := tableSchema.tags[name]
-		decimal, has := attributes["decimal"]
-		if has {
-			decimalArgs := strings.Split(decimal, ",")
-			size, _ := strconv.ParseFloat(decimalArgs[1], 64)
-			sizeNumber := math.Pow(10, size)
-			val = math.Round(val*sizeNumber) / sizeNumber
-			if hasOld {
-				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
-				if val == valOld {
-					continue
-				}
-			}
-		} else {
-			sizeNumber := math.Pow(10, float64(precision))
-			val = math.Round(val*sizeNumber) / sizeNumber
-			if hasOld {
-				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
-				if valOld == val {
-					continue
-				}
-			}
-		}
-		bind[name] = val
-		if hasUpdate {
-			updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
-		}
-	}
-	for _, i := range fields.floatsNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
-			continue
-		}
-		var val float64
-		isZero := field.IsZero()
-		if !isZero {
-			val = field.Elem().Float()
-		}
-		precision := 10
-		fieldAttributes := tableSchema.tags[name]
-		precisionAttribute, has := fieldAttributes["precision"]
-		if has {
-			userPrecision, _ := strconv.Atoi(precisionAttribute)
-			precision = userPrecision
-		}
-		attributes := tableSchema.tags[name]
-		decimal, has := attributes["decimal"]
-		if has {
-			decimalArgs := strings.Split(decimal, ",")
-			size, _ := strconv.ParseFloat(decimalArgs[1], 64)
-			sizeNumber := math.Pow(10, size)
-			val = math.Round(val*sizeNumber) / sizeNumber
-			if hasOld && old != nil {
-				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
-				if val == valOld {
-					continue
-				}
-			}
-			bind[name] = val
-			if hasUpdate {
-				updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
-			}
-		} else {
-			sizeNumber := math.Pow(10, float64(precision))
-			val = math.Round(val*sizeNumber) / sizeNumber
-			if hasOld && old != nil {
-				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
-				if valOld == val {
-					continue
-				}
-			}
-			bind[name] = val
-			if hasUpdate {
-				updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
-			}
-		}
-	}
-	for _, i := range fields.times {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := field.Interface().(time.Time)
-		layout := "2006-01-02"
-		var valueAsString string
-		if tableSchema.tags[name]["time"] == "true" {
-			if value.Year() == 1 {
-				valueAsString = "0001-01-01 00:00:00"
-			} else {
-				layout += " 15:04:05"
-			}
-		} else if value.Year() == 1 {
-			valueAsString = "0001-01-01"
-		}
-		if valueAsString == "" {
-			valueAsString = value.Format(layout)
-		}
-		if hasOld && old == valueAsString {
-			continue
-		}
-		bind[name] = valueAsString
-		if hasUpdate {
-			updateBind[name] = "'" + valueAsString + "'"
-		}
-	}
-	for _, i := range fields.timesNullable {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
-			continue
-		}
-		value := field.Interface().(*time.Time)
-		layout := "2006-01-02"
-		var valueAsString string
-		if tableSchema.tags[name]["time"] == "true" {
-			if value != nil {
-				layout += " 15:04:05"
-			}
-		}
-		if value != nil {
-			valueAsString = value.Format(layout)
-		}
-		if hasOld && (old == valueAsString || (valueAsString == "" && (old == nil || old == "nil"))) {
-			continue
-		}
-		if valueAsString == "" {
-			bind[name] = nil
-			if hasUpdate {
-				updateBind[name] = "NULL"
-			}
-		} else {
-			bind[name] = valueAsString
-			if hasUpdate {
-				updateBind[name] = "'" + valueAsString + "'"
-			}
-		}
-	}
-	for _, i := range fields.sliceStringsSets {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := field.Interface().([]string)
-		var valueAsString string
-		if value != nil {
-			valueAsString = strings.Join(value, ",")
-		}
-		if hasOld && (old == valueAsString || (valueAsString == "" && old == nil)) {
-			continue
-		}
-		if valueAsString != "" {
-			bind[name] = valueAsString
-			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(valueAsString)
-			}
-		} else {
-			attributes := tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				bind[name] = ""
-				if hasUpdate {
-					updateBind[name] = "''"
-				}
-			} else {
-				bind[name] = nil
-				if hasUpdate {
-					updateBind[name] = "NULL"
-				}
-			}
-		}
-	}
-	for i, subFields := range fields.structs {
-		field, _, _ := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		orm.fillBind(0, bind, updateBind, tableSchema, subFields, reflect.ValueOf(field.Interface()), fields.fields[i].Name)
-	}
-	for _, i := range fields.refs {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := uint64(0)
-		if !field.IsNil() {
-			value = field.Elem().Field(1).Uint()
-		}
-		if hasOld && (old == value || ((old == nil || old == 0) && value == 0)) {
-			continue
-		}
-		if value == 0 {
-			bind[name] = nil
-			if hasUpdate {
-				updateBind[name] = "NULL"
-			}
-		} else {
-			bind[name] = value
-			if hasUpdate {
-				updateBind[name] = strconv.FormatUint(value, 10)
-			}
-		}
-	}
-	for _, i := range fields.refsMany {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
-			continue
-		}
-		var valString string
-		length := field.Len()
-		if length > 0 {
-			ids := make([]uint64, length)
-			for i := 0; i < length; i++ {
-				ids[i] = field.Index(i).Interface().(Entity).GetID()
-			}
-			encoded, _ := jsoniter.ConfigFastest.Marshal(ids)
-			valString = string(encoded)
-		}
-		if hasOld && (old == valString || ((old == nil || old == "0") && valString == "")) {
-			continue
-		}
-		if valString == "" {
-			bind[name] = nil
-			if hasUpdate {
-				updateBind[name] = "NULL"
-			}
-		} else {
-			bind[name] = valString
-			if hasUpdate {
-				updateBind[name] = "'" + valString + "'"
-			}
-		}
-	}
-	for _, i := range fields.jsons {
-		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
-		value := field.Interface()
-		var valString string
-		if !field.IsZero() {
-			var encoded []byte
-			if hasOld && old != nil && old != "" {
-				oldMap := reflect.New(field.Type()).Interface()
-				newMap := reflect.New(field.Type()).Interface()
-				_ = jsoniter.ConfigFastest.UnmarshalFromString(old.(string), oldMap)
-				oldValue := reflect.ValueOf(oldMap).Elem().Interface()
-				encoded, _ = jsoniter.ConfigFastest.Marshal(value)
-				_ = jsoniter.ConfigFastest.Unmarshal(encoded, newMap)
-				newValue := reflect.ValueOf(newMap).Elem().Interface()
-				if cmp.Equal(newValue, oldValue) {
-					continue
-				}
-			} else {
-				encoded, _ = jsoniter.ConfigFastest.Marshal(value)
-			}
-			valString = string(encoded)
-		} else if hasOld && old == nil {
-			continue
-		}
-		if valString != "" {
-			bind[name] = valString
-			if hasUpdate {
-				updateBind[name] = "'" + valString + "'"
-			}
-		} else {
-			attributes := tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				bind[name] = ""
-				if hasUpdate {
-					updateBind[name] = "''"
-				}
-			} else {
-				bind[name] = nil
-				if hasUpdate {
-					updateBind[name] = "NULL"
-				}
-			}
-		}
-	}
-}
+//func (orm *ORM) fillBindToRemove(id uint64, bind Bind, updateBind map[string]string, tableSchema *tableSchema,
+//	fields *tableFields, value reflect.Value, prefix string) {
+//	var hasOld = orm.inDB
+//	hasUpdate := updateBind != nil
+//	for _, i := range fields.uintegersNullable {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
+//			continue
+//		}
+//		val := field.Elem().Uint()
+//		if hasOld && old == val {
+//			continue
+//		}
+//		bind[name] = val
+//		if hasUpdate {
+//			updateBind[name] = strconv.FormatUint(val, 10)
+//		}
+//	}
+//	for _, i := range fields.integersNullable {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
+//			continue
+//		}
+//		val := field.Elem().Int()
+//		if hasOld && old == val {
+//			continue
+//		}
+//		bind[name] = val
+//		if hasUpdate {
+//			updateBind[name] = strconv.FormatInt(val, 10)
+//		}
+//	}
+//	for _, i := range fields.strings {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := field.String()
+//		if hasOld && (old == value || (old == nil && value == "")) {
+//			continue
+//		}
+//		if value != "" {
+//			bind[name] = value
+//			if hasUpdate {
+//				updateBind[name] = orm.escapeSQLParam(value)
+//			}
+//		} else {
+//			attributes := tableSchema.tags[name]
+//			required, hasRequired := attributes["required"]
+//			if hasRequired && required == "true" {
+//				bind[name] = ""
+//				if hasUpdate {
+//					updateBind[name] = "''"
+//				}
+//			} else {
+//				bind[name] = nil
+//				if hasUpdate {
+//					updateBind[name] = "NULL"
+//				}
+//			}
+//		}
+//	}
+//	for _, i := range fields.bytes {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := field.Bytes()
+//		valueAsString := string(value)
+//		if hasOld && ((old == nil && valueAsString == "") || (old != nil && old.(string) == valueAsString)) {
+//			continue
+//		}
+//		if valueAsString == "" {
+//			bind[name] = nil
+//			if hasUpdate {
+//				updateBind[name] = "NULL"
+//			}
+//		} else {
+//			bind[name] = valueAsString
+//			if hasUpdate {
+//				updateBind[name] = orm.escapeSQLParam(valueAsString)
+//			}
+//		}
+//	}
+//	if fields.fakeDelete > 0 {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, fields.fakeDelete)
+//		value := uint64(0)
+//		if field.Bool() {
+//			value = id
+//		}
+//		if !hasOld || old != value {
+//			bind[name] = value
+//			if hasUpdate {
+//				updateBind[name] = strconv.FormatUint(value, 10)
+//			}
+//		}
+//	}
+//	for _, i := range fields.booleans {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := field.Bool()
+//		if hasOld && old == value {
+//			continue
+//		}
+//		bind[name] = value
+//		if hasUpdate {
+//			if value {
+//				updateBind[name] = "1"
+//			} else {
+//				updateBind[name] = "0"
+//			}
+//		}
+//	}
+//	for _, i := range fields.booleansNullable {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
+//			continue
+//		}
+//		value := field.Elem().Bool()
+//		if hasOld && old == value {
+//			continue
+//		}
+//		bind[name] = value
+//		if hasUpdate {
+//			if value {
+//				updateBind[name] = "1"
+//			} else {
+//				updateBind[name] = "0"
+//			}
+//		}
+//	}
+//	for _, i := range fields.floats {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		val := field.Float()
+//		precision := 16
+//		fieldAttributes := tableSchema.tags[name]
+//		precisionAttribute, has := fieldAttributes["precision"]
+//		if has {
+//			userPrecision, _ := strconv.Atoi(precisionAttribute)
+//			precision = userPrecision
+//		}
+//		attributes := tableSchema.tags[name]
+//		decimal, has := attributes["decimal"]
+//		if has {
+//			decimalArgs := strings.Split(decimal, ",")
+//			size, _ := strconv.ParseFloat(decimalArgs[1], 64)
+//			sizeNumber := math.Pow(10, size)
+//			val = math.Round(val*sizeNumber) / sizeNumber
+//			if hasOld {
+//				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
+//				if val == valOld {
+//					continue
+//				}
+//			}
+//		} else {
+//			sizeNumber := math.Pow(10, float64(precision))
+//			val = math.Round(val*sizeNumber) / sizeNumber
+//			if hasOld {
+//				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
+//				if valOld == val {
+//					continue
+//				}
+//			}
+//		}
+//		bind[name] = val
+//		if hasUpdate {
+//			updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+//		}
+//	}
+//	for _, i := range fields.floatsNullable {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
+//			continue
+//		}
+//		var val float64
+//		isZero := field.IsZero()
+//		if !isZero {
+//			val = field.Elem().Float()
+//		}
+//		precision := 10
+//		fieldAttributes := tableSchema.tags[name]
+//		precisionAttribute, has := fieldAttributes["precision"]
+//		if has {
+//			userPrecision, _ := strconv.Atoi(precisionAttribute)
+//			precision = userPrecision
+//		}
+//		attributes := tableSchema.tags[name]
+//		decimal, has := attributes["decimal"]
+//		if has {
+//			decimalArgs := strings.Split(decimal, ",")
+//			size, _ := strconv.ParseFloat(decimalArgs[1], 64)
+//			sizeNumber := math.Pow(10, size)
+//			val = math.Round(val*sizeNumber) / sizeNumber
+//			if hasOld && old != nil {
+//				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
+//				if val == valOld {
+//					continue
+//				}
+//			}
+//			bind[name] = val
+//			if hasUpdate {
+//				updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+//			}
+//		} else {
+//			sizeNumber := math.Pow(10, float64(precision))
+//			val = math.Round(val*sizeNumber) / sizeNumber
+//			if hasOld && old != nil {
+//				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
+//				if valOld == val {
+//					continue
+//				}
+//			}
+//			bind[name] = val
+//			if hasUpdate {
+//				updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+//			}
+//		}
+//	}
+//	for _, i := range fields.times {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := field.Interface().(time.Time)
+//		layout := "2006-01-02"
+//		var valueAsString string
+//		if tableSchema.tags[name]["time"] == "true" {
+//			if value.Year() == 1 {
+//				valueAsString = "0001-01-01 00:00:00"
+//			} else {
+//				layout += " 15:04:05"
+//			}
+//		} else if value.Year() == 1 {
+//			valueAsString = "0001-01-01"
+//		}
+//		if valueAsString == "" {
+//			valueAsString = value.Format(layout)
+//		}
+//		if hasOld && old == valueAsString {
+//			continue
+//		}
+//		bind[name] = valueAsString
+//		if hasUpdate {
+//			updateBind[name] = "'" + valueAsString + "'"
+//		}
+//	}
+//	for _, i := range fields.timesNullable {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
+//			continue
+//		}
+//		value := field.Interface().(*time.Time)
+//		layout := "2006-01-02"
+//		var valueAsString string
+//		if tableSchema.tags[name]["time"] == "true" {
+//			if value != nil {
+//				layout += " 15:04:05"
+//			}
+//		}
+//		if value != nil {
+//			valueAsString = value.Format(layout)
+//		}
+//		if hasOld && (old == valueAsString || (valueAsString == "" && (old == nil || old == "nil"))) {
+//			continue
+//		}
+//		if valueAsString == "" {
+//			bind[name] = nil
+//			if hasUpdate {
+//				updateBind[name] = "NULL"
+//			}
+//		} else {
+//			bind[name] = valueAsString
+//			if hasUpdate {
+//				updateBind[name] = "'" + valueAsString + "'"
+//			}
+//		}
+//	}
+//	for _, i := range fields.sliceStringsSets {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := field.Interface().([]string)
+//		var valueAsString string
+//		if value != nil {
+//			valueAsString = strings.Join(value, ",")
+//		}
+//		if hasOld && (old == valueAsString || (valueAsString == "" && old == nil)) {
+//			continue
+//		}
+//		if valueAsString != "" {
+//			bind[name] = valueAsString
+//			if hasUpdate {
+//				updateBind[name] = orm.escapeSQLParam(valueAsString)
+//			}
+//		} else {
+//			attributes := tableSchema.tags[name]
+//			required, hasRequired := attributes["required"]
+//			if hasRequired && required == "true" {
+//				bind[name] = ""
+//				if hasUpdate {
+//					updateBind[name] = "''"
+//				}
+//			} else {
+//				bind[name] = nil
+//				if hasUpdate {
+//					updateBind[name] = "NULL"
+//				}
+//			}
+//		}
+//	}
+//	for i, subFields := range fields.structs {
+//		field, _, _ := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		orm.fillBind(0, bind, updateBind, tableSchema, subFields, reflect.ValueOf(field.Interface()), fields.fields[i].Name)
+//	}
+//	for _, i := range fields.refs {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := uint64(0)
+//		if !field.IsNil() {
+//			value = field.Elem().Field(1).Uint()
+//		}
+//		if hasOld && (old == value || ((old == nil || old == 0) && value == 0)) {
+//			continue
+//		}
+//		if value == 0 {
+//			bind[name] = nil
+//			if hasUpdate {
+//				updateBind[name] = "NULL"
+//			}
+//		} else {
+//			bind[name] = value
+//			if hasUpdate {
+//				updateBind[name] = strconv.FormatUint(value, 10)
+//			}
+//		}
+//	}
+//	for _, i := range fields.refsMany {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		if !orm.checkNil(field, name, hasOld, old, bind, updateBind) {
+//			continue
+//		}
+//		var valString string
+//		length := field.Len()
+//		if length > 0 {
+//			ids := make([]uint64, length)
+//			for i := 0; i < length; i++ {
+//				ids[i] = field.Index(i).Interface().(Entity).GetID()
+//			}
+//			encoded, _ := jsoniter.ConfigFastest.Marshal(ids)
+//			valString = string(encoded)
+//		}
+//		if hasOld && (old == valString || ((old == nil || old == "0") && valString == "")) {
+//			continue
+//		}
+//		if valString == "" {
+//			bind[name] = nil
+//			if hasUpdate {
+//				updateBind[name] = "NULL"
+//			}
+//		} else {
+//			bind[name] = valString
+//			if hasUpdate {
+//				updateBind[name] = "'" + valString + "'"
+//			}
+//		}
+//	}
+//	for _, i := range fields.jsons {
+//		field, name, old := orm.prepareFieldBind(prefix, tableSchema, fields, value, i)
+//		value := field.Interface()
+//		var valString string
+//		if !field.IsZero() {
+//			var encoded []byte
+//			if hasOld && old != nil && old != "" {
+//				oldMap := reflect.New(field.Type()).Interface()
+//				newMap := reflect.New(field.Type()).Interface()
+//				_ = jsoniter.ConfigFastest.UnmarshalFromString(old.(string), oldMap)
+//				oldValue := reflect.ValueOf(oldMap).Elem().Interface()
+//				encoded, _ = jsoniter.ConfigFastest.Marshal(value)
+//				_ = jsoniter.ConfigFastest.Unmarshal(encoded, newMap)
+//				newValue := reflect.ValueOf(newMap).Elem().Interface()
+//				if cmp.Equal(newValue, oldValue) {
+//					continue
+//				}
+//			} else {
+//				encoded, _ = jsoniter.ConfigFastest.Marshal(value)
+//			}
+//			valString = string(encoded)
+//		} else if hasOld && old == nil {
+//			continue
+//		}
+//		if valString != "" {
+//			bind[name] = valString
+//			if hasUpdate {
+//				updateBind[name] = "'" + valString + "'"
+//			}
+//		} else {
+//			attributes := tableSchema.tags[name]
+//			required, hasRequired := attributes["required"]
+//			if hasRequired && required == "true" {
+//				bind[name] = ""
+//				if hasUpdate {
+//					updateBind[name] = "''"
+//				}
+//			} else {
+//				bind[name] = nil
+//				if hasUpdate {
+//					updateBind[name] = "NULL"
+//				}
+//			}
+//		}
+//	}
+//}
 
 func (orm *ORM) escapeSQLParam(val string) string {
 	dest := make([]byte, 0, 2*len(val))

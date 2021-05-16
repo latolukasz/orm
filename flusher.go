@@ -55,7 +55,7 @@ type flusher struct {
 	deleteBinds            map[reflect.Type]map[uint64]Entity
 	lazyMap                map[string]interface{}
 	localCacheDeletes      map[string][]string
-	localCacheSets         map[string][]interface{}
+	localCacheSets         map[string][]byte
 	dataLoaderSets         map[*tableSchema]map[uint64][]interface{}
 }
 
@@ -254,7 +254,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 
 		orm := entity.getORM()
 		dbData := orm.dBData
-		bind, updateBind, isDirty := orm.getDirtyBind()
+		bind, updateBind, isDirty := orm.getDirtyBind(f.engine)
 		if !isDirty {
 			continue
 		}
@@ -313,10 +313,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				affected := result.RowsAffected()
 				if affected > 0 {
 					lastID := result.LastInsertId()
-					f.injectBind(entity, bind)
+					orm.serialize(f.engine.getSerializer())
 					orm := entity.getORM()
 					orm.idElem.SetUint(lastID)
-					orm.dBData[0] = lastID
 					if affected == 1 {
 						f.updateCacheForInserted(entity, lazy, lastID, bind)
 					} else {
@@ -324,7 +323,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 							err := entity.SetField(k, v)
 							checkError(err)
 						}
-						bind, _ := orm.GetDirtyBind()
+						bind, _ := orm.GetDirtyBind(f.engine)
 						_, _ = loadByID(f.engine, lastID, entity, false, lazy)
 						f.updateCacheAfterUpdate(dbData, entity, bind, schema, lastID, false)
 					}
@@ -484,14 +483,15 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			id := res.LastInsertId()
 			for key, entity := range insertReflectValues[typeOf] {
 				bind := insertBinds[typeOf][key]
-				f.injectBind(entity, bind)
 				insertedID := entity.GetID()
+				orm := entity.getORM()
 				if insertedID == 0 {
-					orm := entity.getORM()
 					orm.idElem.SetUint(id)
-					orm.dBData[0] = id
+					orm.serialize(f.engine.getSerializer())
 					insertedID = id
 					id = id + db.GetPoolConfig().getAutoincrement()
+				} else {
+					orm.serialize(f.engine.getSerializer())
 				}
 				f.updateCacheForInserted(entity, lazy, insertedID, bind)
 			}
@@ -715,14 +715,13 @@ func (f *flusher) updateCacheAfterUpdate(dbData []interface{}, entity Entity, bi
 		old = make([]interface{}, len(dbData))
 		copy(old, dbData)
 	}
-	f.injectBind(entity, bind)
 	if !hasLocalCache && f.engine.hasRequestCache {
 		hasLocalCache = true
 		localCache = f.engine.GetLocalCache(requestCacheKey)
 	}
 	if hasLocalCache {
 		cacheKey := schema.getCacheKey(currentID)
-		f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, buildLocalCacheValue(entity.getORM().dBData))
+		f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().binary)
 		keys := f.getCacheQueriesKeys(schema, bind, dbData, false)
 		f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 		keys = f.getCacheQueriesKeys(schema, bind, old, false)
@@ -847,16 +846,6 @@ func (f *flusher) convertDBDataToMap(schema *tableSchema, data []interface{}) ma
 	return m
 }
 
-func (f *flusher) injectBind(entity Entity, bind map[string]interface{}) {
-	orm := entity.getORM()
-	mapping := orm.tableSchema.columnMapping
-	for key, value := range bind {
-		orm.dBData[mapping[key]] = value
-	}
-	orm.loaded = true
-	orm.inDB = true
-}
-
 func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind map[string]interface{}, data []interface{}, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 
@@ -885,7 +874,7 @@ func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind map[string]inter
 	return
 }
 
-func (f *flusher) addLocalCacheSet(cacheCode string, keys ...interface{}) {
+func (f *flusher) addLocalCacheSet(cacheCode string, keys ...[]byte) {
 	if f.localCacheSets == nil {
 		f.localCacheSets = make(map[string][]interface{})
 	}
