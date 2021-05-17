@@ -55,8 +55,8 @@ type flusher struct {
 	deleteBinds            map[reflect.Type]map[uint64]Entity
 	lazyMap                map[string]interface{}
 	localCacheDeletes      map[string][]string
-	localCacheSets         map[string][][]byte
-	dataLoaderSets         map[*tableSchema]map[uint64][]interface{}
+	localCacheSets         map[string][]interface{}
+	dataLoaderSets         map[*tableSchema]map[uint64][]byte
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
@@ -253,11 +253,10 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		}
 
 		orm := entity.getORM()
-		bind, updateBind, isDirty := orm.getDirtyBind(f.engine)
+		bind, oldBind, updateBind, isDirty := orm.getDirtyBind(f.engine)
 		if !isDirty {
 			continue
 		}
-		oldBindary := orm.binary
 		bindLength := len(bind)
 
 		t := orm.tableSchema.t
@@ -323,9 +322,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 							err := entity.SetField(k, v)
 							checkError(err)
 						}
-						bind, _ := orm.GetDirtyBind(f.engine)
+						bind, old, _ := orm.GetDirtyBindFull(f.engine)
 						_, _ = loadByID(f.engine, lastID, entity, false, lazy)
-						f.updateCacheAfterUpdate(oldBindary, entity, bind, schema, lastID, false)
+						f.updateCacheAfterUpdate(old, entity, bind, schema, lastID, false)
 					}
 				} else {
 				OUTER:
@@ -390,7 +389,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			if lazy {
 				var logEvents []*LogQueueValue
 				var dirtyEvents []*dirtyQueueValue
-				logEvent, dirtyEvent := f.updateCacheAfterUpdate(dbData, entity, bind, schema, currentID, true)
+				logEvent, dirtyEvent := f.updateCacheAfterUpdate(oldBind, entity, bind, schema, currentID, true)
 				if logEvent != nil {
 					logEvents = append(logEvents, logEvent)
 				}
@@ -403,7 +402,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					f.updateSQLs = make(map[string][]string)
 				}
 				f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
-				f.updateCacheAfterUpdate(dbData, entity, bind, schema, currentID, false)
+				f.updateCacheAfterUpdate(oldBind, entity, bind, schema, currentID, false)
 			}
 		}
 	}
@@ -682,14 +681,14 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 	}
 	if hasLocalCache {
 		if !lazy {
-			f.addLocalCacheSet(localCache.config.GetCode(), schema.getCacheKey(id), buildLocalCacheValue(entity.getORM().dBData))
+			f.addLocalCacheSet(localCache.config.GetCode(), schema.getCacheKey(id), entity.getORM().binary)
 		} else {
 			f.addLocalCacheDeletes(localCache.config.GetCode(), schema.getCacheKey(id))
 		}
 		keys := f.getCacheQueriesKeys(schema, bind, entity.getORM().dBData, true)
 		f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 	} else if !lazy && f.engine.dataLoader != nil {
-		f.addToDataLoader(schema, id, buildLocalCacheValue(entity.getORM().dBData))
+		f.addToDataLoader(schema, id, entity.getORM().binary)
 	}
 	redisCache, hasRedis := schema.GetRedisCache(f.engine)
 	if hasRedis {
@@ -718,14 +717,9 @@ func (f *flusher) getLazyMap() map[string]interface{} {
 	return f.lazyMap
 }
 
-func (f *flusher) updateCacheAfterUpdate(oldBinary []byte, entity Entity, bind Bind, schema *tableSchema, currentID uint64, lazy bool) (*LogQueueValue, *dirtyQueueValue) {
-	var old []interface{}
+func (f *flusher) updateCacheAfterUpdate(old Bind, entity Entity, bind Bind, schema *tableSchema, currentID uint64, lazy bool) (*LogQueueValue, *dirtyQueueValue) {
 	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
 	redisCache, hasRedis := schema.GetRedisCache(f.engine)
-	if hasLocalCache || hasRedis || schema.hasLog {
-		old = make([]interface{}, len(dbData))
-		copy(old, dbData)
-	}
 	if !hasLocalCache && f.engine.hasRequestCache {
 		hasLocalCache = true
 		localCache = f.engine.GetLocalCache(requestCacheKey)
@@ -849,14 +843,6 @@ func (f *flusher) fillRedisSearchFromBind(schema *tableSchema, bind map[string]i
 	}
 }
 
-func (f *flusher) convertDBDataToMap(schema *tableSchema, data []interface{}) map[string]interface{} {
-	m := make(map[string]interface{})
-	for _, name := range schema.columnNames[1:] {
-		m[name] = data[schema.columnMapping[name]]
-	}
-	return m
-}
-
 func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind map[string]interface{}, data []interface{}, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 
@@ -885,19 +871,19 @@ func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind map[string]inter
 	return
 }
 
-func (f *flusher) addLocalCacheSet(cacheCode string, keys ...[]byte) {
+func (f *flusher) addLocalCacheSet(cacheCode string, keys ...interface{}) {
 	if f.localCacheSets == nil {
-		f.localCacheSets = make(map[string][][]byte)
+		f.localCacheSets = make(map[string][]interface{})
 	}
 	f.localCacheSets[cacheCode] = append(f.localCacheSets[cacheCode], keys...)
 }
 
 func (f *flusher) addToDataLoader(schema *tableSchema, id uint64, value []byte) {
 	if f.dataLoaderSets == nil {
-		f.dataLoaderSets = make(map[*tableSchema]map[uint64][]interface{})
+		f.dataLoaderSets = make(map[*tableSchema]map[uint64][]byte)
 	}
 	if f.dataLoaderSets[schema] == nil {
-		f.dataLoaderSets[schema] = make(map[uint64][]interface{})
+		f.dataLoaderSets[schema] = make(map[uint64][]byte)
 	}
 	f.dataLoaderSets[schema][id] = value
 }
