@@ -575,7 +575,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 					today := time.Now().Format("01-02-06")
 					key := speedHSetKey + today
 					pipeline := r.redis.PipeLine()
-					pipeline.Expire(key, time.Hour*168)
+					pipeline.Expire(key, time.Hour*216)
 					pipeline.HIncrBy(key, r.speedPrefixKey+"e", int64(r.speedEvents))
 					pipeline.HIncrBy(key, r.speedPrefixKey+"t", r.speedTimeMicroseconds)
 					pipeline.HIncrBy(key, r.speedPrefixKey+"d", int64(r.speedDBQueries))
