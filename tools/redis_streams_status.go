@@ -18,22 +18,27 @@ type RedisStreamStatistics struct {
 	Groups    []*RedisStreamGroupStatistics
 }
 
-type RedisStreamGroupStatistics struct {
-	Group                            string
-	Pending                          uint64
-	LastDeliveredID                  string
-	LastDeliveredDuration            string
-	Lower                            string
-	LowerDuration                    string
-	Higher                           string
-	HigherDuration                   string
-	Consumers                        []*RedisStreamConsumerStatistics
+type RedisStreamGroupSpeedStatistics struct {
 	SpeedEvents                      int64
 	SpeedMilliseconds                float64
 	DBQueriesPerEvent                float64
 	DBQueriesMillisecondsPerEvent    float64
 	RedisQueriesPerEvent             float64
 	RedisQueriesMillisecondsPerEvent float64
+}
+
+type RedisStreamGroupStatistics struct {
+	Group                 string
+	Pending               uint64
+	LastDeliveredID       string
+	LastDeliveredDuration string
+	Lower                 string
+	LowerDuration         string
+	Higher                string
+	HigherDuration        string
+	*RedisStreamGroupSpeedStatistics
+	Consumers    []*RedisStreamConsumerStatistics
+	SpeedHistory []*RedisStreamGroupSpeedStatistics
 }
 
 type RedisStreamConsumerStatistics struct {
@@ -46,8 +51,7 @@ func GetRedisStreamsStatistics(engine *orm.Engine) []*RedisStreamStatistics {
 	results := make([]*RedisStreamStatistics, 0)
 	for redisPool, channels := range engine.GetRegistry().GetRedisStreams() {
 		r := engine.GetRedis(redisPool)
-		today := time.Now().Format("01-02-06")
-		speedStats := r.HGetAll("_orm_ss" + today)
+		today := now.Format("01-02-06")
 		for stream := range channels {
 			stat := &RedisStreamStatistics{Stream: stream, RedisPool: redisPool}
 			results = append(results, stat)
@@ -56,29 +60,15 @@ func GetRedisStreamsStatistics(engine *orm.Engine) []*RedisStreamStatistics {
 			minPending := -1
 			for _, group := range r.XInfoGroups(stream) {
 				groupStats := &RedisStreamGroupStatistics{Group: group.Name, Pending: uint64(group.Pending)}
-				speedKey := group.Name + "_" + redisPool
-				events, has := speedStats[speedKey+"e"]
-				if has {
-					speedEventsAsInt, _ := strconv.Atoi(events)
-					if speedEventsAsInt > 0 {
-						speedEvents := int64(speedEventsAsInt)
-						speedTime, _ := strconv.Atoi(speedStats[speedKey+"t"])
-						groupStats.SpeedMilliseconds = float64(speedTime) / 1000 / float64(speedEvents)
-						groupStats.SpeedEvents = speedEvents
-
-						dbQueries, _ := strconv.Atoi(speedStats[speedKey+"d"])
-						if dbQueries > 0 {
-							groupStats.DBQueriesPerEvent = float64(dbQueries) / float64(speedEvents)
-							dbTime, _ := strconv.Atoi(speedStats[speedKey+"dt"])
-							groupStats.DBQueriesMillisecondsPerEvent = float64(dbTime) / 1000 / float64(speedEvents)
-						}
-						redisQueries, _ := strconv.Atoi(speedStats[speedKey+"r"])
-						if redisQueries > 0 {
-							groupStats.RedisQueriesPerEvent = float64(redisQueries) / float64(speedEvents)
-							redisTime, _ := strconv.Atoi(speedStats[speedKey+"rt"])
-							groupStats.RedisQueriesMillisecondsPerEvent = float64(redisTime) / 1000 / float64(speedEvents)
-						}
-					}
+				groupStats.RedisStreamGroupSpeedStatistics = &RedisStreamGroupSpeedStatistics{}
+				calculateSpeedStatistics(groupStats.RedisStreamGroupSpeedStatistics, group.Name, redisPool, r.HGetAll("_orm_ss"+today))
+				groupStats.SpeedHistory = make([]*RedisStreamGroupSpeedStatistics, 7)
+				date := now
+				for i := 1; i <= 7; i++ {
+					date = date.Add(time.Hour * -24)
+					stats := &RedisStreamGroupSpeedStatistics{}
+					calculateSpeedStatistics(stats, group.Name, redisPool, r.HGetAll("_orm_ss"+date.Format("01-02-06")))
+					groupStats.SpeedHistory[i-1] = stats
 				}
 				groupStats.LastDeliveredID = group.LastDeliveredID
 				groupStats.LastDeliveredDuration, _ = idToSince(group.LastDeliveredID, now)
@@ -111,6 +101,33 @@ func GetRedisStreamsStatistics(engine *orm.Engine) []*RedisStreamStatistics {
 		}
 	}
 	return results
+}
+
+func calculateSpeedStatistics(groupStats *RedisStreamGroupSpeedStatistics, group, redisPool string, speedStats map[string]string) {
+	speedKey := group + "_" + redisPool
+	events, has := speedStats[speedKey+"e"]
+	if has {
+		speedEventsAsInt, _ := strconv.Atoi(events)
+		if speedEventsAsInt > 0 {
+			speedEvents := int64(speedEventsAsInt)
+			speedTime, _ := strconv.Atoi(speedStats[speedKey+"t"])
+			groupStats.SpeedMilliseconds = float64(speedTime) / 1000 / float64(speedEvents)
+			groupStats.SpeedEvents = speedEvents
+
+			dbQueries, _ := strconv.Atoi(speedStats[speedKey+"d"])
+			if dbQueries > 0 {
+				groupStats.DBQueriesPerEvent = float64(dbQueries) / float64(speedEvents)
+				dbTime, _ := strconv.Atoi(speedStats[speedKey+"dt"])
+				groupStats.DBQueriesMillisecondsPerEvent = float64(dbTime) / 1000 / float64(speedEvents)
+			}
+			redisQueries, _ := strconv.Atoi(speedStats[speedKey+"r"])
+			if redisQueries > 0 {
+				groupStats.RedisQueriesPerEvent = float64(redisQueries) / float64(speedEvents)
+				redisTime, _ := strconv.Atoi(speedStats[speedKey+"rt"])
+				groupStats.RedisQueriesMillisecondsPerEvent = float64(redisTime) / 1000 / float64(speedEvents)
+			}
+		}
+	}
 }
 
 func idToSince(id string, now time.Time) (string, time.Time) {
