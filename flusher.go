@@ -55,7 +55,7 @@ type flusher struct {
 	deleteBinds            map[reflect.Type]map[uint64]Entity
 	lazyMap                map[string]interface{}
 	localCacheDeletes      map[string][]string
-	localCacheSets         map[string][]byte
+	localCacheSets         map[string][][]byte
 	dataLoaderSets         map[*tableSchema]map[uint64][]interface{}
 }
 
@@ -253,11 +253,11 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		}
 
 		orm := entity.getORM()
-		dbData := orm.dBData
 		bind, updateBind, isDirty := orm.getDirtyBind(f.engine)
 		if !isDirty {
 			continue
 		}
+		oldBindary := orm.binary
 		bindLength := len(bind)
 
 		t := orm.tableSchema.t
@@ -325,7 +325,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 						}
 						bind, _ := orm.GetDirtyBind(f.engine)
 						_, _ = loadByID(f.engine, lastID, entity, false, lazy)
-						f.updateCacheAfterUpdate(dbData, entity, bind, schema, lastID, false)
+						f.updateCacheAfterUpdate(oldBindary, entity, bind, schema, lastID, false)
 					}
 				} else {
 				OUTER:
@@ -707,7 +707,7 @@ func (f *flusher) getLazyMap() map[string]interface{} {
 	return f.lazyMap
 }
 
-func (f *flusher) updateCacheAfterUpdate(dbData []interface{}, entity Entity, bind Bind, schema *tableSchema, currentID uint64, lazy bool) (*LogQueueValue, *dirtyQueueValue) {
+func (f *flusher) updateCacheAfterUpdate(oldBinary []byte, entity Entity, bind Bind, schema *tableSchema, currentID uint64, lazy bool) (*LogQueueValue, *dirtyQueueValue) {
 	var old []interface{}
 	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
 	redisCache, hasRedis := schema.GetRedisCache(f.engine)
@@ -727,7 +727,7 @@ func (f *flusher) updateCacheAfterUpdate(dbData []interface{}, entity Entity, bi
 		keys = f.getCacheQueriesKeys(schema, bind, old, false)
 		f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 	} else if f.engine.dataLoader != nil {
-		f.addToDataLoader(schema, currentID, buildLocalCacheValue(entity.getORM().dBData))
+		f.addToDataLoader(schema, currentID, entity.getORM().binary)
 	}
 	if hasRedis {
 		redisFlusher := f.getRedisFlusher()
@@ -876,12 +876,12 @@ func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind map[string]inter
 
 func (f *flusher) addLocalCacheSet(cacheCode string, keys ...[]byte) {
 	if f.localCacheSets == nil {
-		f.localCacheSets = make(map[string][]interface{})
+		f.localCacheSets = make(map[string][][]byte)
 	}
 	f.localCacheSets[cacheCode] = append(f.localCacheSets[cacheCode], keys...)
 }
 
-func (f *flusher) addToDataLoader(schema *tableSchema, id uint64, value []interface{}) {
+func (f *flusher) addToDataLoader(schema *tableSchema, id uint64, value []byte) {
 	if f.dataLoaderSets == nil {
 		f.dataLoaderSets = make(map[*tableSchema]map[uint64][]interface{})
 	}
