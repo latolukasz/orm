@@ -500,12 +500,23 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	if root {
 		for pool, queries := range f.updateSQLs {
 			db := f.engine.GetMysql(pool)
-			if len(queries) == 1 {
+			l := len(queries)
+			if l == 1 {
 				db.Exec(queries[0])
 				continue
 			}
-			_, def := db.Query(strings.Join(queries, ";") + ";")
-			def()
+			forcedTransaction := l >= 3 && !db.inTransaction
+			func() {
+				if forcedTransaction {
+					db.Begin()
+					defer db.Rollback()
+				}
+				_, def := db.Query(strings.Join(queries, ";") + ";")
+				defer def()
+				if forcedTransaction {
+					db.Commit()
+				}
+			}()
 		}
 		for typeOf, deleteBinds := range f.deleteBinds {
 			schema := getTableSchema(f.engine.registry, typeOf)

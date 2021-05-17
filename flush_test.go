@@ -514,9 +514,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	receiver.Digest(context.Background())
 	if local {
-		assert.Len(t, testLogger.Entries, 1)
+		assert.Len(t, testLogger.Entries, 3)
+		assert.Equal(t, "START TRANSACTION", testLogger.Entries[0].Fields["Query"])
 		assert.Equal(t, "UPDATE flushEntity SET `Age`=99 WHERE `ID` = 10;UPDATE flushEntity SET `Uint`=99 "+
-			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Entries[0].Fields["Query"])
+			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Entries[1].Fields["Query"])
+		assert.Equal(t, "COMMIT", testLogger.Entries[2].Fields["Query"])
 	}
 
 	entity = &flushEntity{Name: "Monica", EnumNotNull: "a", ReferenceMany: []*flushEntityReference{{Name: "Adam Junior"}}}
