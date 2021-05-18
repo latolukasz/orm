@@ -352,6 +352,10 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		index++
 		k++
 	}
+	for range fields.strings {
+		serializer.SetString(pointers[index].(*sql.NullString).String)
+		index++
+	}
 }
 
 func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
