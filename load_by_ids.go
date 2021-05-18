@@ -405,7 +405,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			i++
 		}
 		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
-			if fromCache != nil {
+			if fromCache != nil && fromCache != cacheNilValue {
 				schema := v[key][0].(Entity).getORM().tableSchema
 				decoded := make([]interface{}, len(schema.columnNames))
 				_ = jsoniter.ConfigFastest.UnmarshalFromString(fromCache.(string), &decoded)
