@@ -1149,6 +1149,7 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	ids = append(ids, fields.refs...)
 	ids = append(ids, fields.uintegersNullable...)
 	ids = append(ids, fields.integersNullable...)
+	ids = append(ids, fields.stringsEnums...)
 
 	ids = append(ids, fields.strings...)
 	ids = append(ids, fields.sliceStringsSets...)

@@ -282,6 +282,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetUInt8(uint8(v.Int64))
 		}
+		index++
 	}
 	for range fields.uintegers16Nullable {
 		v := pointers[index].(*sql.NullInt64)
@@ -289,6 +290,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetUInt16(uint16(v.Int64))
 		}
+		index++
 	}
 	for range fields.uintegers32Nullable {
 		v := pointers[index].(*sql.NullInt64)
@@ -296,6 +298,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetUInt32(uint32(v.Int64))
 		}
+		index++
 	}
 	for range fields.uintegers64Nullable {
 		v := pointers[index].(*sql.NullInt64)
@@ -303,6 +306,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetUInt64(uint64(v.Int64))
 		}
+		index++
 	}
 
 	for range fields.integers8Nullable {
@@ -311,6 +315,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetInt8(int8(v.Int64))
 		}
+		index++
 	}
 	for range fields.integers16Nullable {
 		v := pointers[index].(*sql.NullInt64)
@@ -318,6 +323,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetInt16(int16(v.Int64))
 		}
+		index++
 	}
 	for range fields.integers32Nullable {
 		v := pointers[index].(*sql.NullInt64)
@@ -325,13 +331,26 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			serializer.SetInt32(int32(v.Int64))
 		}
+		index++
 	}
 	for range fields.integers64Nullable {
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SetBool(v.Valid)
 		if v.Valid {
-			serializer.SetInt64(int64(v.Int64))
+			serializer.SetInt64(v.Int64)
 		}
+		index++
+	}
+	k := 0
+	for range fields.stringsEnums {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			serializer.SetUInt8(uint8(fields.enums[k].Index(v.String)))
+		} else {
+			serializer.SetUInt8(0)
+		}
+		index++
+		k++
 	}
 }
 
