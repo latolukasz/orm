@@ -29,6 +29,21 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
+	for i := 0; i < len(fields.booleans); i++ {
+		v := false
+		pointers[start] = &v
+		start++
+	}
+	for i := 0; i < len(fields.floats); i++ {
+		v := float64(0)
+		pointers[start] = &v
+		start++
+	}
+	for i := 0; i < len(fields.times); i++ {
+		v := ""
+		pointers[start] = &v
+		start++
+	}
 	for i := 0; i < len(fields.uintegersNullable); i++ {
 		v := sql.NullInt64{}
 		pointers[start] = &v
@@ -64,18 +79,8 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.booleans); i++ {
-		v := false
-		pointers[start] = &v
-		start++
-	}
 	for i := 0; i < len(fields.booleansNullable); i++ {
 		v := sql.NullBool{}
-		pointers[start] = &v
-		start++
-	}
-	for i := 0; i < len(fields.floats); i++ {
-		v := float64(0)
 		pointers[start] = &v
 		start++
 	}
@@ -86,11 +91,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	}
 	for i := 0; i < len(fields.timesNullable); i++ {
 		v := sql.NullString{}
-		pointers[start] = &v
-		start++
-	}
-	for i := 0; i < len(fields.times); i++ {
-		v := ""
 		pointers[start] = &v
 		start++
 	}

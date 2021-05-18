@@ -1141,6 +1141,10 @@ func (fields *tableFields) getColumnNames() []string {
 	columns := make([]string, 0)
 	ids := fields.uintegers
 	ids = append(ids, fields.integers...)
+	ids = append(ids, fields.booleans...)
+	ids = append(ids, fields.floats...)
+	ids = append(ids, fields.times...)
+
 	ids = append(ids, fields.uintegersNullable...)
 	ids = append(ids, fields.integersNullable...)
 	ids = append(ids, fields.strings...)
@@ -1149,12 +1153,9 @@ func (fields *tableFields) getColumnNames() []string {
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
 	}
-	ids = append(ids, fields.booleans...)
 	ids = append(ids, fields.booleansNullable...)
-	ids = append(ids, fields.floats...)
 	ids = append(ids, fields.floatsNullable...)
 	ids = append(ids, fields.timesNullable...)
-	ids = append(ids, fields.times...)
 	ids = append(ids, fields.jsons...)
 	ids = append(ids, fields.refs...)
 	ids = append(ids, fields.refsMany...)

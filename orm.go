@@ -208,36 +208,51 @@ func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 
 func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) {
 	for range fields.uintegers8 {
-		serializer.SetUInt8(uint8(pointers[index].(uint64)))
+		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
 		index++
 	}
 	for range fields.uintegers16 {
-		serializer.SetUInt16(uint16(pointers[index].(uint64)))
+		serializer.SetUInt16(uint16(*pointers[index].(*uint64)))
 		index++
 	}
 	for range fields.uintegers32 {
-		serializer.SetUInt32(uint32(pointers[index].(uint64)))
+		serializer.SetUInt32(uint32(*pointers[index].(*uint64)))
 		index++
 	}
 	for range fields.uintegers64 {
-		serializer.SetUInt64(pointers[index].(uint64))
+		serializer.SetUInt64(*pointers[index].(*uint64))
 		index++
 	}
 	for range fields.integers8 {
-		serializer.SetInt8(int8(pointers[index].(int64)))
+		serializer.SetInt8(int8(*pointers[index].(*int64)))
 		index++
 	}
 	for range fields.integers16 {
-		serializer.SetInt16(int16(pointers[index].(int64)))
+		serializer.SetInt16(int16(*pointers[index].(*int64)))
 		index++
 	}
 	for range fields.integers32 {
-		serializer.SetInt32(int32(pointers[index].(int64)))
+		serializer.SetInt32(int32(*pointers[index].(*int64)))
 		index++
 	}
 	for range fields.integers64 {
-		serializer.SetInt64(pointers[index].(int64))
+		serializer.SetInt64(*pointers[index].(*int64))
 		index++
+	}
+	for range fields.booleans {
+		serializer.SetBool(*pointers[index].(*bool))
+		index++
+	}
+	for range fields.floats32 {
+		serializer.SetFloat32(float32(*pointers[index].(*float64)))
+		index++
+	}
+	for range fields.floats64 {
+		serializer.SetFloat64(*pointers[index].(*float64))
+		index++
+	}
+	for range fields.times {
+
 	}
 }
 
