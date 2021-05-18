@@ -45,7 +45,7 @@ func (l *dataLoader) LoadAll(schema TableSchema, ids []uint64) [][]interface{} {
 	return data
 }
 
-func (l *dataLoader) Prime(schema TableSchema, id uint64, value []interface{}) {
+func (l *dataLoader) Prime(schema TableSchema, id uint64, value []byte) {
 	key := l.key(schema, id)
 	l.mu.Lock()
 	l.unsafeSet(key, value)

@@ -24,13 +24,13 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.uintegersNullable); i++ {
-		v := sql.NullInt64{}
+	for i := 0; i < len(fields.integers); i++ {
+		v := int64(0)
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.integers); i++ {
-		v := int64(0)
+	for i := 0; i < len(fields.uintegersNullable); i++ {
+		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
@@ -170,7 +170,6 @@ func search(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, wit
 	for results.Next() {
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
-		convertScan(schema.fields, 0, pointers)
 		value := reflect.New(entityType)
 		id := pointers[0].(uint64)
 		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), true, lazy)
@@ -236,23 +235,22 @@ func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, sc
 	return totalRows
 }
 
-func fillFromDBRow(id uint64, engine *Engine, data []interface{}, entity Entity, fillDataLoader bool, lazy bool) {
+func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Entity, fillDataLoader bool, lazy bool) {
 	orm := initIfNeeded(engine.registry, entity)
-	elem := orm.elem
 	orm.idElem.SetUint(id)
-	if !lazy {
-		_ = fillStruct(engine.registry, 0, data, orm.tableSchema.fields, orm, elem)
-	}
 	orm.inDB = true
 	orm.loaded = true
 	orm.lazy = lazy
-	orm.dBData = data
+	orm.deserializeFromDB(engine, pointers)
+	if !lazy {
+		orm.deserialize(engine)
+	}
 	if !fillDataLoader {
 		return
 	}
 	schema := entity.getORM().tableSchema
 	if !schema.hasLocalCache && engine.dataLoader != nil {
-		engine.dataLoader.Prime(schema, id, data)
+		engine.dataLoader.Prime(schema, id, orm.binary)
 	}
 }
 

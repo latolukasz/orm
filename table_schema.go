@@ -1140,8 +1140,8 @@ func (tableSchema *tableSchema) newEntity() Entity {
 func (fields *tableFields) getColumnNames() []string {
 	columns := make([]string, 0)
 	ids := fields.uintegers
-	ids = append(ids, fields.uintegersNullable...)
 	ids = append(ids, fields.integers...)
+	ids = append(ids, fields.uintegersNullable...)
 	ids = append(ids, fields.integersNullable...)
 	ids = append(ids, fields.strings...)
 	ids = append(ids, fields.sliceStringsSets...)

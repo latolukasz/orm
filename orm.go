@@ -135,7 +135,7 @@ func (orm *ORM) IsLazy() bool {
 
 func (orm *ORM) Fill(engine *Engine) {
 	if orm.lazy && orm.loaded {
-		orm.deserialize(engine.getSerializer(), engine.registry)
+		orm.deserialize(engine)
 		orm.lazy = false
 	}
 }
@@ -197,6 +197,48 @@ func (orm *ORM) serialize(serializer *serializer) {
 	orm.serializeFields(serializer, orm.tableSchema.fields, orm.elem)
 	copy(orm.binary, serializer.buffer.Bytes())
 	serializer.buffer.Reset()
+}
+
+func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
+	serializer := engine.getSerializer()
+	serializer.buffer.Reset()
+	orm.deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
+	orm.binary = serializer.CopyBinary()
+}
+
+func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) {
+	for range fields.uintegers8 {
+		serializer.SetUInt8(uint8(pointers[index].(uint64)))
+		index++
+	}
+	for range fields.uintegers16 {
+		serializer.SetUInt16(uint16(pointers[index].(uint64)))
+		index++
+	}
+	for range fields.uintegers32 {
+		serializer.SetUInt32(uint32(pointers[index].(uint64)))
+		index++
+	}
+	for range fields.uintegers64 {
+		serializer.SetUInt64(pointers[index].(uint64))
+		index++
+	}
+	for range fields.integers8 {
+		serializer.SetInt8(int8(pointers[index].(int64)))
+		index++
+	}
+	for range fields.integers16 {
+		serializer.SetInt16(int16(pointers[index].(int64)))
+		index++
+	}
+	for range fields.integers32 {
+		serializer.SetInt32(int32(pointers[index].(int64)))
+		index++
+	}
+	for range fields.integers64 {
+		serializer.SetInt64(pointers[index].(int64))
+		index++
+	}
 }
 
 func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
@@ -470,11 +512,12 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	}
 }
 
-func (orm *ORM) deserialize(serializer *serializer, registry *validatedRegistry) {
-	orm.deserializeFields(serializer, registry, orm.tableSchema.fields, orm.elem)
+func (orm *ORM) deserialize(engine *Engine) {
+	orm.deserializeFields(engine, orm.tableSchema.fields, orm.elem)
 }
 
-func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedRegistry, fields *tableFields, elem reflect.Value) {
+func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem reflect.Value) {
+	serializer := engine.getSerializer()
 	for _, i := range fields.uintegers8 {
 		elem.Field(i).SetUint(uint64(serializer.GetUInt8()))
 	}
@@ -516,19 +559,19 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 	}
 	k := 0
 	for _, i := range fields.refs8 {
-		orm.deserializeRef(elem, i, k, registry, fields, uint64(serializer.GetUInt8()))
+		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt8()))
 		k++
 	}
 	for _, i := range fields.refs16 {
-		orm.deserializeRef(elem, i, k, registry, fields, uint64(serializer.GetUInt16()))
+		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt16()))
 		k++
 	}
 	for _, i := range fields.refs32 {
-		orm.deserializeRef(elem, i, k, registry, fields, uint64(serializer.GetUInt32()))
+		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt32()))
 		k++
 	}
 	for _, i := range fields.refs64 {
-		orm.deserializeRef(elem, i, k, registry, fields, serializer.GetUInt64())
+		orm.deserializeRef(elem, i, k, engine.registry, fields, serializer.GetUInt64())
 		k++
 	}
 	for _, i := range fields.uintegers8Nullable {
@@ -696,7 +739,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 		}
 	}
 	for i, subField := range fields.structs {
-		orm.deserializeFields(serializer, registry, subField, elem.Field(i).Elem())
+		orm.deserializeFields(engine, subField, elem.Field(i).Elem())
 	}
 	for _, i := range fields.jsons {
 		bytes := serializer.GetBytes()
@@ -713,19 +756,19 @@ func (orm *ORM) deserializeFields(serializer *serializer, registry *validatedReg
 	}
 	k = 0
 	for _, i := range fields.refsMany8 {
-		orm.deserializeRefMany(8, elem, serializer, i, k, registry, fields)
+		orm.deserializeRefMany(8, elem, serializer, i, k, engine.registry, fields)
 		k++
 	}
 	for _, i := range fields.refsMany16 {
-		orm.deserializeRefMany(16, elem, serializer, i, k, registry, fields)
+		orm.deserializeRefMany(16, elem, serializer, i, k, engine.registry, fields)
 		k++
 	}
 	for _, i := range fields.refsMany32 {
-		orm.deserializeRefMany(32, elem, serializer, i, k, registry, fields)
+		orm.deserializeRefMany(32, elem, serializer, i, k, engine.registry, fields)
 		k++
 	}
 	for _, i := range fields.refsMany64 {
-		orm.deserializeRefMany(64, elem, serializer, i, k, registry, fields)
+		orm.deserializeRefMany(64, elem, serializer, i, k, engine.registry, fields)
 		k++
 	}
 }
