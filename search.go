@@ -40,10 +40,21 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		start++
 	}
 	for i := 0; i < len(fields.times); i++ {
-		v := ""
+		v := uint32(0)
 		pointers[start] = &v
 		start++
 	}
+	if fields.fakeDelete > 0 {
+		v := uint64(0)
+		pointers[start] = &v
+		start++
+	}
+	for i := 0; i < len(fields.refs); i++ {
+		v := sql.NullInt64{}
+		pointers[start] = &v
+		start++
+	}
+
 	for i := 0; i < len(fields.uintegersNullable); i++ {
 		v := sql.NullInt64{}
 		pointers[start] = &v
@@ -74,11 +85,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	if fields.fakeDelete > 0 {
-		v := uint64(0)
-		pointers[start] = &v
-		start++
-	}
 	for i := 0; i < len(fields.booleansNullable); i++ {
 		v := sql.NullBool{}
 		pointers[start] = &v
@@ -96,11 +102,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	}
 	for i := 0; i < len(fields.jsons); i++ {
 		v := sql.NullString{}
-		pointers[start] = &v
-		start++
-	}
-	for i := 0; i < len(fields.refs); i++ {
-		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}

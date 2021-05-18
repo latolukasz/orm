@@ -566,14 +566,10 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	} else {
 		redisSearchIndex = nil
 	}
-	columns := fields.getColumnNames()
+	columns, fieldsQuery := fields.getColumnNames()
 	columnMapping := make(map[string]int)
 	for i, name := range columns {
 		columnMapping[name] = i
-	}
-	fieldsQuery := ""
-	for _, column := range columns {
-		fieldsQuery += ",`" + column + "`"
 	}
 	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+fieldsQuery)))
 	cachePrefix = cachePrefix[0:5]
@@ -584,7 +580,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		mysqlPoolName:        mysql,
 		t:                    entityType,
 		fields:               fields,
-		fieldsQuery:          fieldsQuery[1:],
+		fieldsQuery:          fieldsQuery,
 		redisSearchPrefix:    searchPrefix,
 		redisSearchIndex:     redisSearchIndex,
 		mapBindToRedisSearch: mapBindToRedisSearch,
@@ -1137,36 +1133,46 @@ func (tableSchema *tableSchema) newEntity() Entity {
 	return e
 }
 
-func (fields *tableFields) getColumnNames() []string {
+func (fields *tableFields) getColumnNames() ([]string, string) {
+	fieldsQuery := ""
 	columns := make([]string, 0)
 	ids := fields.uintegers
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.booleans...)
 	ids = append(ids, fields.floats...)
+	timesStart := len(ids)
 	ids = append(ids, fields.times...)
-
-	ids = append(ids, fields.uintegersNullable...)
-	ids = append(ids, fields.integersNullable...)
-	ids = append(ids, fields.strings...)
-	ids = append(ids, fields.sliceStringsSets...)
-	ids = append(ids, fields.bytes...)
+	timesEnd := len(ids)
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
 	}
+	ids = append(ids, fields.refs...)
+	ids = append(ids, fields.uintegersNullable...)
+	ids = append(ids, fields.integersNullable...)
+
+	ids = append(ids, fields.strings...)
+	ids = append(ids, fields.sliceStringsSets...)
+	ids = append(ids, fields.bytes...)
 	ids = append(ids, fields.booleansNullable...)
 	ids = append(ids, fields.floatsNullable...)
 	ids = append(ids, fields.timesNullable...)
 	ids = append(ids, fields.jsons...)
-	ids = append(ids, fields.refs...)
 	ids = append(ids, fields.refsMany...)
-	for _, i := range ids {
+	for k, i := range ids {
 		name := fields.prefix + fields.fields[i].Name
 		columns = append(columns, name)
+		if k > timesStart && k < timesEnd {
+			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
+		} else {
+			fieldsQuery += ",`" + name + "`"
+		}
 	}
 	for _, subFields := range fields.structs {
-		columns = append(columns, subFields.getColumnNames()...)
+		subColumns, subQuery := subFields.getColumnNames()
+		columns = append(columns, subColumns...)
+		fieldsQuery += "," + subQuery
 	}
-	return columns
+	return columns, fieldsQuery[1:]
 }
 
 var defaultRedisSearchMapper = func(val interface{}) interface{} {

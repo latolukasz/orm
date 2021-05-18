@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -252,7 +253,85 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		index++
 	}
 	for range fields.times {
+		serializer.SetUInt32(*pointers[index].(*uint32))
+		index++
+	}
+	if fields.fakeDelete > 0 {
+		serializer.SetBool(*pointers[index].(*uint64) > 0)
+		index++
+	}
+	for range fields.refs8 {
+		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
+		index++
+	}
+	for range fields.refs16 {
+		serializer.SetUInt16(uint16(*pointers[index].(*uint64)))
+		index++
+	}
+	for range fields.refs32 {
+		serializer.SetUInt32(uint32(*pointers[index].(*uint64)))
+		index++
+	}
+	for range fields.refs64 {
+		serializer.SetUInt64(*pointers[index].(*uint64))
+		index++
+	}
+	for range fields.uintegers8Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetUInt8(uint8(v.Int64))
+		}
+	}
+	for range fields.uintegers16Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetUInt16(uint16(v.Int64))
+		}
+	}
+	for range fields.uintegers32Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetUInt32(uint32(v.Int64))
+		}
+	}
+	for range fields.uintegers64Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetUInt64(uint64(v.Int64))
+		}
+	}
 
+	for range fields.integers8Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetInt8(int8(v.Int64))
+		}
+	}
+	for range fields.integers16Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetInt16(int16(v.Int64))
+		}
+	}
+	for range fields.integers32Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetInt32(int32(v.Int64))
+		}
+	}
+	for range fields.integers64Nullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetInt64(int64(v.Int64))
+		}
 	}
 }
 
