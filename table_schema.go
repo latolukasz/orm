@@ -706,7 +706,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 		integers: make([]int, 0), integersNullable: make([]int, 0), strings: make([]int, 0), fields: make(map[int]reflect.StructField),
 		sliceStringsSets: make([]int, 0), bytes: make([]int, 0), booleans: make([]int, 0), booleansNullable: make([]int, 0), floats: make([]int, 0),
 		timesNullable: make([]int, 0), times: make([]int, 0), jsons: make([]int, 0), structs: make(map[int]*tableFields),
-		floatsNullable: make([]int, 0), refs: make([]int, 0), refsTypes: make([]reflect.Type, 0), refsMany: make([]int, 0), refsManyTypes: make([]reflect.Type, 0)}
+		floatsNullable: make([]int, 0), refs: make([]int, 0), refsMany: make([]int, 0), refsManyTypes: make([]reflect.Type, 0)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
 		fields.fields[i] = f
@@ -988,7 +988,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				modelType := reflect.TypeOf((*Entity)(nil)).Elem()
 				if f.Type.Implements(modelType) {
 					fields.refs = append(fields.refs, i)
-					fields.refsTypes = append(fields.refsTypes, f.Type)
+					fields.refsTypes = append(fields.refsTypes, f.Type.Elem())
 					switch f.Type.Elem().Field(1).Type.String() {
 					case "uint8":
 						fields.refs8 = append(fields.refs8, i)

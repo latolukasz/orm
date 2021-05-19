@@ -486,34 +486,34 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 
 func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.refs8 {
-		e := elem.Field(i).Interface().(Entity)
+		f := elem.Field(i)
 		id := uint8(0)
-		if e != nil {
-			id = uint8(e.GetID())
+		if !f.IsNil() {
+			id = uint8(f.Interface().(Entity).GetID())
 		}
 		serializer.SetUInt8(id)
 	}
 	for _, i := range fields.refs16 {
-		e := elem.Field(i).Interface().(Entity)
+		f := elem.Field(i)
 		id := uint16(0)
-		if e != nil {
-			id = uint16(e.GetID())
+		if !f.IsNil() {
+			id = uint16(f.Interface().(Entity).GetID())
 		}
 		serializer.SetUInt16(id)
 	}
 	for _, i := range fields.refs32 {
-		e := elem.Field(i).Interface().(Entity)
+		f := elem.Field(i)
 		id := uint32(0)
-		if e != nil {
-			id = uint32(e.GetID())
+		if !f.IsNil() {
+			id = uint32(f.Interface().(Entity).GetID())
 		}
 		serializer.SetUInt32(id)
 	}
 	for _, i := range fields.refs64 {
-		e := elem.Field(i).Interface().(Entity)
+		f := elem.Field(i)
 		id := uint64(0)
-		if e != nil {
-			id = e.GetID()
+		if !f.IsNil() {
+			id = f.Interface().(Entity).GetID()
 		}
 		serializer.SetUInt64(id)
 	}
@@ -1050,8 +1050,8 @@ func (orm *ORM) deserializeRefMany(size int, elem reflect.Value, serializer *ser
 			}
 			o.inDB = true
 			slice.Index(j).Set(o.value)
-			f.Set(o.value)
 		}
+		f.Set(slice)
 	} else {
 		if !f.IsNil() {
 			f.Set(reflect.Zero(reflect.SliceOf(refType)))
