@@ -989,7 +989,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				if f.Type.Implements(modelType) {
 					fields.refs = append(fields.refs, i)
 					fields.refsTypes = append(fields.refsTypes, f.Type)
-					switch f.Type.Field(1).Type.String() {
+					switch f.Type.Elem().Field(1).Type.String() {
 					case "uint8":
 						fields.refs8 = append(fields.refs8, i)
 					case "uint16":

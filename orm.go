@@ -554,7 +554,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 		serializer.SetUInt32(uint32(elem.Field(i).Interface().(time.Time).Unix()))
 	}
 	if fields.fakeDelete > 0 {
-		serializer.SetBool(elem.Field(fields.fakeDelete).Uint() > 0)
+		serializer.SetBool(elem.Field(fields.fakeDelete).Bool())
 	}
 	for _, i := range fields.uintegers8Nullable {
 		f := elem.Field(i)
