@@ -3,8 +3,6 @@ package orm
 import (
 	"fmt"
 	"reflect"
-
-	"github.com/shamaton/msgpack"
 )
 
 const cacheNilValue = ""
@@ -19,7 +17,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 		if e == nil {
 			return false, schema
 		}
-		fillFromDBRow(id, engine, e, entity, false, lazy)
+		fillFromBinary(id, engine, e, entity, false, lazy)
 		if len(references) > 0 {
 			warmUpReferences(engine, schema, orm.elem, references, false, lazy)
 		}
@@ -40,8 +38,8 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 				if e == cacheNilValue {
 					return false, schema
 				}
-				data := e.([]interface{})
-				fillFromDBRow(id, engine, data, entity, false, lazy)
+				data := e.([]byte)
+				fillFromBinary(id, engine, data, entity, false, lazy)
 				if len(references) > 0 {
 					warmUpReferences(engine, schema, orm.value, references, false, lazy)
 				}
@@ -55,9 +53,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 				if row == cacheNilValue {
 					return false, schema
 				}
-				decoded := make([]interface{}, len(schema.columnNames))
-				_ = msgpack.Unmarshal([]byte(row), &decoded)
-				fillFromDBRow(id, engine, decoded, entity, false, lazy)
+				fillFromBinary(id, engine, []byte(row), entity, false, lazy)
 				if len(references) > 0 {
 					warmUpReferences(engine, schema, orm.value, references, false, lazy)
 				}
@@ -78,10 +74,10 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	}
 	if useCache {
 		if localCache != nil {
-			localCache.Set(cacheKey, buildLocalCacheValue(data))
+			localCache.Set(cacheKey, orm.binary)
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, buildRedisValue(data), 0)
+			redisCache.Set(cacheKey, orm.binary, 0)
 		}
 	}
 

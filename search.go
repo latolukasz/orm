@@ -255,6 +255,25 @@ func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Ent
 	}
 }
 
+func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, fillDataLoader bool, lazy bool) {
+	orm := initIfNeeded(engine.registry, entity)
+	orm.idElem.SetUint(id)
+	orm.inDB = true
+	orm.loaded = true
+	orm.lazy = lazy
+	orm.binary = binary
+	if !lazy {
+		orm.deserialize(engine)
+	}
+	if !fillDataLoader {
+		return
+	}
+	schema := entity.getORM().tableSchema
+	if !schema.hasLocalCache && engine.dataLoader != nil {
+		engine.dataLoader.Prime(schema, id, orm.binary)
+	}
+}
+
 func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {
 	name := sliceType.String()
 	if name[0] == 42 {

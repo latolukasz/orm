@@ -255,9 +255,9 @@ func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...st
 	if len(defaultValue) > 0 {
 		e.defaultValue = defaultValue[0]
 	}
-	e.mapping = make(map[string]string)
-	for _, name := range values {
-		e.mapping[name] = name
+	e.mapping = make(map[string]int)
+	for i, name := range values {
+		e.mapping[name] = i
 	}
 	if r.enums == nil {
 		r.enums = make(map[string]Enum)

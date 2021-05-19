@@ -653,10 +653,10 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			}
 		} else {
 			if f.engine.afterCommitDataLoaderSets == nil {
-				f.engine.afterCommitDataLoaderSets = make(map[*tableSchema]map[uint64][]interface{})
+				f.engine.afterCommitDataLoaderSets = make(map[*tableSchema]map[uint64][]byte)
 			}
 			if f.engine.afterCommitDataLoaderSets[schema] == nil {
-				f.engine.afterCommitDataLoaderSets[schema] = make(map[uint64][]interface{})
+				f.engine.afterCommitDataLoaderSets[schema] = make(map[uint64][]byte)
 			}
 			for id, value := range rows {
 				f.engine.afterCommitDataLoaderSets[schema][id] = value
