@@ -207,7 +207,7 @@ func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 	orm.binary = serializer.CopyBinary()
 }
 
-func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) {
+func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
 	for range fields.uintegers8 {
 		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
 		index++
@@ -356,6 +356,121 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		serializer.SetString(pointers[index].(*sql.NullString).String)
 		index++
 	}
+	for range fields.bytes {
+		serializer.SetBytes([]byte(pointers[index].(*sql.NullString).String))
+		index++
+	}
+	for range fields.sliceStringsSets {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			values := strings.Split(v.String, ",")
+			serializer.SetUInt8(uint8(len(values)))
+			enum := fields.enums[k]
+			for _, set := range values {
+				serializer.SetUInt8(uint8(enum.Index(set)))
+			}
+		} else {
+			serializer.SetUInt8(0)
+		}
+		k++
+	}
+	for range fields.booleansNullable {
+		v := pointers[index].(*sql.NullBool)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetBool(v.Bool)
+		}
+		index++
+	}
+	for range fields.floats32Nullable {
+		v := pointers[index].(*sql.NullFloat64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetFloat32(float32(v.Float64))
+		}
+		index++
+	}
+	for range fields.floats64Nullable {
+		v := pointers[index].(*sql.NullFloat64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetFloat64(v.Float64)
+		}
+		index++
+	}
+	for range fields.timesNullable {
+		v := pointers[index].(*sql.NullInt32)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetUInt32(uint32(v.Int32))
+		}
+		index++
+	}
+	for range fields.jsons {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			serializer.SetBytes([]byte(v.String))
+		} else {
+			serializer.SetBytes(nil)
+		}
+		index++
+	}
+	for range fields.refsMany8 {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			var slice []uint8
+			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
+			serializer.SetUInt8(uint8(len(slice)))
+			for _, i := range slice {
+				serializer.SetUInt8(i)
+			}
+		} else {
+			serializer.SetUInt8(0)
+		}
+	}
+	for range fields.refsMany16 {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			var slice []uint16
+			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
+			serializer.SetUInt8(uint8(len(slice)))
+			for _, i := range slice {
+				serializer.SetUInt16(i)
+			}
+		} else {
+			serializer.SetUInt8(0)
+		}
+	}
+	for range fields.refsMany32 {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			var slice []uint32
+			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
+			serializer.SetUInt8(uint8(len(slice)))
+			for _, i := range slice {
+				serializer.SetUInt32(i)
+			}
+		} else {
+			serializer.SetUInt8(0)
+		}
+	}
+	for range fields.refsMany64 {
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			var slice []uint64
+			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
+			serializer.SetUInt8(uint8(len(slice)))
+			for _, i := range slice {
+				serializer.SetUInt64(i)
+			}
+		} else {
+			serializer.SetUInt8(0)
+		}
+	}
+	for _, subField := range fields.structs {
+		index += orm.deserializeStructFromDB(serializer, index, subField, pointers)
+	}
+	return index
 }
 
 func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
@@ -522,7 +637,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 		f := elem.Field(i)
 		values := f.Interface().([]string)
 		l := len(values)
-		serializer.SetUvarint(uint64(l))
+		serializer.SetUInt8(uint8(l))
 		if l > 0 {
 			set := fields.sets[k]
 			for _, val := range values {
@@ -567,9 +682,6 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetUInt32(uint32(elem.Field(i).Interface().(time.Time).Unix()))
 		}
 	}
-	for i, subField := range fields.structs {
-		orm.serializeFields(serializer, subField, elem.Field(i).Elem())
-	}
 	for _, i := range fields.jsons {
 		f := elem.Field(i)
 		if f.IsNil() {
@@ -582,10 +694,10 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.refsMany8 {
 		e := elem.Field(i)
 		if e.IsNil() {
-			serializer.SetUvarint(uint64(0))
+			serializer.SetUInt8(0)
 		} else {
 			l := e.Len()
-			serializer.SetUvarint(uint64(l))
+			serializer.SetUInt8(uint8(l))
 			for k := 0; k < l; k++ {
 				serializer.SetUInt8(uint8(e.Index(k).Interface().(Entity).GetID()))
 			}
@@ -594,10 +706,10 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.refsMany16 {
 		e := elem.Field(i)
 		if e.IsNil() {
-			serializer.SetUvarint(uint64(0))
+			serializer.SetUInt8(uint8(0))
 		} else {
 			l := e.Len()
-			serializer.SetUvarint(uint64(l))
+			serializer.SetUInt8(uint8(l))
 			for k := 0; k < l; k++ {
 				serializer.SetUInt16(uint16(e.Index(k).Interface().(Entity).GetID()))
 			}
@@ -606,10 +718,10 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.refsMany32 {
 		e := elem.Field(i)
 		if e.IsNil() {
-			serializer.SetUvarint(uint64(0))
+			serializer.SetUInt8(uint8(0))
 		} else {
 			l := e.Len()
-			serializer.SetUvarint(uint64(l))
+			serializer.SetUInt8(uint8(l))
 			for k := 0; k < l; k++ {
 				serializer.SetUInt32(uint32(e.Index(k).Interface().(Entity).GetID()))
 			}
@@ -618,14 +730,17 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.refsMany64 {
 		e := elem.Field(i)
 		if e.IsNil() {
-			serializer.SetUvarint(uint64(0))
+			serializer.SetUInt8(uint8(0))
 		} else {
 			l := e.Len()
-			serializer.SetUvarint(uint64(l))
+			serializer.SetUInt8(uint8(l))
 			for k := 0; k < l; k++ {
 				serializer.SetUInt64(e.Index(k).Interface().(Entity).GetID())
 			}
 		}
+	}
+	for i, subField := range fields.structs {
+		orm.serializeFields(serializer, subField, elem.Field(i).Elem())
 	}
 }
 
@@ -795,7 +910,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		elem.Field(i).SetBytes(serializer.GetBytes())
 	}
 	for _, i := range fields.sliceStringsSets {
-		l := int(serializer.GetUvarint())
+		l := int(serializer.GetUInt8())
 		f := elem.Field(i)
 		if l == 0 {
 			if !f.IsNil() {
@@ -904,7 +1019,7 @@ func (orm *ORM) deserializeRef(elem reflect.Value, i, k int, registry *validated
 }
 
 func (orm *ORM) deserializeRefMany(size int, elem reflect.Value, serializer *serializer, i, k int, registry *validatedRegistry, fields *tableFields) {
-	l := int(serializer.GetUvarint())
+	l := int(serializer.GetUInt8())
 	f := elem.Field(i)
 	refType := fields.refsManyTypes[k]
 	if l > 0 {

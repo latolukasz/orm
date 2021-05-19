@@ -1136,33 +1136,55 @@ func (tableSchema *tableSchema) newEntity() Entity {
 func (fields *tableFields) getColumnNames() ([]string, string) {
 	fieldsQuery := ""
 	columns := make([]string, 0)
-	ids := fields.uintegers
-	ids = append(ids, fields.integers...)
+	ids := fields.uintegers8
+	ids = append(ids, fields.uintegers16...)
+	ids = append(ids, fields.uintegers32...)
+	ids = append(ids, fields.uintegers64...)
+	ids = append(ids, fields.integers8...)
+	ids = append(ids, fields.integers16...)
+	ids = append(ids, fields.integers32...)
+	ids = append(ids, fields.integers64...)
 	ids = append(ids, fields.booleans...)
-	ids = append(ids, fields.floats...)
+	ids = append(ids, fields.floats32...)
+	ids = append(ids, fields.floats64...)
 	timesStart := len(ids)
 	ids = append(ids, fields.times...)
 	timesEnd := len(ids)
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
 	}
-	ids = append(ids, fields.refs...)
-	ids = append(ids, fields.uintegersNullable...)
-	ids = append(ids, fields.integersNullable...)
+	ids = append(ids, fields.refs8...)
+	ids = append(ids, fields.refs16...)
+	ids = append(ids, fields.refs32...)
+	ids = append(ids, fields.refs64...)
+	ids = append(ids, fields.uintegers8Nullable...)
+	ids = append(ids, fields.uintegers16Nullable...)
+	ids = append(ids, fields.uintegers32Nullable...)
+	ids = append(ids, fields.uintegers64Nullable...)
+	ids = append(ids, fields.integers8Nullable...)
+	ids = append(ids, fields.integers16Nullable...)
+	ids = append(ids, fields.integers32Nullable...)
+	ids = append(ids, fields.integers64Nullable...)
 	ids = append(ids, fields.stringsEnums...)
 	ids = append(ids, fields.strings...)
-
-	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.bytes...)
+	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.booleansNullable...)
-	ids = append(ids, fields.floatsNullable...)
+	ids = append(ids, fields.floats32Nullable...)
+	ids = append(ids, fields.floats64Nullable...)
+	timesNullableStart := len(ids)
 	ids = append(ids, fields.timesNullable...)
+	timesNullableEnd := len(ids)
 	ids = append(ids, fields.jsons...)
-	ids = append(ids, fields.refsMany...)
+
+	ids = append(ids, fields.refsMany8...)
+	ids = append(ids, fields.refsMany16...)
+	ids = append(ids, fields.refsMany32...)
+	ids = append(ids, fields.refsMany64...)
 	for k, i := range ids {
 		name := fields.prefix + fields.fields[i].Name
 		columns = append(columns, name)
-		if k > timesStart && k < timesEnd {
+		if (k > timesStart && k < timesEnd) || (k > timesNullableStart && k < timesNullableEnd) {
 			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
 		} else {
 			fieldsQuery += ",`" + name + "`"
