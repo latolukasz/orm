@@ -1136,7 +1136,11 @@ func (tableSchema *tableSchema) newEntity() Entity {
 func (fields *tableFields) getColumnNames() ([]string, string) {
 	fieldsQuery := ""
 	columns := make([]string, 0)
-	ids := fields.uintegers8
+	ids := fields.refs8
+	ids = append(ids, fields.refs16...)
+	ids = append(ids, fields.refs32...)
+	ids = append(ids, fields.refs64...)
+	ids = append(ids, fields.uintegers8...)
 	ids = append(ids, fields.uintegers16...)
 	ids = append(ids, fields.uintegers32...)
 	ids = append(ids, fields.uintegers64...)
@@ -1153,10 +1157,6 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
 	}
-	ids = append(ids, fields.refs8...)
-	ids = append(ids, fields.refs16...)
-	ids = append(ids, fields.refs32...)
-	ids = append(ids, fields.refs64...)
 	ids = append(ids, fields.uintegers8Nullable...)
 	ids = append(ids, fields.uintegers16Nullable...)
 	ids = append(ids, fields.uintegers32Nullable...)

@@ -211,6 +211,22 @@ func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 }
 
 func deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
+	for range fields.refs8 {
+		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
+		index++
+	}
+	for range fields.refs16 {
+		serializer.SetUInt16(uint16(*pointers[index].(*uint64)))
+		index++
+	}
+	for range fields.refs32 {
+		serializer.SetUInt32(uint32(*pointers[index].(*uint64)))
+		index++
+	}
+	for range fields.refs64 {
+		serializer.SetUInt64(*pointers[index].(*uint64))
+		index++
+	}
 	for range fields.uintegers8 {
 		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
 		index++
@@ -261,22 +277,6 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 	}
 	if fields.fakeDelete > 0 {
 		serializer.SetBool(*pointers[index].(*uint64) > 0)
-		index++
-	}
-	for range fields.refs8 {
-		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
-		index++
-	}
-	for range fields.refs16 {
-		serializer.SetUInt16(uint16(*pointers[index].(*uint64)))
-		index++
-	}
-	for range fields.refs32 {
-		serializer.SetUInt32(uint32(*pointers[index].(*uint64)))
-		index++
-	}
-	for range fields.refs64 {
-		serializer.SetUInt64(*pointers[index].(*uint64))
 		index++
 	}
 	for range fields.uintegers8Nullable {
@@ -477,6 +477,38 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 }
 
 func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
+	for _, i := range fields.refs8 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint8(0)
+		if e != nil {
+			id = uint8(e.GetID())
+		}
+		serializer.SetUInt8(id)
+	}
+	for _, i := range fields.refs16 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint16(0)
+		if e != nil {
+			id = uint16(e.GetID())
+		}
+		serializer.SetUInt16(id)
+	}
+	for _, i := range fields.refs32 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint32(0)
+		if e != nil {
+			id = uint32(e.GetID())
+		}
+		serializer.SetUInt32(id)
+	}
+	for _, i := range fields.refs64 {
+		e := elem.Field(i).Interface().(Entity)
+		id := uint64(0)
+		if e != nil {
+			id = e.GetID()
+		}
+		serializer.SetUInt64(id)
+	}
 	for _, i := range fields.uintegers8 {
 		serializer.SetUInt8(uint8(elem.Field(i).Uint()))
 	}
@@ -515,38 +547,6 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	}
 	if fields.fakeDelete > 0 {
 		serializer.SetBool(elem.Field(fields.fakeDelete).Uint() > 0)
-	}
-	for _, i := range fields.refs8 {
-		e := elem.Field(i).Interface().(Entity)
-		id := uint8(0)
-		if e != nil {
-			id = uint8(e.GetID())
-		}
-		serializer.SetUInt8(id)
-	}
-	for _, i := range fields.refs16 {
-		e := elem.Field(i).Interface().(Entity)
-		id := uint16(0)
-		if e != nil {
-			id = uint16(e.GetID())
-		}
-		serializer.SetUInt16(id)
-	}
-	for _, i := range fields.refs32 {
-		e := elem.Field(i).Interface().(Entity)
-		id := uint32(0)
-		if e != nil {
-			id = uint32(e.GetID())
-		}
-		serializer.SetUInt32(id)
-	}
-	for _, i := range fields.refs64 {
-		e := elem.Field(i).Interface().(Entity)
-		id := uint64(0)
-		if e != nil {
-			id = e.GetID()
-		}
-		serializer.SetUInt64(id)
 	}
 	for _, i := range fields.uintegers8Nullable {
 		f := elem.Field(i)
@@ -753,6 +753,23 @@ func (orm *ORM) deserialize(engine *Engine) {
 
 func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem reflect.Value) {
 	serializer := engine.getSerializer()
+	k := 0
+	for _, i := range fields.refs8 {
+		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt8()))
+		k++
+	}
+	for _, i := range fields.refs16 {
+		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt16()))
+		k++
+	}
+	for _, i := range fields.refs32 {
+		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt32()))
+		k++
+	}
+	for _, i := range fields.refs64 {
+		orm.deserializeRef(elem, i, k, engine.registry, fields, serializer.GetUInt64())
+		k++
+	}
 	for _, i := range fields.uintegers8 {
 		elem.Field(i).SetUint(uint64(serializer.GetUInt8()))
 	}
@@ -791,23 +808,6 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	}
 	if fields.fakeDelete > 0 {
 		elem.Field(fields.fakeDelete).SetBool(serializer.GetBool())
-	}
-	k := 0
-	for _, i := range fields.refs8 {
-		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt8()))
-		k++
-	}
-	for _, i := range fields.refs16 {
-		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt16()))
-		k++
-	}
-	for _, i := range fields.refs32 {
-		orm.deserializeRef(elem, i, k, engine.registry, fields, uint64(serializer.GetUInt32()))
-		k++
-	}
-	for _, i := range fields.refs64 {
-		orm.deserializeRef(elem, i, k, engine.registry, fields, serializer.GetUInt64())
-		k++
 	}
 	for _, i := range fields.uintegers8Nullable {
 		if serializer.GetBool() {
