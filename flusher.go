@@ -530,9 +530,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			/* #nosec */
 			sql := "DELETE FROM `" + schema.tableName + "` WHERE " + NewWhere("`ID` IN ?", ids).String()
 			db := schema.GetMysql(f.engine)
-			if lazy {
-				f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, ids, logEvents, dirtyEvents)
-			} else {
+			if !lazy {
 				usage := schema.GetUsage(f.engine.registry)
 				if len(usage) > 0 {
 					for refT, refColumns := range usage {
@@ -604,6 +602,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					key := schema.redisSearchPrefix + strconv.FormatUint(id, 10)
 					f.getRedisFlusher().Del(schema.searchCacheName, key)
 				}
+			}
+			if lazy {
+				f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, ids, logEvents, dirtyEvents)
 			}
 		}
 		if f.localCacheDeletes != nil {

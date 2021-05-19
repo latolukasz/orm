@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/shamaton/msgpack"
 )
 
@@ -300,13 +299,8 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 				if !lazy {
 					continue
 				}
-				//idVal := dbData[schema.columnMapping[refName]]
-				//if idVal == nil {
-				//	continue
-				//}
 				if manyRef {
-					ids := make([]uint64, 0)
-					_ = jsoniter.ConfigFastest.UnmarshalFromString(idVal.(string), &ids)
+					ids := ref.Interface().(Entity).getORM().getFieldByName(engine, refName).([]uint64)
 					length := len(ids)
 					slice := reflect.MakeSlice(reflect.SliceOf(ref.Type().Elem()), length, length)
 					for k, id := range ids {
@@ -318,7 +312,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 					}
 					ref.Set(slice)
 				} else {
-					id := idVal.(uint64)
+					id := ref.Interface().(Entity).getORM().getFieldByName(engine, refName).(uint64)
 					if id == 0 {
 						continue
 					}

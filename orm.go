@@ -60,10 +60,18 @@ func (orm *ORM) GetFieldLazy(engine *Engine, field string) interface{} {
 	if !orm.lazy {
 		panic(fmt.Errorf("entity is not lazy"))
 	}
+	return orm.getFieldByName(engine, field)
+}
+
+func (orm *ORM) getFieldByName(engine *Engine, field string) interface{} {
 	index, has := orm.tableSchema.columnMapping[field]
 	if !has {
 		panic(fmt.Errorf("uknown field " + field))
 	}
+	return orm.getField(engine, index)
+}
+
+func (orm *ORM) getField(engine *Engine, index int) interface{} {
 	fields := orm.tableSchema.fields
 	serializer := engine.getSerializer()
 	serializer.Reset(orm.binary)

@@ -48,8 +48,7 @@ func (enum *enum) Has(value string) bool {
 }
 
 func (enum *enum) Index(value string) int {
-	val, _ := enum.mapping[value]
-	return val
+	return enum.mapping[value]
 }
 
 func initEnum(ref interface{}, defaultValue ...string) *enum {
