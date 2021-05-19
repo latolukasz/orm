@@ -161,37 +161,40 @@ func (orm *ORM) IsDirty(engine *Engine) bool {
 }
 
 func (orm *ORM) GetDirtyBind(engine *Engine) (bind Bind, has bool) {
-	bind, _, _, has = orm.getDirtyBind(engine)
+	bind, _, _, _, has = orm.getDirtyBind(engine)
 	return bind, has
 }
 
 func (orm *ORM) GetDirtyBindFull(engine *Engine) (bind, before Bind, has bool) {
-	bind, before, _, has = orm.getDirtyBind(engine)
+	bind, before, _, _, has = orm.getDirtyBind(engine)
 	return bind, before, has
 }
 
-func (orm *ORM) getDirtyBind(engine *Engine) (bind, oldBind Bind, updateBind map[string]string, has bool) {
+func (orm *ORM) getDirtyBind(engine *Engine) (bind, oldBind, current Bind, updateBind map[string]string, has bool) {
 	if orm.delete {
-		return nil, nil, nil, true
+		return nil, nil, nil, nil, true
 	}
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
 		} else {
 			orm.delete = true
-			return nil, nil, nil, true
+			return nil, nil, nil, nil, true
 		}
 	}
 	id := orm.GetID()
 	bind = make(Bind)
+	if orm.tableSchema.cachedIndexesAll != nil {
+		current = make(Bind)
+	}
 	if orm.inDB && !orm.delete {
 		oldBind = make(Bind)
 		updateBind = make(map[string]string)
 	}
 	serializer := engine.getSerializer()
-	orm.buildBind(id, serializer, bind, oldBind, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "")
+	orm.buildBind(id, serializer, bind, oldBind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "")
 	has = id == 0 || len(bind) > 0
-	return bind, oldBind, updateBind, has
+	return bind, oldBind, current, updateBind, has
 }
 
 func (orm *ORM) serialize(serializer *serializer) {
@@ -1290,11 +1293,11 @@ func (orm *ORM) checkNil(field reflect.Value, name string, hasOld bool, old inte
 	return true
 }
 
-func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind Bind, updateBind map[string]string, tableSchema *tableSchema,
+func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, current Bind, updateBind map[string]string, tableSchema *tableSchema,
 	fields *tableFields, value reflect.Value, prefix string) {
 	hasUpdate := updateBind != nil
 	noPrefix := prefix == ""
-	var hasOld = orm.inDB
+	var hasOld = orm.inDB && !orm.delete
 	serializer.Reset(orm.binary)
 	for _, i := range fields.uintegers8 {
 		if i == 1 && noPrefix {

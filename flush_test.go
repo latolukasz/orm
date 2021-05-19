@@ -146,15 +146,15 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.TimeWithTime = now
 	entity.TimeWithTimeNullable = &now
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
-	assert.True(t, entity.IsDirty())
-	assert.True(t, entity.ReferenceOne.IsDirty())
+	assert.True(t, entity.IsDirty(engine))
+	assert.True(t, entity.ReferenceOne.IsDirty(engine))
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Flush()
 	flusher.Flush()
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.False(t, entity.IsDirty())
-	assert.False(t, entity.ReferenceOne.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
+	assert.False(t, entity.ReferenceOne.IsDirty(engine))
 	assert.Equal(t, uint(1), entity.ID)
 	assert.NotEqual(t, uint(0), entity.ReferenceOne.ID)
 	assert.True(t, entity.IsLoaded())
@@ -189,7 +189,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.BoolNullable)
 	assert.Nil(t, entity.FloatNullable)
 	assert.Nil(t, entity.Float32Nullable)
-	assert.False(t, entity.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
 	assert.True(t, entity.IsLoaded())
 	assert.False(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, refOneID, entity.ReferenceOne.ID)
@@ -281,12 +281,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 134.35, entity.Decimal)
 	assert.Equal(t, 134.35, *entity.DecimalNullable)
 	assert.Nil(t, entity.ReferenceMany)
-	assert.False(t, entity.IsDirty())
-	assert.False(t, reference.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
+	assert.False(t, reference.IsDirty(engine))
 	assert.True(t, reference.IsLoaded())
 
 	entity.ReferenceMany = []*flushEntityReference{}
-	assert.False(t, entity.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
@@ -335,9 +335,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.BoolNullable = &i4
 	entity2.FloatNullable = &i5
 	entity2.City = "War'saw '; New"
-	assert.True(t, entity2.IsDirty())
+	assert.True(t, entity2.IsDirty(engine))
 	engine.Flush(entity2)
-	assert.False(t, entity2.IsDirty())
+	assert.False(t, entity2.IsDirty(engine))
 	engine.LoadByID(10, entity2)
 	assert.Equal(t, 21, entity2.Age)
 	entity2.City = "War\\'saw"
@@ -356,9 +356,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.BoolNullable = nil
 	entity2.FloatNullable = nil
 	entity2.City = ""
-	assert.True(t, entity2.IsDirty())
+	assert.True(t, entity2.IsDirty(engine))
 	engine.Flush(entity2)
-	assert.False(t, entity2.IsDirty())
+	assert.False(t, entity2.IsDirty(engine))
 	entity2 = &flushEntity{}
 	engine.LoadByID(10, entity2)
 	assert.Nil(t, entity2.UintNullable)
@@ -367,7 +367,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "", entity2.City)
 
 	entity2.markToDelete()
-	assert.True(t, entity2.IsDirty())
+	assert.True(t, entity2.IsDirty(engine))
 	engine.Delete(entity2)
 	found = engine.LoadByID(10, entity2)
 	assert.True(t, found)
