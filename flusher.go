@@ -29,7 +29,7 @@ func (err *ForeignKeyError) Error() string {
 	return err.Message
 }
 
-type dataLoaderSets map[*tableSchema]map[uint64][]interface{}
+type dataLoaderSets map[*tableSchema]map[uint64][]byte
 
 type Flusher interface {
 	Track(entity ...Entity) Flusher

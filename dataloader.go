@@ -14,7 +14,7 @@ const dataLoaderWait = time.Millisecond
 
 type dataLoader struct {
 	engine       *Engine
-	cache        map[string][]interface{}
+	cache        map[string][]byte
 	batch        *dataLoaderBatch
 	maxBatchSize int
 	mu           sync.Mutex
@@ -22,23 +22,23 @@ type dataLoader struct {
 
 type dataLoaderBatch struct {
 	keys    []string
-	data    [][]interface{}
+	data    [][]byte
 	closing bool
 	done    chan struct{}
 }
 
-func (l *dataLoader) Load(schema TableSchema, id uint64) []interface{} {
+func (l *dataLoader) Load(schema TableSchema, id uint64) []byte {
 	return l.loadThunk(l.key(schema, id))()
 }
 
-func (l *dataLoader) LoadAll(schema TableSchema, ids []uint64) [][]interface{} {
-	results := make([]func() []interface{}, len(ids))
+func (l *dataLoader) LoadAll(schema TableSchema, ids []uint64) [][]byte {
+	results := make([]func() []byte, len(ids))
 
 	for i, id := range ids {
 		results[i] = l.loadThunk(l.key(schema, id))
 	}
 
-	data := make([][]interface{}, len(ids))
+	data := make([][]byte, len(ids))
 	for i, thunk := range results {
 		data[i] = thunk()
 	}
@@ -63,11 +63,11 @@ func (l *dataLoader) key(schema TableSchema, id uint64) string {
 	return schema.GetType().String() + ":" + strconv.FormatUint(id, 10)
 }
 
-func (l *dataLoader) loadThunk(key string) func() []interface{} {
+func (l *dataLoader) loadThunk(key string) func() []byte {
 	l.mu.Lock()
 	if it, ok := l.cache[key]; ok {
 		l.mu.Unlock()
-		return func() []interface{} {
+		return func() []byte {
 			return it
 		}
 	}
@@ -78,10 +78,10 @@ func (l *dataLoader) loadThunk(key string) func() []interface{} {
 	pos := batch.keyIndex(l, key)
 	l.mu.Unlock()
 
-	return func() []interface{} {
+	return func() []byte {
 		<-batch.done
 
-		var data []interface{}
+		var data []byte
 		if pos < len(batch.data) {
 			data = batch.data[pos]
 		}
@@ -94,9 +94,9 @@ func (l *dataLoader) loadThunk(key string) func() []interface{} {
 	}
 }
 
-func (l *dataLoader) unsafeSet(key string, value []interface{}) {
+func (l *dataLoader) unsafeSet(key string, value []byte) {
 	if l.cache == nil {
-		l.cache = map[string][]interface{}{}
+		l.cache = map[string][]byte{}
 	}
 	l.cache[key] = value
 }
@@ -150,12 +150,12 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 		id, _ := strconv.ParseUint(parts[1], 10, 64)
 		m[parts[0]] = append(m[parts[0]], id)
 	}
-	results := make(map[string][]interface{})
+	results := make(map[string][]byte)
 	for entityName, ids := range m {
 		lenIDs := len(ids)
 		schema := l.engine.registry.GetTableSchema(entityName).(*tableSchema)
 		var redisCacheKeys []string
-		resultsKeys := make(map[string][]interface{}, lenIDs)
+		resultsKeys := make(map[string][]byte, lenIDs)
 		keysMapping := make(map[string]uint64, lenIDs)
 		redisCache, hasRedis := schema.GetRedisCache(l.engine)
 		cacheKeys := make([]string, lenIDs)
@@ -202,7 +202,7 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 		}
 	}
 	i := 0
-	b.data = make([][]interface{}, len(b.keys))
+	b.data = make([][]byte, len(b.keys))
 	for _, key := range b.keys {
 		b.data[i] = results[key]
 		i++
@@ -211,7 +211,7 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 }
 
 func (b *dataLoaderBatch) getKeysForNils(l *dataLoader, schema *tableSchema, rows map[string]interface{}, keyMapping map[string]uint64,
-	resultsKeys map[string][]interface{}, results map[string][]interface{}) []string {
+	resultsKeys map[string][]byte, results map[string][]byte) []string {
 	keys := make([]string, 0)
 	for k, v := range rows {
 		if v == nil {
@@ -220,19 +220,18 @@ func (b *dataLoaderBatch) getKeysForNils(l *dataLoader, schema *tableSchema, row
 			if v == cacheNilValue {
 				resultsKeys[k] = nil
 			} else {
-				var decoded []interface{}
-				_ = msgpack.Unmarshal([]byte(v.(string)), &decoded)
-				resultsKeys[k] = decoded
-				results[l.key(schema, keyMapping[k])] = decoded
+				binary := []byte(v.(string))
+				resultsKeys[k] = binary
+				results[l.key(schema, keyMapping[k])] = binary
 			}
 		}
 	}
 	return keys
 }
 
-func (b *dataLoaderBatch) search(schema *tableSchema, engine *Engine, ids []uint64) map[uint64][]interface{} {
+func (b *dataLoaderBatch) search(schema *tableSchema, engine *Engine, ids []uint64) map[uint64][]byte {
 	where := NewWhere("`ID` IN ?", ids)
-	result := make(map[uint64][]interface{})
+	result := make(map[uint64][]byte)
 	/* #nosec */
 	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE" + where.String()
 	pool := schema.GetMysql(engine)
@@ -244,7 +243,10 @@ func (b *dataLoaderBatch) search(schema *tableSchema, engine *Engine, ids []uint
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
 		id := pointers[0].(uint64)
-		result[id] = pointers
+		serializer := engine.getSerializer()
+		serializer.buffer.Reset()
+		deserializeStructFromDB(serializer, 0, schema.fields, pointers)
+		result[id] = serializer.CopyBinary()
 		i++
 	}
 	def()

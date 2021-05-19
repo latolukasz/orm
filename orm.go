@@ -203,11 +203,11 @@ func (orm *ORM) serialize(serializer *serializer) {
 func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 	serializer := engine.getSerializer()
 	serializer.buffer.Reset()
-	orm.deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
+	deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
 	orm.binary = serializer.CopyBinary()
 }
 
-func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
+func deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
 	for range fields.uintegers8 {
 		serializer.SetUInt8(uint8(*pointers[index].(*uint64)))
 		index++
@@ -468,7 +468,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		}
 	}
 	for _, subField := range fields.structs {
-		index += orm.deserializeStructFromDB(serializer, index, subField, pointers)
+		index += deserializeStructFromDB(serializer, index, subField, pointers)
 	}
 	return index
 }
