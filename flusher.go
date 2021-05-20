@@ -254,6 +254,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 
 		orm := entity.getORM()
 		bind, oldBind, current, updateBind, isDirty := orm.getDirtyBind(f.engine)
+		fmt.Printf("%v\n", bind)
 		if !isDirty {
 			continue
 		}

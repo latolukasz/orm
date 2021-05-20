@@ -994,7 +994,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 						fields.refs8 = append(fields.refs8, i)
 					case "uint16":
 						fields.refs16 = append(fields.refs16, i)
-					case "uint32":
+					case "uint", "uint32":
 						fields.refs32 = append(fields.refs32, i)
 					default:
 						fields.refs64 = append(fields.refs64, i)
@@ -1018,7 +1018,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 							fields.refsMany8 = append(fields.refsMany8, i)
 						case "uint16":
 							fields.refsMany16 = append(fields.refsMany16, i)
-						case "uint32":
+						case "uint", "uint32":
 							fields.refsMany32 = append(fields.refsMany32, i)
 						default:
 							fields.refsMany64 = append(fields.refsMany64, i)
@@ -1156,6 +1156,7 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
 	}
+	ids = append(ids, fields.strings...)
 	ids = append(ids, fields.uintegers8Nullable...)
 	ids = append(ids, fields.uintegers16Nullable...)
 	ids = append(ids, fields.uintegers32Nullable...)
@@ -1165,7 +1166,6 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	ids = append(ids, fields.integers32Nullable...)
 	ids = append(ids, fields.integers64Nullable...)
 	ids = append(ids, fields.stringsEnums...)
-	ids = append(ids, fields.strings...)
 	ids = append(ids, fields.bytes...)
 	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.booleansNullable...)
