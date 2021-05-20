@@ -28,12 +28,12 @@ func (s *serializer) CopyBinary() []byte {
 	return s.buffer.Bytes()
 }
 
-func (s *serializer) SetNumber(v uint64) {
+func (s *serializer) SetUInteger(v uint64) {
 	ln := binary.PutUvarint(s.scratch[:binary.MaxVarintLen64], v)
 	_, _ = s.buffer.Write(s.scratch[0:ln])
 }
 
-func (s *serializer) SetNumberSigned(v int64) {
+func (s *serializer) SetInteger(v int64) {
 	ln := binary.PutVarint(s.scratch[:binary.MaxVarintLen64], v)
 	_, _ = s.buffer.Write(s.scratch[0:ln])
 }
@@ -49,13 +49,13 @@ func (s *serializer) SetBool(v bool) {
 }
 
 func (s *serializer) SetFloat(v float64) {
-	s.SetNumber(math.Float64bits(v))
+	s.SetUInteger(math.Float64bits(v))
 }
 
 func (s *serializer) SetString(v string) {
 	str := str2Bytes(v)
 	l := len(str)
-	s.SetNumber(uint64(l))
+	s.SetUInteger(uint64(l))
 	if l > 0 {
 		_, _ = s.buffer.Write(str)
 	}
@@ -63,7 +63,7 @@ func (s *serializer) SetString(v string) {
 
 func (s *serializer) SetBytes(val []byte) {
 	l := len(val)
-	s.SetNumber(uint64(l))
+	s.SetUInteger(uint64(l))
 	if l > 0 {
 		_, _ = s.buffer.Write(val)
 	}
@@ -74,18 +74,18 @@ func (s *serializer) GetBool() bool {
 	return v == 1
 }
 
-func (s *serializer) GetNumber() uint64 {
+func (s *serializer) GetUInteger() uint64 {
 	v, _ := binary.ReadUvarint(s)
 	return v
 }
 
-func (s *serializer) GetNumberSigned() int64 {
+func (s *serializer) GetInteger() int64 {
 	v, _ := binary.ReadVarint(s)
 	return v
 }
 
 func (s *serializer) GetFloat() float64 {
-	return math.Float64frombits(s.GetNumber())
+	return math.Float64frombits(s.GetUInteger())
 }
 
 func (s *serializer) GetFixed(ln int) []byte {
@@ -95,7 +95,7 @@ func (s *serializer) GetFixed(ln int) []byte {
 }
 
 func (s *serializer) GetString() string {
-	l := s.GetNumber()
+	l := s.GetUInteger()
 	if l == 0 {
 		return ""
 	}
@@ -103,7 +103,7 @@ func (s *serializer) GetString() string {
 }
 
 func (s *serializer) GetBytes() []byte {
-	l := s.GetNumber()
+	l := s.GetUInteger()
 	if l == 0 {
 		return nil
 	}
