@@ -300,7 +300,8 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 					continue
 				}
 				if manyRef {
-					ids := ref.Interface().(Entity).getORM().getFieldByName(engine, refName).([]uint64)
+					orm := refEntity.Interface().(Entity).getORM()
+					ids := getFieldByName(engine, orm.tableSchema, orm.binary, refName).([]uint64)
 					length := len(ids)
 					slice := reflect.MakeSlice(reflect.SliceOf(ref.Type().Elem()), length, length)
 					for k, id := range ids {
@@ -312,12 +313,13 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 					}
 					ref.Set(slice)
 				} else {
-					id := ref.Interface().(Entity).getORM().getFieldByName(engine, refName).(uint64)
+					orm := refEntity.Interface().(Entity).getORM()
+					id := getFieldByName(engine, orm.tableSchema, orm.binary, refName).(uint64)
 					if id == 0 {
 						continue
 					}
 					n := reflect.New(ref.Type().Elem())
-					orm := initIfNeeded(engine.registry, n.Interface().(Entity))
+					orm = initIfNeeded(engine.registry, n.Interface().(Entity))
 					orm.idElem.SetUint(id)
 					orm.inDB = true
 					ref.Set(n)
@@ -355,9 +357,9 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			}
 			fromCache, has := engine.GetLocalCache(k).Get(key)
 			if has && fromCache != cacheNilValue {
-				data := fromCache.([]interface{})
+				data := fromCache.([]byte)
 				for _, r := range v[key] {
-					fillFromDBRow(data[0].(uint64), engine, data, r, false, lazy)
+					fillFromBinary(r.GetID(), engine, data, r, false, lazy)
 				}
 				fillRef(key, localMap, redisMap, dbMap)
 			}
@@ -369,10 +371,10 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 				i++
 			}
 			for key, fromCache := range engine.GetLocalCache(k).MGet(keys...) {
-				if fromCache != nil {
-					data := fromCache.([]interface{})
+				if fromCache != nil && fromCache != cacheNilValue {
+					data := fromCache.([]byte)
 					for _, r := range v[key] {
-						fillFromDBRow(data[0].(uint64), engine, data, r, false, lazy)
+						fillFromBinary(r.GetID(), engine, data, r, false, lazy)
 					}
 					fillRef(key, localMap, redisMap, dbMap)
 				}

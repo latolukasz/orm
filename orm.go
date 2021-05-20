@@ -60,68 +60,141 @@ func (orm *ORM) GetFieldLazy(engine *Engine, field string) interface{} {
 	if !orm.lazy {
 		panic(fmt.Errorf("entity is not lazy"))
 	}
-	return orm.getFieldByName(engine, field)
+	return getFieldByName(engine, orm.tableSchema, orm.binary, field)
 }
 
-func (orm *ORM) getFieldByName(engine *Engine, field string) interface{} {
-	index, has := orm.tableSchema.columnMapping[field]
+func getFieldByName(engine *Engine, tableSchema *tableSchema, binary []byte, field string) interface{} {
+	index, has := tableSchema.columnMapping[field]
 	if !has {
 		panic(fmt.Errorf("uknown field " + field))
 	}
-	return orm.getField(engine, index)
+	fmt.Printf("field %v with index %v\n", field, index)
+	return getField(engine, tableSchema, binary, index)
 }
 
-func (orm *ORM) getField(engine *Engine, index int) interface{} {
-	fields := orm.tableSchema.fields
+func getField(engine *Engine, tableSchema *tableSchema, binary []byte, index int) interface{} {
+	fields := tableSchema.fields
 	serializer := engine.getSerializer()
-	serializer.Reset(orm.binary)
-	for _, i := range fields.uintegers8 {
+	serializer.Reset(binary)
+	i := 0
+	for range fields.refs8 {
 		if i == index {
-			return serializer.GetUInt8()
+			return uint64(serializer.GetUInt8())
 		}
 		serializer.buffer.Next(1)
+		i++
 	}
-	for _, i := range fields.uintegers16 {
+	for range fields.refs16 {
 		if i == index {
-			return serializer.GetUInt16()
+			return uint64(serializer.GetUInt16())
 		}
 		serializer.buffer.Next(2)
+		i++
 	}
-	for _, i := range fields.uintegers32 {
+	for range fields.refs32 {
 		if i == index {
-			return serializer.GetUInt32()
+			return uint64(serializer.GetUInt32())
 		}
 		serializer.buffer.Next(4)
+		i++
 	}
-	for _, i := range fields.uintegers64 {
+	for range fields.refs64 {
 		if i == index {
 			return serializer.GetUInt64()
 		}
 		serializer.buffer.Next(8)
+		i++
 	}
-	for _, i := range fields.integers8 {
+	for range fields.uintegers8 {
+		if i == index {
+			return serializer.GetUInt8()
+		}
+		serializer.buffer.Next(1)
+		i++
+	}
+	for range fields.uintegers16 {
+		if i == index {
+			return serializer.GetUInt16()
+		}
+		serializer.buffer.Next(2)
+		i++
+	}
+	for range fields.uintegers32 {
+		if i == index {
+			return serializer.GetUInt32()
+		}
+		serializer.buffer.Next(4)
+		i++
+	}
+	for range fields.uintegers64 {
+		if i == index {
+			return serializer.GetUInt64()
+		}
+		serializer.buffer.Next(8)
+		i++
+	}
+	for range fields.integers8 {
 		if i == index {
 			return serializer.GetInt8()
 		}
 		serializer.buffer.Next(1)
+		i++
 	}
-	for _, i := range fields.integers16 {
+	for range fields.integers16 {
 		if i == index {
 			return serializer.GetInt16()
 		}
 		serializer.buffer.Next(2)
+		i++
 	}
-	for _, i := range fields.integers32 {
+	for range fields.integers32 {
 		if i == index {
 			return serializer.GetInt32()
 		}
 		serializer.buffer.Next(4)
+		i++
 	}
-	for _, i := range fields.integers64 {
+	for range fields.integers64 {
 		if i == index {
 			return serializer.GetInt64()
 		}
 		serializer.buffer.Next(8)
+		i++
+	}
+	for range fields.booleans {
+		if i == index {
+			return serializer.GetBool()
+		}
+		serializer.buffer.Next(1)
+		i++
+	}
+	for range fields.floats32 {
+		if i == index {
+			return float64(serializer.GetFloat32())
+		}
+		serializer.buffer.Next(4)
+		i++
+	}
+	for range fields.floats64 {
+		if i == index {
+			return serializer.GetFloat64()
+		}
+		serializer.buffer.Next(8)
+		i++
+	}
+	for range fields.times {
+		if i == index {
+			return uint64(serializer.GetUInt32())
+		}
+		serializer.buffer.Next(4)
+		i++
+	}
+	if fields.fakeDelete > 0 {
+		if i == index {
+			return serializer.GetBool()
+		}
+		serializer.buffer.Next(1)
+		i++
 	}
 	return nil
 }
@@ -207,7 +280,7 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, oldBind, current Bind, updat
 
 func (orm *ORM) serialize(serializer *serializer) {
 	orm.serializeFields(serializer, orm.tableSchema.fields, orm.elem)
-	copy(orm.binary, serializer.buffer.Bytes())
+	orm.binary = serializer.CopyBinary()
 	serializer.buffer.Reset()
 }
 
