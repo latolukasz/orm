@@ -134,6 +134,39 @@ func getField(engine *Engine, tableSchema *tableSchema, binary []byte, index int
 		}
 		i++
 	}
+	for range fields.uintegersNullable {
+		// TODO
+	}
+	for range fields.integersNullable {
+		// TODO
+	}
+	for range fields.stringsEnums {
+		// TODO
+	}
+	for range fields.bytes {
+		// TODO
+	}
+	for range fields.sliceStringsSets {
+		// TODO
+	}
+	for range fields.booleansNullable {
+		// TODO
+	}
+	for range fields.floatsNullable {
+		// TODO
+	}
+	for range fields.timesNullable {
+		// TODO
+	}
+	for range fields.jsons {
+		// TODO
+	}
+	for range fields.refsMany {
+		// TODO
+	}
+	for range fields.structs {
+		// TODO
+	}
 	return nil
 }
 
@@ -935,7 +968,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		name := prefix + fields.fields[i].Name
 		bind[name] = val
 		if hasUpdate {
-			updateBind[name] = strconv.FormatUint(uint64(val), 10)
+			updateBind[name] = strconv.FormatUint(val, 10)
 		}
 	}
 	for _, i := range fields.integers {
@@ -967,6 +1000,49 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				updateBind[name] = "0"
 			}
 		}
+	}
+	for range fields.floats {
+		// TODO
+	}
+	for range fields.times {
+		// TODO
+	}
+	fields.fakeDelete // TODO
+	for range fields.strings {
+		// TODO
+	}
+	for range fields.uintegersNullable {
+		// TODO
+	}
+	for range fields.integersNullable {
+		// TODO
+	}
+	for range fields.stringsEnums {
+		// TODO
+	}
+	for range fields.bytes {
+		// TODO
+	}
+	for range fields.sliceStringsSets {
+		// TODO
+	}
+	for range fields.booleansNullable {
+		// TODO
+	}
+	for range fields.floatsNullable {
+		// TODO
+	}
+	for range fields.timesNullable {
+		// TODO
+	}
+	for range fields.jsons {
+		// TODO
+	}
+	for range fields.refsMany {
+		// TODO
+	}
+	for range fields.structs {
+		// TODO
 	}
 }
 
