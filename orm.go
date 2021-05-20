@@ -3,6 +3,7 @@ package orm
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -75,31 +76,35 @@ func getField(engine *Engine, tableSchema *tableSchema, binary []byte, index int
 	fields := tableSchema.fields
 	serializer := engine.getSerializer()
 	serializer.Reset(binary)
-	i := 0
+	v, _, _ := getFieldForStruct(fields, serializer, index, 0)
+	return v
+}
+
+func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int) (interface{}, bool, int) {
 	for range fields.refs {
 		v := serializer.GetUInteger()
 		if i == index {
-			return v
+			return v, true, i
 		}
 		i++
 	}
 	for range fields.uintegers {
 		v := serializer.GetUInteger()
 		if i == index {
-			return v
+			return v, true, i
 		}
 		i++
 	}
 	for range fields.integers {
 		v := serializer.GetInteger()
 		if i == index {
-			return v
+			return v, true, i
 		}
 		i++
 	}
 	for range fields.booleans {
 		if i == index {
-			return serializer.GetBool()
+			return serializer.GetBool(), true, i
 		}
 		serializer.buffer.Next(1)
 		i++
@@ -107,27 +112,27 @@ func getField(engine *Engine, tableSchema *tableSchema, binary []byte, index int
 	for range fields.floats {
 		v := serializer.GetFloat()
 		if i == index {
-			return v
+			return v, true, i
 		}
 		i++
 	}
 	for range fields.times {
 		v := serializer.GetUInteger()
 		if i == index {
-			return v
+			return v, true, i
 		}
 		i++
 	}
 	if fields.fakeDelete > 0 {
 		if i == index {
-			return serializer.GetBool()
+			return serializer.GetBool(), true, i
 		}
 		serializer.buffer.Next(1)
 		i++
 	}
 	for range fields.strings {
 		if i == index {
-			return serializer.GetString()
+			return serializer.GetString(), true, i
 		}
 		if l := serializer.GetUInteger(); l > 0 {
 			serializer.buffer.Next(int(l))
@@ -135,39 +140,117 @@ func getField(engine *Engine, tableSchema *tableSchema, binary []byte, index int
 		i++
 	}
 	for range fields.uintegersNullable {
-		// TODO
+		isNil := serializer.GetBool()
+		if i == index {
+			if isNil {
+				return nil, true, i
+			}
+			return serializer.GetUInteger(), true, i
+		}
+		serializer.GetUInteger()
+		i++
 	}
 	for range fields.integersNullable {
-		// TODO
+		isNil := serializer.GetBool()
+		if i == index {
+			if isNil {
+				return nil, true, i
+			}
+			return serializer.GetInteger(), true, i
+		}
+		serializer.GetInteger()
+		i++
 	}
 	for range fields.stringsEnums {
-		// TODO
+		v := serializer.GetUInteger()
+		if i == index {
+			return v, true, i
+		}
+		i++
 	}
 	for range fields.bytes {
-		// TODO
+		if i == index {
+			return serializer.GetBytes(), true, i
+		}
+		if l := serializer.GetUInteger(); l > 0 {
+			serializer.buffer.Next(int(l))
+		}
+		i++
 	}
 	for range fields.sliceStringsSets {
-		// TODO
+		l := int(serializer.GetUInteger())
+		if i == index {
+			val := make([]uint64, l)
+			for k := 0; k < l; k++ {
+				val[k] = serializer.GetUInteger()
+			}
+			return val, true, i
+		}
+		serializer.buffer.Next(l)
+		i++
 	}
 	for range fields.booleansNullable {
-		// TODO
+		isNil := serializer.GetBool()
+		if i == index {
+			if isNil {
+				return nil, true, i
+			}
+			return serializer.GetBool(), true, i
+		}
+		serializer.GetBool()
+		i++
 	}
 	for range fields.floatsNullable {
-		// TODO
+		isNil := serializer.GetBool()
+		if i == index {
+			if isNil {
+				return nil, true, i
+			}
+			return serializer.GetFloat(), true, i
+		}
+		serializer.GetFloat()
+		i++
 	}
 	for range fields.timesNullable {
-		// TODO
+		isNil := serializer.GetBool()
+		if i == index {
+			if isNil {
+				return nil, true, i
+			}
+			return serializer.GetInteger(), true, i
+		}
+		serializer.GetInteger()
+		i++
 	}
 	for range fields.jsons {
-		// TODO
+		if i == index {
+			return serializer.GetBytes(), true, i
+		}
+		if l := serializer.GetUInteger(); l > 0 {
+			serializer.buffer.Next(int(l))
+		}
+		i++
 	}
 	for range fields.refsMany {
-		// TODO
+		l := int(serializer.GetUInteger())
+		if i == index {
+			val := make([]uint64, l)
+			for k := 0; k < l; k++ {
+				val[k] = serializer.GetUInteger()
+			}
+			return val, true, i
+		}
+		serializer.buffer.Next(l)
+		i++
 	}
-	for range fields.structs {
-		// TODO
+	for _, subFields := range fields.structs {
+		v, has, j := getFieldForStruct(subFields, serializer, index, i)
+		if has {
+			return v, true, j
+		}
+		i = j
 	}
-	return nil
+	return nil, false, 0
 }
 
 func (orm *ORM) markToDelete() {
@@ -960,10 +1043,8 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			continue
 		}
 		val := value.Field(i).Uint()
-		if hasOld {
-			if hasOld && serializer.GetUInteger() == val {
-				continue
-			}
+		if hasOld && serializer.GetUInteger() == val {
+			continue
 		}
 		name := prefix + fields.fields[i].Name
 		bind[name] = val
@@ -973,10 +1054,8 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.integers {
 		val := value.Field(i).Int()
-		if hasOld {
-			if hasOld && serializer.GetInteger() == val {
-				continue
-			}
+		if hasOld && serializer.GetInteger() == val {
+			continue
 		}
 		name := prefix + fields.fields[i].Name
 		bind[name] = val
@@ -986,10 +1065,8 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.booleans {
 		val := value.Field(i).Bool()
-		if hasOld {
-			if hasOld && serializer.GetBool() == val {
-				continue
-			}
+		if hasOld && serializer.GetBool() == val {
+			continue
 		}
 		name := prefix + fields.fields[i].Name
 		bind[name] = val
@@ -1003,11 +1080,46 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for range fields.floats {
 		// TODO
+		val := field.Float()
+		precision := 16
+		fieldAttributes := tableSchema.tags[name]
+		precisionAttribute, has := fieldAttributes["precision"]
+		if has {
+			userPrecision, _ := strconv.Atoi(precisionAttribute)
+			precision = userPrecision
+		}
+		attributes := tableSchema.tags[name]
+		decimal, has := attributes["decimal"]
+		if has {
+			decimalArgs := strings.Split(decimal, ",")
+			size, _ := strconv.ParseFloat(decimalArgs[1], 64)
+			sizeNumber := math.Pow(10, size)
+			val = math.Round(val*sizeNumber) / sizeNumber
+			if hasOld {
+				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
+				if val == valOld {
+					continue
+				}
+			}
+		} else {
+			sizeNumber := math.Pow(10, float64(precision))
+			val = math.Round(val*sizeNumber) / sizeNumber
+			if hasOld {
+				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
+				if valOld == val {
+					continue
+				}
+			}
+		}
+		bind[name] = val
+		if hasUpdate {
+			updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+		}
 	}
 	for range fields.times {
 		// TODO
 	}
-	fields.fakeDelete // TODO
+	//fields.fakeDelete // TODO
 	for range fields.strings {
 		// TODO
 	}
