@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -143,7 +144,7 @@ type tableFields struct {
 	fakeDelete        int
 	booleans          []int
 	booleansNullable  []int
-	floats            []int
+	floats            map[int]float64
 	floatsNullable    []int
 	timesNullable     []int
 	times             []int
@@ -815,7 +816,24 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapPointerToValue[prefix+f.Name] = pointerBoolNullableScan
 		case "float32",
 			"float64":
-			fields.floats = append(fields.floats, i)
+			if fields.floats == nil {
+				fields.floats = make(map[int]float64)
+			}
+			precision := 8
+			if typeName == "float32" {
+				precision = 4
+			}
+			precisionAttribute, has := tags["precision"]
+			if has {
+				userPrecision, _ := strconv.Atoi(precisionAttribute)
+				precision = userPrecision
+			}
+			decimal, has := tags["decimal"]
+			if has {
+				decimalArgs := strings.Split(decimal, ",")
+				precision, _ = strconv.Atoi(decimalArgs[1])
+			}
+			fields.floats[i] = 1 / math.Pow10(precision)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
@@ -992,7 +1010,9 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	ids = append(ids, fields.uintegers...)
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.booleans...)
-	ids = append(ids, fields.floats...)
+	for id := range fields.floats {
+		ids = append(ids, id)
+	}
 	timesStart := len(ids)
 	ids = append(ids, fields.times...)
 	timesEnd := len(ids)

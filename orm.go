@@ -493,7 +493,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.booleans {
 		serializer.SetBool(elem.Field(i).Bool())
 	}
-	for _, i := range fields.floats {
+	for i := range fields.floats {
 		serializer.SetFloat(elem.Field(i).Float())
 	}
 	for _, i := range fields.times {
@@ -558,7 +558,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(f.Bool())
 		}
 	}
-	for _, i := range fields.floatsNullable {
+	for i := range fields.floatsNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.SetBool(false)
@@ -632,7 +632,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	for _, i := range fields.booleans {
 		elem.Field(i).SetBool(serializer.GetBool())
 	}
-	for _, i := range fields.floats {
+	for i := range fields.floats {
 		elem.Field(i).SetFloat(serializer.GetFloat())
 	}
 	for _, i := range fields.times {
@@ -1078,39 +1078,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.floats {
-		// TODO
-		val := field.Float()
-		precision := 16
-		fieldAttributes := tableSchema.tags[name]
-		precisionAttribute, has := fieldAttributes["precision"]
-		if has {
-			userPrecision, _ := strconv.Atoi(precisionAttribute)
-			precision = userPrecision
+	for i, precision := range fields.floats {
+		val := value.Field(i).Float()
+		if hasOld && math.Abs(val-serializer.GetFloat()) < precision {
+			continue
 		}
-		attributes := tableSchema.tags[name]
-		decimal, has := attributes["decimal"]
-		if has {
-			decimalArgs := strings.Split(decimal, ",")
-			size, _ := strconv.ParseFloat(decimalArgs[1], 64)
-			sizeNumber := math.Pow(10, size)
-			val = math.Round(val*sizeNumber) / sizeNumber
-			if hasOld {
-				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
-				if val == valOld {
-					continue
-				}
-			}
-		} else {
-			sizeNumber := math.Pow(10, float64(precision))
-			val = math.Round(val*sizeNumber) / sizeNumber
-			if hasOld {
-				valOld := math.Round(old.(float64)*sizeNumber) / sizeNumber
-				if valOld == val {
-					continue
-				}
-			}
-		}
+		name := prefix + fields.fields[i].Name
 		bind[name] = val
 		if hasUpdate {
 			updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)

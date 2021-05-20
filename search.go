@@ -19,27 +19,27 @@ func prepareScan(schema *tableSchema) (pointers []interface{}) {
 }
 
 func prepareScanForFields(fields *tableFields, start int, pointers []interface{}) int {
-	for i := 0; i < len(fields.uintegers); i++ {
+	for range fields.uintegers {
 		v := uint64(0)
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.integers); i++ {
+	for range fields.integers {
 		v := int64(0)
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.booleans); i++ {
+	for range fields.booleans {
 		v := false
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.floats); i++ {
+	for range fields.floats {
 		v := float64(0)
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.times); i++ {
+	for range fields.times {
 		v := uint32(0)
 		pointers[start] = &v
 		start++
@@ -49,63 +49,63 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.refs); i++ {
+	for range fields.refs {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
 
-	for i := 0; i < len(fields.uintegersNullable); i++ {
+	for range fields.uintegersNullable {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.integersNullable); i++ {
+	for range fields.integersNullable {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.stringsEnums); i++ {
+	for range fields.stringsEnums {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.strings); i++ {
+	for range fields.strings {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.bytes); i++ {
+	for range fields.bytes {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.sliceStringsSets); i++ {
+	for range fields.sliceStringsSets {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.booleansNullable); i++ {
+	for range fields.booleansNullable {
 		v := sql.NullBool{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.floatsNullable); i++ {
+	for range fields.floatsNullable {
 		v := sql.NullFloat64{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.timesNullable); i++ {
-		v := sql.NullInt32{}
+	for range fields.timesNullable {
+		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.jsons); i++ {
+	for range fields.jsons {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-	for i := 0; i < len(fields.refsMany); i++ {
+	for range fields.refsMany {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
