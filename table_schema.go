@@ -129,10 +129,6 @@ type tableFields struct {
 	prefix            string
 	uintegers         []int
 	integers          []int
-	integers8         []int
-	integers16        []int
-	integers32        []int
-	integers64        []int
 	uintegersNullable []int
 	integersNullable  []int
 	strings           []int
@@ -148,6 +144,7 @@ type tableFields struct {
 	floatsNullable    []int
 	timesNullable     []int
 	times             []int
+	dates             []int
 	jsons             []int
 	structs           map[int]*tableFields
 	refs              []int
@@ -863,7 +860,12 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
 		case "time.Time":
-			fields.times = append(fields.times, i)
+			_, hasTime := tags["time"]
+			if hasTime {
+				fields.times = append(fields.times, i)
+			} else {
+				fields.dates = append(fields.dates, i)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableTime
@@ -1015,6 +1017,7 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	}
 	timesStart := len(ids)
 	ids = append(ids, fields.times...)
+	ids = append(ids, fields.dates...)
 	timesEnd := len(ids)
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
@@ -1087,10 +1090,10 @@ var defaultRedisSearchMapperNullableTime = func(val interface{}) interface{} {
 		return 0
 	}
 	if len(v) == 19 {
-		t, _ := time.ParseInLocation("2006-01-02 15:04:05", v, time.Local)
+		t, _ := time.ParseInLocation(timeFormat, v, time.Local)
 		return t.Unix()
 	}
-	t, _ := time.ParseInLocation("2006-01-02", v, time.Local)
+	t, _ := time.ParseInLocation(dateformat, v, time.Local)
 	return t.Unix()
 }
 

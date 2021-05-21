@@ -99,7 +99,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 			poolDB.Begin()
 		}
 		defer poolDB.Rollback()
-		res := poolDB.Exec(query, value.ID, value.Updated.Format("2006-01-02 15:04:05"), meta, before, changes)
+		res := poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
 		if r.logLogger != nil {
 			value.LogID = res.LastInsertId()
 			r.logLogger(value)

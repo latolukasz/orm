@@ -14,6 +14,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+const timeFormat = "2006-01-02 15:04:05"
+const dateformat = "2006-01-02"
+
 type Entity interface {
 	getORM() *ORM
 	GetID() uint64
@@ -117,6 +120,13 @@ func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int
 		i++
 	}
 	for range fields.times {
+		v := serializer.GetUInteger()
+		if i == index {
+			return v, true, i
+		}
+		i++
+	}
+	for range fields.dates {
 		v := serializer.GetUInteger()
 		if i == index {
 			return v, true, i
@@ -370,6 +380,10 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		serializer.SetUInteger(*pointers[index].(*uint64))
 		index++
 	}
+	for range fields.dates {
+		serializer.SetUInteger(*pointers[index].(*uint64))
+		index++
+	}
 	if fields.fakeDelete > 0 {
 		serializer.SetBool(*pointers[index].(*uint64) > 0)
 		index++
@@ -497,6 +511,9 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 		serializer.SetFloat(elem.Field(i).Float())
 	}
 	for _, i := range fields.times {
+		serializer.SetUInteger(uint64(elem.Field(i).Interface().(time.Time).Unix()))
+	}
+	for _, i := range fields.dates {
 		serializer.SetUInteger(uint64(elem.Field(i).Interface().(time.Time).Unix()))
 	}
 	if fields.fakeDelete > 0 {
@@ -636,6 +653,9 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		elem.Field(i).SetFloat(serializer.GetFloat())
 	}
 	for _, i := range fields.times {
+		elem.Field(i).Set(reflect.ValueOf(time.Unix(int64(serializer.GetUInteger()), 0)))
+	}
+	for _, i := range fields.dates {
 		elem.Field(i).Set(reflect.ValueOf(time.Unix(int64(serializer.GetUInteger()), 0)))
 	}
 	if fields.fakeDelete > 0 {
@@ -1089,12 +1109,67 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
 		}
 	}
-	for range fields.times {
-		// TODO
+	for _, i := range fields.times {
+		t := value.Field(i).Interface().(time.Time)
+		t = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, t.Location())
+		if hasOld && serializer.GetInteger() == t.Unix() {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = t
+		if hasUpdate {
+			updateBind[name] = t.Format(timeFormat)
+		}
 	}
-	//fields.fakeDelete // TODO
-	for range fields.strings {
+	for _, i := range fields.dates {
+		t := value.Field(i).Interface().(time.Time)
+		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+		if hasOld && serializer.GetInteger() == t.Unix() {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		bind[name] = t
+		if hasUpdate {
+			updateBind[name] = t.Format(timeFormat)
+		}
+	}
+	if fields.fakeDelete > 0 {
+		val := value.Field(fields.fakeDelete).Bool()
+		if !hasOld || serializer.GetBool() != val {
+			name := prefix + fields.fields[fields.fakeDelete].Name
+			bind[name] = id
+			if hasUpdate {
+				updateBind[name] = strconv.FormatUint(id, 10)
+			}
+		}
+	}
+	for _, i := range fields.strings {
 		// TODO
+		val := value.Field(i).String()
+		if hasOld && serializer.GetString() == val {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		if val != "" {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = orm.escapeSQLParam(val)
+			}
+		} else {
+			attributes := tableSchema.tags[name]
+			required, hasRequired := attributes["required"]
+			if hasRequired && required == "true" {
+				bind[name] = ""
+				if hasUpdate {
+					updateBind[name] = "''"
+				}
+			} else {
+				bind[name] = nil
+				if hasUpdate {
+					updateBind[name] = "NULL"
+				}
+			}
+		}
 	}
 	for range fields.uintegersNullable {
 		// TODO

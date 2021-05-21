@@ -134,7 +134,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	}
 
 	now := time.Now()
-	layout := "2006-01-02 15:04:05"
 	entity = &flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982}
 	entity.NameTranslated = map[string]string{"pl": "kot", "en": "cat"}
 	entity.ReferenceOne = &flushEntityReference{Name: "John", Age: 30}
@@ -177,9 +176,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
-	assert.Equal(t, now.Format(layout), entity.TimeWithTime.Format(layout))
+	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
 	assert.Equal(t, now.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, now.Format(layout), entity.TimeWithTimeNullable.Format(layout))
+	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTimeNullable.Format(timeFormat))
 	assert.Equal(t, now.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)

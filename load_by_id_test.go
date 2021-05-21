@@ -71,22 +71,6 @@ func TestLoadById(t *testing.T) {
 	var subReference2 *loadByIDSubReference2
 	engine := PrepareTables(t, &Registry{}, 5, entity, entityRedis, entityNoCache, reference, subReference, subReference2)
 
-	//s := engine.getSerializer()
-	luna := &loadByIDEntity{Name: "lunka"}
-	engine.Flush(luna)
-	//initIfNeeded(engine.registry, luna)
-	//luna.serialize(s)
-	//
-	//fmt.Printf("%v\n", luna.getORM().tableSchema.columnMapping)
-	//fmt.Printf("%v\n", string(luna.getORM().binary))
-	//s.Reset(luna.getORM().binary)
-	//fmt.Printf("a: %v\n", s.GetUInt32())
-	//fmt.Printf("b: %v\n", s.GetUInt32())
-	//fmt.Printf("c: %v\n", s.GetUInt32())
-	//fmt.Printf("d: %v\n", s.GetString())
-	//
-	return
-
 	engine.EnableQueryDebug()
 	e := &loadByIDEntity{Name: "a", ReferenceOne: &loadByIDReference{Name: "r1", ReferenceTwo: &loadByIDSubReference{Name: "s1"}}}
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
@@ -94,7 +78,6 @@ func TestLoadById(t *testing.T) {
 	engine.FlushMany(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
 		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"})
-	return
 
 	engine.FlushMany(&loadByIDReference{Name: "rm1", ID: 100}, &loadByIDReference{Name: "rm2", ID: 101}, &loadByIDReference{Name: "rm3", ID: 102})
 	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReference{{ID: 100}, {ID: 101}, {ID: 102}}})
