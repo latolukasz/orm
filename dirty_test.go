@@ -9,10 +9,11 @@ import (
 )
 
 type dirtyReceiverEntity struct {
-	ORM  `orm:"redisCache;dirty=entity_changed"`
-	ID   uint
-	Name string `orm:"dirty=name_changed"`
-	Age  uint64
+	ORM      `orm:"redisCache;dirty=entity_changed"`
+	ID       uint
+	Name     string `orm:"dirty=name_changed"`
+	LastName string `orm:"dirty=name_changed"`
+	Age      uint64
 }
 
 func TestDirtyConsumer(t *testing.T) {
@@ -45,7 +46,7 @@ func TestDirtyConsumer(t *testing.T) {
 	consumer.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	consumer.Consume(ctx, 2, true, func(events []Event) {
+	consumer.Consume(ctx, 10, true, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 2)
 		dirty1 := EventDirtyEntity(events[0])

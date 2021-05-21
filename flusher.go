@@ -779,13 +779,21 @@ func (f *flusher) addDirtyQueues(bind map[string]interface{}, schema *tableSchem
 
 		for _, queueName := range queueNames {
 			if !lazy {
-				f.getRedisFlusher().PublishMap(queueName, key)
-			} else {
-				allStreams = append(allStreams, queueName)
+				has := false
+				for _, v := range allStreams {
+					if v == queueName {
+						has = true
+						break
+					}
+				}
+				if !has {
+					f.getRedisFlusher().PublishMap(queueName, key)
+				}
 			}
+			allStreams = append(allStreams, queueName)
 		}
 	}
-	if key == nil {
+	if !lazy || key == nil {
 		return nil
 	}
 	return &dirtyQueueValue{Event: key, Streams: allStreams}
