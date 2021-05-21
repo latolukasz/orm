@@ -1015,21 +1015,6 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 	return nil
 }
 
-func (orm *ORM) checkNil(field reflect.Value, name string, hasOld bool, old interface{}, bind Bind, updateBind map[string]string) bool {
-	isNil := field.IsZero()
-	if isNil {
-		if hasOld && old == nil {
-			return false
-		}
-		bind[name] = nil
-		if updateBind != nil {
-			updateBind[name] = "NULL"
-		}
-		return false
-	}
-	return true
-}
-
 func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, current Bind, updateBind map[string]string, tableSchema *tableSchema,
 	fields *tableFields, value reflect.Value, prefix string) {
 	hasUpdate := updateBind != nil
@@ -1111,7 +1096,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.times {
 		t := value.Field(i).Interface().(time.Time)
-		t = time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, t.Location())
 		if hasOld && serializer.GetInteger() == t.Unix() {
 			continue
 		}
@@ -1144,7 +1128,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.strings {
-		// TODO
 		val := value.Field(i).String()
 		if hasOld && serializer.GetString() == val {
 			continue
@@ -1171,11 +1154,63 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.uintegersNullable {
-		// TODO
+	for _, i := range fields.uintegersNullable {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		val := uint64(0)
+		if !isNil {
+			val = f.Elem().Uint()
+		}
+		if hasOld {
+			if serializer.GetBool() {
+				if serializer.GetUInteger() == val && !isNil {
+					continue
+				}
+			} else if isNil {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if isNil {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		} else {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = strconv.FormatUint(val, 10)
+			}
+		}
 	}
-	for range fields.integersNullable {
-		// TODO
+	for _, i := range fields.integersNullable {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		val := int64(0)
+		if !isNil {
+			val = f.Elem().Int()
+		}
+		if hasOld {
+			if serializer.GetBool() {
+				if serializer.GetInteger() == val && !isNil {
+					continue
+				}
+			} else if isNil {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if isNil {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		} else {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = strconv.FormatInt(val, 10)
+			}
+		}
 	}
 	for range fields.stringsEnums {
 		// TODO
