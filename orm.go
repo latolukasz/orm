@@ -1263,8 +1263,58 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.sliceStringsSets {
-		// TODO
+	k = 0
+	for _, i := range fields.sliceStringsSets {
+		val := value.Field(i).Interface().([]string)
+		set := fields.sets[k]
+		l := len(val)
+		k++
+		if hasOld && l == int(serializer.GetUInteger()) {
+			old := make([]int, l)
+			for j := range val {
+				old[j] = int(serializer.GetUInteger())
+			}
+			valid := true
+		MAIN:
+			for _, v := range val {
+				index := set.Index(v)
+				if index == 0 {
+					panic(errors.New("unknown set value for " + prefix + fields.fields[i].Name + " - " + v))
+				}
+				for _, o := range old {
+					if o == index {
+						continue MAIN
+					}
+				}
+				valid = false
+				break
+			}
+			if valid {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if l > 0 {
+			valAsString := strings.Join(val, ",")
+			bind[name] = valAsString
+			if hasUpdate {
+				updateBind[name] = "'" + valAsString + "'"
+			}
+		} else {
+			attributes := tableSchema.tags[name]
+			required, hasRequired := attributes["required"]
+			if hasRequired && required == "true" {
+				bind[name] = set.GetDefault()
+				if hasUpdate {
+					updateBind[name] = "'" + set.GetDefault() + "'"
+				}
+			} else {
+				bind[name] = nil
+				if hasUpdate {
+					updateBind[name] = "NULL"
+				}
+			}
+		}
 	}
 	for range fields.booleansNullable {
 		// TODO
