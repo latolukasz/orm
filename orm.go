@@ -1139,9 +1139,10 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			continue
 		}
 		name := prefix + fields.fields[i].Name
-		bind[name] = t
+		asString := t.Format(timeFormat)
+		bind[name] = asString
 		if hasUpdate {
-			updateBind[name] = t.Format(timeFormat)
+			updateBind[name] = "'" + asString + "'"
 		}
 	}
 	for _, i := range fields.dates {
@@ -1151,9 +1152,10 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			continue
 		}
 		name := prefix + fields.fields[i].Name
-		bind[name] = t
+		asString := t.Format(dateformat)
+		bind[name] = asString
 		if hasUpdate {
-			updateBind[name] = t.Format(timeFormat)
+			updateBind[name] = "'" + asString + "'"
 		}
 	}
 	if fields.fakeDelete > 0 {
@@ -1417,8 +1419,35 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.timesNullable {
-		// TODO
+	for _, i := range fields.timesNullable {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		var val *time.Time
+		if !isNil {
+			val = f.Interface().(*time.Time)
+		}
+		if hasOld {
+			if serializer.GetBool() {
+				if !isNil && serializer.GetInteger() == val.Unix() {
+					continue
+				}
+			} else if isNil {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if isNil {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		} else {
+			asString := val.Format(timeFormat)
+			bind[name] = asString
+			if hasUpdate {
+				updateBind[name] = "'" + asString + "'"
+			}
+		}
 	}
 	for range fields.datesNullable {
 		// TODO
