@@ -94,6 +94,7 @@ type tableSchema struct {
 	columnMapping        map[string]int
 	uniqueIndices        map[string][]string
 	uniqueIndicesGlobal  map[string][]string
+	dirtyFields          map[string][]string
 	refOne               []string
 	refMany              []string
 	localCacheName       string
@@ -311,6 +312,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
+	dirtyFields := make(map[string][]string)
 	hasFakeDelete := false
 	fakeDeleteField, has := entityType.FieldByName("FakeDelete")
 	if has && fakeDeleteField.Type.String() == "bool" {
@@ -393,6 +395,12 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		_, has = values["refs"]
 		if has {
 			manyRefs = append(manyRefs, key)
+		}
+		dirtyValues, has := values["dirty"]
+		if has {
+			for _, v := range strings.Split(dirtyValues, ",") {
+				dirtyFields[v] = append(dirtyFields[v], key)
+			}
 		}
 	}
 	logPoolName := tags["ORM"]["log"]
@@ -557,6 +565,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		cachedIndexes:        cachedQueries,
 		cachedIndexesOne:     cachedQueriesOne,
 		cachedIndexesAll:     cachedQueriesAll,
+		dirtyFields:          dirtyFields,
 		localCacheName:       localCache,
 		hasLocalCache:        localCache != "",
 		redisCacheName:       redisCache,
