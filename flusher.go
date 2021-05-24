@@ -751,37 +751,24 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, old, current Bind,
 func (f *flusher) addDirtyQueues(bind Bind, schema *tableSchema, id uint64, action string, lazy bool) *dirtyQueueValue {
 	var key EventAsMap
 	var allStreams []string
-	for column, tags := range schema.tags {
-		queues, has := tags["dirty"]
-		if !has {
-			continue
-		}
-		isDirty := column == "ORM"
-		if !isDirty {
-			_, isDirty = bind[column]
-		}
-		if !isDirty {
-			continue
-		}
-		queueNames := strings.Split(queues, ",")
-		if key == nil {
-			key = EventAsMap{"E": schema.t.String(), "I": id, "A": action}
-		}
-
-		for _, queueName := range queueNames {
-			if !lazy {
-				has := false
-				for _, v := range allStreams {
-					if v == queueName {
-						has = true
-						break
-					}
-				}
-				if !has {
-					f.getRedisFlusher().PublishMap(queueName, key)
-				}
+	for stream, columns := range schema.dirtyFields {
+		for _, column := range columns {
+			isDirty := column == "ORM"
+			if !isDirty {
+				_, isDirty = bind[column]
 			}
-			allStreams = append(allStreams, queueName)
+			if !isDirty {
+				continue
+			}
+			if key == nil {
+				key = EventAsMap{"E": schema.t.String(), "I": id, "A": action}
+			}
+			if !lazy {
+				f.getRedisFlusher().PublishMap(stream, key)
+			} else {
+				allStreams = append(allStreams, stream)
+			}
+			break
 		}
 	}
 	if !lazy || key == nil {
