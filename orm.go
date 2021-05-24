@@ -1316,8 +1316,39 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.booleansNullable {
+	for _, i := range fields.booleansNullable {
 		// TODO
+		f := value.Field(i)
+		isNil := f.IsNil()
+		val := false
+		if !isNil {
+			val = f.Elem().Bool()
+		}
+		if hasOld {
+			if serializer.GetBool() {
+				if serializer.GetBool() == val && !isNil {
+					continue
+				}
+			} else if isNil {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if isNil {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		} else {
+			bind[name] = val
+			if hasUpdate {
+				if val {
+					updateBind[name] = "1"
+				} else {
+					updateBind[name] = "0"
+				}
+			}
+		}
 	}
 	for range fields.floatsNullable {
 		// TODO
