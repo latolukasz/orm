@@ -1212,8 +1212,39 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.stringsEnums {
+	k := 0
+	for _, i := range fields.stringsEnums {
 		// TODO
+		val := value.Field(i).String()
+		enum := fields.enums[k]
+		k++
+		if hasOld && serializer.GetUInteger() == uint64(enum.Index(val)) {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		if val != "" {
+			if !enum.Has(val) {
+				panic(errors.New("unknown enum value for " + name + " - " + val))
+			}
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = "'" + val + "'"
+			}
+		} else {
+			attributes := tableSchema.tags[name]
+			required, hasRequired := attributes["required"]
+			if hasRequired && required == "true" {
+				bind[name] = enum.GetDefault()
+				if hasUpdate {
+					updateBind[name] = "'" + enum.GetDefault() + "'"
+				}
+			} else {
+				bind[name] = nil
+				if hasUpdate {
+					updateBind[name] = "NULL"
+				}
+			}
+		}
 	}
 	for range fields.bytes {
 		// TODO
