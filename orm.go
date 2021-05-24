@@ -1214,7 +1214,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	k := 0
 	for _, i := range fields.stringsEnums {
-		// TODO
 		val := value.Field(i).String()
 		enum := fields.enums[k]
 		k++
@@ -1246,8 +1245,23 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.bytes {
-		// TODO
+	for _, i := range fields.bytes {
+		val := string(value.Field(i).Bytes())
+		if hasOld && serializer.GetString() == val {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		if val != "" {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = orm.escapeSQLParam(val)
+			}
+		} else {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		}
 	}
 	for range fields.sliceStringsSets {
 		// TODO
