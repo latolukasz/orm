@@ -105,6 +105,11 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
+	for range fields.datesNullable {
+		v := sql.NullInt64{}
+		pointers[start] = &v
+		start++
+	}
 	for range fields.jsons {
 		v := sql.NullString{}
 		pointers[start] = &v

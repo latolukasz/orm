@@ -232,6 +232,17 @@ func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int
 		serializer.GetInteger()
 		i++
 	}
+	for range fields.datesNullable {
+		isNil := serializer.GetBool()
+		if i == index {
+			if isNil {
+				return nil, true, i
+			}
+			return serializer.GetInteger(), true, i
+		}
+		serializer.GetInteger()
+		i++
+	}
 	for range fields.jsons {
 		if i == index {
 			return serializer.GetBytes(), true, i
@@ -461,6 +472,14 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		}
 		index++
 	}
+	for range fields.datesNullable {
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetBool(v.Valid)
+		if v.Valid {
+			serializer.SetUInteger(uint64(v.Int64))
+		}
+		index++
+	}
 	for range fields.jsons {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
@@ -585,6 +604,15 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 		}
 	}
 	for _, i := range fields.timesNullable {
+		f := elem.Field(i)
+		if f.IsNil() {
+			serializer.SetBool(false)
+		} else {
+			serializer.SetBool(true)
+			serializer.SetUInteger(uint64(elem.Field(i).Interface().(time.Time).Unix()))
+		}
+	}
+	for _, i := range fields.datesNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.SetBool(false)
@@ -738,6 +766,17 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	for _, i := range fields.timesNullable {
+		if serializer.GetBool() {
+			v := time.Unix(int64(serializer.GetUInteger()), 0)
+			elem.Field(i).Set(reflect.ValueOf(&v))
+		}
+		f := elem.Field(i)
+		if !f.IsNil() {
+			var v *time.Time
+			f.Set(reflect.ValueOf(&v))
+		}
+	}
+	for _, i := range fields.datesNullable {
 		if serializer.GetBool() {
 			v := time.Unix(int64(serializer.GetUInteger()), 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
@@ -1379,6 +1418,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for range fields.timesNullable {
+		// TODO
+	}
+	for range fields.datesNullable {
 		// TODO
 	}
 	for range fields.jsons {

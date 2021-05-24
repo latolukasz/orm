@@ -144,6 +144,7 @@ type tableFields struct {
 	floats            map[int]float64
 	floatsNullable    map[int]float64
 	timesNullable     []int
+	datesNullable     []int
 	times             []int
 	dates             []int
 	jsons             []int
@@ -874,7 +875,12 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapBindToScanPointer[prefix+f.Name] = scanFloatNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerFloatNullableScan
 		case "*time.Time":
-			fields.timesNullable = append(fields.timesNullable, i)
+			_, hasTime := tags["time"]
+			if hasTime {
+				fields.timesNullable = append(fields.timesNullable, i)
+			} else {
+				fields.datesNullable = append(fields.datesNullable, i)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableTime
@@ -1056,6 +1062,7 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	}
 	timesNullableStart := len(ids)
 	ids = append(ids, fields.timesNullable...)
+	ids = append(ids, fields.datesNullable...)
 	timesNullableEnd := len(ids)
 	ids = append(ids, fields.jsons...)
 
