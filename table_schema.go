@@ -142,7 +142,7 @@ type tableFields struct {
 	booleans          []int
 	booleansNullable  []int
 	floats            map[int]float64
-	floatsNullable    []int
+	floatsNullable    map[int]float64
 	timesNullable     []int
 	times             []int
 	dates             []int
@@ -853,7 +853,20 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			}
 		case "*float32",
 			"*float64":
-			fields.floatsNullable = append(fields.floatsNullable, i)
+			if fields.floatsNullable == nil {
+				fields.floatsNullable = make(map[int]float64)
+			}
+			precision := 8
+			if typeName == "*float32" {
+				precision = 4
+			}
+			precisionAttribute, has := tags["precision"]
+			if has {
+				userPrecision, _ := strconv.Atoi(precisionAttribute)
+				precision = userPrecision
+			}
+
+			fields.floatsNullable[i] = 1 / math.Pow10(precision)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -1038,7 +1051,9 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	ids = append(ids, fields.bytes...)
 	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.booleansNullable...)
-	ids = append(ids, fields.floatsNullable...)
+	for id := range fields.floatsNullable {
+		ids = append(ids, id)
+	}
 	timesNullableStart := len(ids)
 	ids = append(ids, fields.timesNullable...)
 	timesNullableEnd := len(ids)

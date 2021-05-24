@@ -726,7 +726,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			f.Set(reflect.ValueOf(&v))
 		}
 	}
-	for _, i := range fields.floatsNullable {
+	for i := range fields.floatsNullable {
 		if serializer.GetBool() {
 			v := serializer.GetFloat()
 			elem.Field(i).Set(reflect.ValueOf(&v))
@@ -1163,7 +1163,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if serializer.GetUInteger() == val && !isNil {
+				if !isNil && serializer.GetUInteger() == val {
 					continue
 				}
 			} else if isNil {
@@ -1192,7 +1192,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if serializer.GetInteger() == val && !isNil {
+				if !isNil && serializer.GetInteger() == val {
 					continue
 				}
 			} else if isNil {
@@ -1317,7 +1317,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.booleansNullable {
-		// TODO
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := false
@@ -1326,7 +1325,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if serializer.GetBool() == val && !isNil {
+				if !isNil && serializer.GetBool() == val {
 					continue
 				}
 			} else if isNil {
@@ -1350,8 +1349,34 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.floatsNullable {
-		// TODO
+	for i, precision := range fields.floatsNullable {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		val := float64(0)
+		if !isNil {
+			val = f.Elem().Float()
+		}
+		if hasOld {
+			if serializer.GetBool() {
+				if !isNil && math.Abs(val-serializer.GetFloat()) < precision {
+					continue
+				}
+			} else if isNil {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if isNil {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		} else {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+			}
+		}
 	}
 	for range fields.timesNullable {
 		// TODO
