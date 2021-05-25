@@ -1516,11 +1516,50 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.refsMany {
-		// TODO
+	for _, i := range fields.refsMany {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		var val string
+		if !isNil {
+			length := f.Len()
+			if length > 0 {
+				ids := make([]uint64, length)
+				for i := 0; i < length; i++ {
+					ids[i] = f.Interface().(Entity).GetID()
+				}
+				encoded, _ := jsoniter.ConfigFastest.Marshal(ids)
+				val = string(encoded)
+			}
+		}
+		if hasOld && serializer.GetString() == val {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		if len(val) > 0 {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = orm.escapeSQLParam(val)
+			}
+		} else {
+			attributes := tableSchema.tags[name]
+			required, hasRequired := attributes["required"]
+			if hasRequired && required == "true" {
+				bind[name] = ""
+				if hasUpdate {
+					updateBind[name] = "'[]'"
+				}
+			} else {
+				bind[name] = nil
+				if hasUpdate {
+					updateBind[name] = "NULL"
+				}
+			}
+		}
 	}
-	for range fields.structs {
+	for i, subFields  :=range fields.structs {
 		// TODO
+		f := value.Field(i)
+		orm.buildBind(id, serializer, bind, oldBind, current, updateBind, tableSchema, subFields, f, f.)
 	}
 }
 
