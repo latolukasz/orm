@@ -572,6 +572,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.bytes {
 		serializer.SetBytes(elem.Field(i).Bytes())
 	}
+	k = 0
 	for _, i := range fields.sliceStringsSets {
 		f := elem.Field(i)
 		values := f.Interface().([]string)
@@ -609,7 +610,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetUInteger(uint64(elem.Field(i).Interface().(time.Time).Unix()))
+			serializer.SetUInteger(uint64(f.Interface().(*time.Time).Unix()))
 		}
 	}
 	for _, i := range fields.datesNullable {
@@ -1449,11 +1450,71 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for range fields.datesNullable {
-		// TODO
+	for _, i := range fields.datesNullable {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		var val time.Time
+		if !isNil {
+			val = *f.Interface().(*time.Time)
+			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, val.Location())
+		}
+		if hasOld {
+			if serializer.GetBool() {
+				if !isNil && serializer.GetInteger() == val.Unix() {
+					continue
+				}
+			} else if isNil {
+				continue
+			}
+		}
+		name := prefix + fields.fields[i].Name
+		if isNil {
+			bind[name] = nil
+			if hasUpdate {
+				updateBind[name] = "NULL"
+			}
+		} else {
+			asString := val.Format(dateformat)
+			bind[name] = asString
+			if hasUpdate {
+				updateBind[name] = "'" + asString + "'"
+			}
+		}
 	}
-	for range fields.jsons {
-		// TODO
+	for _, i := range fields.jsons {
+		f := value.Field(i)
+		isNil := f.IsNil()
+		var val string
+		if !isNil {
+			v := f.Interface()
+			encoded, err := jsoniter.ConfigFastest.Marshal(v)
+			checkError(err)
+			val = string(encoded)
+		}
+		if hasOld && serializer.GetString() == val {
+			continue
+		}
+		name := prefix + fields.fields[i].Name
+		if len(val) > 0 {
+			bind[name] = val
+			if hasUpdate {
+				updateBind[name] = orm.escapeSQLParam(val)
+			}
+		} else {
+			attributes := tableSchema.tags[name]
+			required, hasRequired := attributes["required"]
+			if hasRequired && required == "true" {
+				bind[name] = ""
+				if hasUpdate {
+					updateBind[name] = "''"
+				}
+			} else {
+				bind[name] = nil
+				if hasUpdate {
+					updateBind[name] = "NULL"
+				}
+			}
+		}
 	}
 	for range fields.refsMany {
 		// TODO

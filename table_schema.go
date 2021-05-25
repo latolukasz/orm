@@ -686,7 +686,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchIndex,
 	mapBindToRedisSearch mapBindToRedisSearch, mapBindToScanPointer mapBindToScanPointer, mapPointerToValue mapPointerToValue,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
-	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
+	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField), structs: make(map[int]*tableFields)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
 		fields.fields[i] = f
