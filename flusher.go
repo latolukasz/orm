@@ -313,6 +313,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				if affected > 0 {
 					lastID := result.LastInsertId()
 					orm.serialize(f.engine.getSerializer())
+					orm.inDB = true
 					orm := entity.getORM()
 					orm.idElem.SetUint(lastID)
 					if affected == 1 {
@@ -487,6 +488,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				if insertedID == 0 {
 					orm.idElem.SetUint(id)
 					orm.serialize(f.engine.getSerializer())
+					orm.inDB = true
 					insertedID = id
 					id = id + db.GetPoolConfig().getAutoincrement()
 				} else {

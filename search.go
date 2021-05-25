@@ -40,12 +40,12 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		start++
 	}
 	for range fields.times {
-		v := uint64(0)
+		v := int64(0)
 		pointers[start] = &v
 		start++
 	}
 	for range fields.dates {
-		v := uint64(0)
+		v := int64(0)
 		pointers[start] = &v
 		start++
 	}

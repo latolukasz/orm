@@ -125,34 +125,36 @@ type mapBindToScanPointer map[string]func() interface{}
 type mapPointerToValue map[string]func(val interface{}) interface{}
 
 type tableFields struct {
-	t                 reflect.Type
-	fields            map[int]reflect.StructField
-	prefix            string
-	uintegers         []int
-	integers          []int
-	uintegersNullable []int
-	integersNullable  []int
-	strings           []int
-	stringsEnums      []int
-	enums             []Enum
-	sliceStringsSets  []int
-	sets              []Enum
-	bytes             []int
-	fakeDelete        int
-	booleans          []int
-	booleansNullable  []int
-	floats            map[int]float64
-	floatsNullable    map[int]float64
-	timesNullable     []int
-	datesNullable     []int
-	times             []int
-	dates             []int
-	jsons             []int
-	structs           map[int]*tableFields
-	refs              []int
-	refsTypes         []reflect.Type
-	refsMany          []int
-	refsManyTypes     []reflect.Type
+	t                       reflect.Type
+	fields                  map[int]reflect.StructField
+	prefix                  string
+	uintegers               []int
+	integers                []int
+	uintegersNullable       []int
+	integersNullable        []int
+	strings                 []int
+	stringsEnums            []int
+	enums                   []Enum
+	sliceStringsSets        []int
+	sets                    []Enum
+	bytes                   []int
+	fakeDelete              int
+	booleans                []int
+	booleansNullable        []int
+	floats                  []int
+	floatsPrecision         []float64
+	floatsNullable          []int
+	floatsNullablePrecision []float64
+	timesNullable           []int
+	datesNullable           []int
+	times                   []int
+	dates                   []int
+	jsons                   []int
+	structs                 map[int]*tableFields
+	refs                    []int
+	refsTypes               []reflect.Type
+	refsMany                []int
+	refsManyTypes           []reflect.Type
 }
 
 func getTableSchema(registry *validatedRegistry, entityType reflect.Type) *tableSchema {
@@ -823,9 +825,6 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapPointerToValue[prefix+f.Name] = pointerBoolNullableScan
 		case "float32",
 			"float64":
-			if fields.floats == nil {
-				fields.floats = make(map[int]float64)
-			}
 			precision := 8
 			if typeName == "float32" {
 				precision = 4
@@ -840,7 +839,8 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				decimalArgs := strings.Split(decimal, ",")
 				precision, _ = strconv.Atoi(decimalArgs[1])
 			}
-			fields.floats[i] = 1 / math.Pow10(precision)
+			fields.floats = append(fields.floats, i)
+			fields.floatsPrecision = append(fields.floatsPrecision, 1/math.Pow10(precision))
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
@@ -854,9 +854,6 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			}
 		case "*float32",
 			"*float64":
-			if fields.floatsNullable == nil {
-				fields.floatsNullable = make(map[int]float64)
-			}
 			precision := 8
 			if typeName == "*float32" {
 				precision = 4
@@ -867,7 +864,8 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				precision = userPrecision
 			}
 
-			fields.floatsNullable[i] = 1 / math.Pow10(precision)
+			fields.floatsNullable = append(fields.floatsNullable, i)
+			fields.floatsNullablePrecision = append(fields.floatsNullablePrecision, 1/math.Pow10(precision))
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric

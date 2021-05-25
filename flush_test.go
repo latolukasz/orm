@@ -143,12 +143,18 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.SetNotNull = []string{"a", "b"}
 	entity.EnumNotNull = "a"
 	entity.TimeWithTime = now
+	entity.Float64 = 2.12
+	entity.Decimal = 6.15
 	entity.TimeWithTimeNullable = &now
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
 	assert.True(t, entity.IsDirty(engine))
 	assert.True(t, entity.ReferenceOne.IsDirty(engine))
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Flush()
+	fmt.Printf("start\n")
+	bind, _ := entity.GetDirtyBind(engine)
+	fmt.Printf("is dirty %v\n", bind)
+	return
 	flusher.Flush()
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
