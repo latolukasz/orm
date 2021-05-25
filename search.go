@@ -120,7 +120,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for _, subFields := range fields.structs {
+	for _, subFields := range fields.structsFields {
 		start = prepareScanForFields(subFields, start, pointers)
 	}
 	return start

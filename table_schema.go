@@ -150,7 +150,8 @@ type tableFields struct {
 	times                   []int
 	dates                   []int
 	jsons                   []int
-	structs                 map[int]*tableFields
+	structs                 []int
+	structsFields           []*tableFields
 	refs                    []int
 	refsTypes               []reflect.Type
 	refsMany                []int
@@ -688,7 +689,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchIndex,
 	mapBindToRedisSearch mapBindToRedisSearch, mapBindToScanPointer mapBindToScanPointer, mapPointerToValue mapPointerToValue,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
-	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField), structs: make(map[int]*tableFields)}
+	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
 		fields.fields[i] = f
@@ -901,8 +902,10 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 		default:
 			k := f.Type.Kind().String()
 			if k == "struct" {
-				fields.structs[i] = buildTableFields(f.Type, registry, index, mapBindToRedisSearch,
+				fields.structs = append(fields.structs, i)
+				subFields := buildTableFields(f.Type, registry, index, mapBindToRedisSearch,
 					mapBindToScanPointer, mapPointerToValue, 0, f.Name, schemaTags)
+				fields.structsFields = append(fields.structsFields, subFields)
 			} else if k == "ptr" {
 				modelType := reflect.TypeOf((*Entity)(nil)).Elem()
 				if f.Type.Implements(modelType) {
@@ -1074,7 +1077,7 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 			fieldsQuery += ",`" + name + "`"
 		}
 	}
-	for _, subFields := range fields.structs {
+	for _, subFields := range fields.structsFields {
 		subColumns, subQuery := subFields.getColumnNames()
 		columns = append(columns, subColumns...)
 		fieldsQuery += "," + subQuery

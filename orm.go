@@ -264,7 +264,7 @@ func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int
 		serializer.buffer.Next(l)
 		i++
 	}
-	for _, subFields := range fields.structs {
+	for _, subFields := range fields.structsFields {
 		v, has, j := getFieldForStruct(subFields, serializer, index, i)
 		if has {
 			return v, true, j
@@ -348,6 +348,7 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, oldBind, current Bind, updat
 		updateBind = make(map[string]string)
 	}
 	serializer := engine.getSerializer()
+	serializer.Reset(orm.binary)
 	orm.buildBind(id, serializer, bind, oldBind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "")
 	has = id == 0 || len(bind) > 0
 	return bind, oldBind, current, updateBind, has
@@ -502,7 +503,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 			serializer.SetUInteger(0)
 		}
 	}
-	for _, subField := range fields.structs {
+	for _, subField := range fields.structsFields {
 		index += deserializeStructFromDB(serializer, index, subField, pointers)
 	}
 	return index
@@ -643,8 +644,8 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			}
 		}
 	}
-	for i, subField := range fields.structs {
-		orm.serializeFields(serializer, subField, elem.Field(i))
+	for k, i := range fields.structs {
+		orm.serializeFields(serializer, fields.structsFields[k], elem.Field(i))
 	}
 }
 
@@ -788,9 +789,6 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			f.Set(reflect.ValueOf(&v))
 		}
 	}
-	for i, subField := range fields.structs {
-		orm.deserializeFields(engine, subField, elem.Field(i).Elem())
-	}
 	for _, i := range fields.jsons {
 		bytes := serializer.GetBytes()
 		f := elem.Field(i)
@@ -825,6 +823,9 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			}
 		}
 		k++
+	}
+	for k, i := range fields.structs {
+		orm.deserializeFields(engine, fields.structsFields[k], elem.Field(i).Elem())
 	}
 }
 
@@ -1060,7 +1061,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	hasUpdate := updateBind != nil
 	noPrefix := prefix == ""
 	var hasOld = orm.inDB && !orm.delete
-	serializer.Reset(orm.binary)
 	for _, i := range fields.refs {
 		fmt.Printf("name %s\n", fields.fields[i].Name)
 		f := value.Field(i)
@@ -1658,9 +1658,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 	}
-	for i, subFields := range fields.structs {
+	for k, i := range fields.structs {
 		fmt.Printf("name %s\n", fields.fields[i].Name)
-		orm.buildBind(id, serializer, bind, oldBind, current, updateBind, tableSchema, subFields, value.Field(i), fields.fields[i].Name)
+		orm.buildBind(id, serializer, bind, oldBind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name)
 	}
 }
 
