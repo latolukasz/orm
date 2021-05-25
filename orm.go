@@ -1620,18 +1620,27 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		//	continue
 		//}
 		if hasOld {
-			old := serializer.GetString()
-			fmt.Printf("OLD: %v\n", old)
-			if old == val {
-				continue
+			l := int(serializer.GetUInteger())
+			if l == 0 {
+				if val == "" {
+					continue
+				}
+			} else if val != "" {
+				old := "[" + strconv.FormatUint(serializer.GetUInteger(), 10)
+				for j := 1; j < l; j++ {
+					old += "," + strconv.FormatUint(serializer.GetUInteger(), 10)
+				}
+				old += "]"
+				if old == val {
+					continue
+				}
 			}
 		}
-
 		name := prefix + fields.fields[i].Name
-		if len(val) > 0 {
+		if val != "" {
 			bind[name] = val
 			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(val)
+				updateBind[name] = val
 			}
 		} else {
 			attributes := tableSchema.tags[name]
