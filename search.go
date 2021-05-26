@@ -144,7 +144,7 @@ func searchRow(skipFakeDelete bool, engine *Engine, where *Where, entity Entity,
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
-	id := pointers[0].(uint64)
+	id := *pointers[schema.idIndex].(*uint64)
 	fillFromDBRow(id, engine, pointers, entity, true, lazy)
 	if len(references) > 0 {
 		warmUpReferences(engine, schema, entity.getORM().value, references, false, lazy)

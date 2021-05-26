@@ -103,6 +103,7 @@ type tableSchema struct {
 	dirtyFields          map[string][]string
 	refOne               []string
 	refMany              []string
+	idIndex              int
 	localCacheName       string
 	hasLocalCache        bool
 	redisCacheName       string
@@ -553,8 +554,12 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	}
 	columns, fieldsQuery := fields.getColumnNames()
 	columnMapping := make(map[string]int)
+	idIndex := 0
 	for i, name := range columns {
 		columnMapping[name] = i
+		if name == "ID" {
+			idIndex = i
+		}
 	}
 	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+fieldsQuery)))
 	cachePrefix = cachePrefix[0:5]
@@ -570,6 +575,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		redisSearchIndex:     redisSearchIndex,
 		mapBindToRedisSearch: mapBindToRedisSearch,
 		tags:                 tags,
+		idIndex:              idIndex,
 		columnNames:          columns,
 		columnMapping:        columnMapping,
 		cachedIndexes:        cachedQueries,

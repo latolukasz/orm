@@ -371,7 +371,8 @@ func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 
 func deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
 	for range fields.refs {
-		serializer.SetUInteger(*pointers[index].(*uint64))
+		v := pointers[index].(*sql.NullInt64)
+		serializer.SetUInteger(uint64(v.Int64))
 		index++
 	}
 	for range fields.uintegers {
