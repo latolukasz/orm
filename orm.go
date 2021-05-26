@@ -438,6 +438,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		serializer.SetBytes([]byte(pointers[index].(*sql.NullString).String))
 		index++
 	}
+	k = 0
 	for range fields.sliceStringsSets {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
@@ -451,6 +452,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 			serializer.SetUInteger(0)
 		}
 		k++
+		index++
 	}
 	for range fields.booleansNullable {
 		v := pointers[index].(*sql.NullBool)
@@ -505,6 +507,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		} else {
 			serializer.SetUInteger(0)
 		}
+		index++
 	}
 	for _, subField := range fields.structsFields {
 		index += deserializeStructFromDB(serializer, index, subField, pointers)
@@ -719,6 +722,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			f.Set(reflect.ValueOf(&v))
 		}
 	}
+	k = 0
 	for _, i := range fields.stringsEnums {
 		index := serializer.GetUInteger()
 		if index == 0 {
@@ -731,6 +735,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	for _, i := range fields.bytes {
 		elem.Field(i).SetBytes(serializer.GetBytes())
 	}
+	k = 0
 	for _, i := range fields.sliceStringsSets {
 		l := int(serializer.GetUInteger())
 		f := elem.Field(i)
@@ -778,7 +783,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		f := elem.Field(i)
 		if !f.IsNil() {
 			var v *time.Time
-			f.Set(reflect.ValueOf(&v))
+			f.Set(reflect.ValueOf(v))
 		}
 	}
 	for _, i := range fields.datesNullable {
@@ -828,7 +833,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		k++
 	}
 	for k, i := range fields.structs {
-		orm.deserializeFields(engine, fields.structsFields[k], elem.Field(i).Elem())
+		orm.deserializeFields(engine, fields.structsFields[k], elem.Field(i))
 	}
 }
 
