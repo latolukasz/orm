@@ -19,6 +19,11 @@ func prepareScan(schema *tableSchema) (pointers []interface{}) {
 }
 
 func prepareScanForFields(fields *tableFields, start int, pointers []interface{}) int {
+	for range fields.refs {
+		v := sql.NullInt64{}
+		pointers[start] = &v
+		start++
+	}
 	for range fields.uintegers {
 		v := uint64(0)
 		pointers[start] = &v
@@ -54,12 +59,11 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for range fields.refs {
-		v := sql.NullInt64{}
+	for range fields.strings {
+		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
-
 	for range fields.uintegersNullable {
 		v := sql.NullInt64{}
 		pointers[start] = &v
@@ -71,11 +75,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		start++
 	}
 	for range fields.stringsEnums {
-		v := sql.NullString{}
-		pointers[start] = &v
-		start++
-	}
-	for range fields.strings {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++

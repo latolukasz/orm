@@ -1041,9 +1041,7 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	ids = append(ids, fields.uintegers...)
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.booleans...)
-	for id := range fields.floats {
-		ids = append(ids, id)
-	}
+	ids = append(ids, fields.floats...)
 	timesStart := len(ids)
 	ids = append(ids, fields.times...)
 	ids = append(ids, fields.dates...)
@@ -1058,20 +1056,17 @@ func (fields *tableFields) getColumnNames() ([]string, string) {
 	ids = append(ids, fields.bytes...)
 	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.booleansNullable...)
-	for id := range fields.floatsNullable {
-		ids = append(ids, id)
-	}
+	ids = append(ids, fields.floatsNullable...)
 	timesNullableStart := len(ids)
 	ids = append(ids, fields.timesNullable...)
 	ids = append(ids, fields.datesNullable...)
 	timesNullableEnd := len(ids)
 	ids = append(ids, fields.jsons...)
-
 	ids = append(ids, fields.refsMany...)
 	for k, i := range ids {
 		name := fields.prefix + fields.fields[i].Name
 		columns = append(columns, name)
-		if (k > timesStart && k < timesEnd) || (k > timesNullableStart && k < timesNullableEnd) {
+		if (k >= timesStart && k < timesEnd) || (k >= timesNullableStart && k < timesNullableEnd) {
 			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
 		} else {
 			fieldsQuery += ",`" + name + "`"
