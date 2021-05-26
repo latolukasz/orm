@@ -3,6 +3,7 @@ package orm
 import (
 	"database/sql"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"math"
 	"reflect"
 	"strconv"
@@ -1062,7 +1063,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	noPrefix := prefix == ""
 	var hasOld = orm.inDB && !orm.delete
 	for _, i := range fields.refs {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		f := value.Field(i)
 		val := uint64(0)
 		if !f.IsNil() {
@@ -1073,7 +1073,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		//}
 		if hasOld {
 			old := serializer.GetUInteger()
-			fmt.Printf("OLD: %v\n", old)
 			if old == val {
 				continue
 			}
@@ -1093,7 +1092,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.uintegers {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		if i == 1 && noPrefix {
 			serializer.GetUInteger()
 			continue
@@ -1104,7 +1102,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		//}
 		if hasOld {
 			old := serializer.GetUInteger()
-			fmt.Printf("OLD: %v\n", old)
 			if old == val {
 				continue
 			}
@@ -1117,14 +1114,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.integers {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		val := value.Field(i).Int()
 		//if hasOld && serializer.GetInteger() == val {
 		//	continue
 		//}
 		if hasOld {
 			old := serializer.GetInteger()
-			fmt.Printf("OLD: %v\n", old)
 			if old == val {
 				continue
 			}
@@ -1137,14 +1132,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.booleans {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		val := value.Field(i).Bool()
 		//if hasOld && serializer.GetBool() == val {
 		//	continue
 		//}
 		if hasOld {
 			old := serializer.GetBool()
-			fmt.Printf("OLD: %v\n", old)
 			if old == val {
 				continue
 			}
@@ -1161,14 +1154,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for k, i := range fields.floats {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		val := value.Field(i).Float()
 		//if hasOld && math.Abs(val-serializer.GetFloat()) < precision {
 		//	continue
 		//}
 		if hasOld {
 			old := serializer.GetFloat()
-			fmt.Printf("OLD: %v\n", old)
 			if math.Abs(val-old) < fields.floatsPrecision[k] {
 				continue
 			}
@@ -1181,15 +1172,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.times {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		t := value.Field(i).Interface().(time.Time)
 		//if hasOld && serializer.GetInteger() == t.Unix() {
 		//	continue
 		//}
 		if hasOld {
 			old := serializer.GetInteger()
-			fmt.Printf("OLD: %v\n", old)
-			fmt.Printf("NOW: %v\n", t.Unix())
 			if old == t.Unix() {
 				continue
 			}
@@ -1203,7 +1191,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.dates {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		t := value.Field(i).Interface().(time.Time)
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 		if hasOld && serializer.GetInteger() == t.Unix() {
@@ -1218,7 +1205,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	if fields.fakeDelete > 0 {
 		val := value.Field(fields.fakeDelete).Bool()
-		fmt.Printf("name %s\n", fields.fields[fields.fakeDelete].Name)
 		if !hasOld || serializer.GetBool() != val {
 			name := prefix + fields.fields[fields.fakeDelete].Name
 			bind[name] = id
@@ -1229,13 +1215,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.strings {
 		val := value.Field(i).String()
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		//if hasOld && serializer.GetString() == val {
 		//	continue
 		//}
 		if hasOld {
 			old := serializer.GetString()
-			fmt.Printf("OLD: %v\n", old)
 			if old == val {
 				continue
 			}
@@ -1264,7 +1248,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.uintegersNullable {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := uint64(0)
@@ -1294,7 +1277,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.integersNullable {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := int64(0)
@@ -1325,7 +1307,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	k := 0
 	for _, i := range fields.stringsEnums {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		val := value.Field(i).String()
 		enum := fields.enums[k]
 		k++
@@ -1358,7 +1339,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.bytes {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		val := string(value.Field(i).Bytes())
 		if hasOld && serializer.GetString() == val {
 			continue
@@ -1378,7 +1358,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	k = 0
 	for _, i := range fields.sliceStringsSets {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		val := value.Field(i).Interface().([]string)
 		set := fields.sets[k]
 		l := len(val)
@@ -1557,22 +1536,25 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.jsons {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		f := value.Field(i)
 		isNil := f.IsNil()
-		var val string
+		var val interface{}
 		if !isNil {
-			v := f.Interface()
-			encoded, err := jsoniter.ConfigFastest.Marshal(v)
-			checkError(err)
-			val = string(encoded)
+			val = f.Interface()
 		}
 		//if hasOld && serializer.GetString() == val {
 		//	continue
 		//}
 		if hasOld {
 			old := serializer.GetString()
-			fmt.Printf("OLD: %v\n", old)
+			if old == "" {
+				if isNil {
+					continue
+				}
+			} else {
+
+			}
+			cmp.Equal()
 			if old == val {
 				continue
 			}
@@ -1601,7 +1583,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.refsMany {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val string
@@ -1659,7 +1640,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for k, i := range fields.structs {
-		fmt.Printf("name %s\n", fields.fields[i].Name)
 		orm.buildBind(id, serializer, bind, oldBind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name)
 	}
 }
