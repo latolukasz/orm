@@ -1546,25 +1546,30 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		//	continue
 		//}
 		if hasOld {
-			old := serializer.GetString()
-			if old == "" {
+			old := serializer.GetBytes()
+			if len(old) == 0 {
 				if isNil {
 					continue
 				}
 			} else {
-
-			}
-			cmp.Equal()
-			if old == val {
-				continue
+				oldValue := reflect.New(f.Type()).Elem().Interface()
+				_ = jsoniter.ConfigFastest.Unmarshal(old, &oldValue)
+				fmt.Printf("NOW: %v\n", val)
+				fmt.Printf("OLD: %v\n", oldValue)
+				fmt.Printf("THESAME: %v\n", cmp.Equal(oldValue, val))
+				if cmp.Equal(oldValue, val) {
+					continue
+				}
 			}
 		}
 
 		name := prefix + fields.fields[i].Name
-		if len(val) > 0 {
-			bind[name] = val
+		if !isNil {
+			encoded, _ := jsoniter.ConfigFastest.Marshal(val)
+			valAsString := string(encoded)
+			bind[name] = valAsString
 			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(val)
+				updateBind[name] = orm.escapeSQLParam(valAsString)
 			}
 		} else {
 			attributes := tableSchema.tags[name]
