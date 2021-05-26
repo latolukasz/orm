@@ -486,16 +486,14 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				bind := insertBinds[typeOf][key]
 				insertedID := entity.GetID()
 				orm := entity.getORM()
+				orm.inDB = true
+				orm.loaded = true
 				if insertedID == 0 {
 					orm.idElem.SetUint(id)
-					orm.serialize(f.engine.getSerializer())
-					orm.inDB = true
-					orm.loaded = true
 					insertedID = id
 					id = id + db.GetPoolConfig().getAutoincrement()
-				} else {
-					orm.serialize(f.engine.getSerializer())
 				}
+				orm.serialize(f.engine.getSerializer())
 				f.updateCacheForInserted(entity, lazy, insertedID, bind)
 			}
 		}

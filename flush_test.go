@@ -156,7 +156,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.False(t, entity.IsDirty(engine))
 	assert.False(t, entity.ReferenceOne.IsDirty(engine))
-	return
 	assert.Equal(t, uint(1), entity.ID)
 	assert.NotEqual(t, uint(0), entity.ReferenceOne.ID)
 	assert.True(t, entity.IsLoaded())

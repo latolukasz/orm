@@ -358,7 +358,7 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, oldBind, current Bind, updat
 
 func (orm *ORM) serialize(serializer *serializer) {
 	orm.serializeFields(serializer, orm.tableSchema.fields, orm.elem)
-	orm.binary = serializer.CopyBinary()
+	orm.binary = serializer.Serialize()
 	serializer.buffer.Reset()
 }
 
@@ -366,7 +366,7 @@ func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 	serializer := engine.getSerializer()
 	serializer.buffer.Reset()
 	deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
-	orm.binary = serializer.CopyBinary()
+	orm.binary = serializer.Serialize()
 }
 
 func deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
@@ -1069,16 +1069,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		if !f.IsNil() {
 			val = f.Elem().Field(1).Uint()
 		}
-		//if hasOld && serializer.GetUInteger() == val {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetUInteger()
 			if old == val {
 				continue
 			}
 		}
-
 		name := prefix + fields.fields[i].Name
 		if val == 0 {
 			bind[name] = nil
@@ -1098,16 +1094,12 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			continue
 		}
 		val := value.Field(i).Uint()
-		//if hasOld && serializer.GetUInteger() == val {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetUInteger()
 			if old == val {
 				continue
 			}
 		}
-
 		name := prefix + fields.fields[i].Name
 		bind[name] = val
 		if hasUpdate {
@@ -1116,9 +1108,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.integers {
 		val := value.Field(i).Int()
-		//if hasOld && serializer.GetInteger() == val {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetInteger()
 			if old == val {

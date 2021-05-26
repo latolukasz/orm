@@ -53,7 +53,6 @@ type Engine struct {
 	afterCommitDataLoaderSets dataLoaderSets
 	eventBroker               *eventBroker
 	serializer                *serializer
-	serializerOnce            sync.Once
 }
 
 func (e *Engine) Log() Log {
@@ -509,8 +508,8 @@ func (e *Engine) GetElasticIndexAlters() (alters []ElasticIndexAlter) {
 }
 
 func (e *Engine) getSerializer() *serializer {
-	e.serializerOnce.Do(func() {
+	if e.serializer == nil {
 		e.serializer = newSerializer()
-	})
+	}
 	return e.serializer
 }
