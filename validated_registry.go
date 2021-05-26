@@ -33,6 +33,7 @@ type validatedRegistry struct {
 	redisStreamPools   map[string]string
 	elasticServers     map[string]*ElasticConfig
 	enums              map[string]Enum
+	timeOffset         int64
 }
 
 func (r *validatedRegistry) GetSourceRegistry() *Registry {

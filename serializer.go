@@ -25,9 +25,9 @@ func (s *serializer) Reset(binary []byte) {
 }
 
 func (s *serializer) Serialize() []byte {
-	binary := make([]byte, s.buffer.Len())
-	copy(binary, s.buffer.Bytes())
-	return binary
+	b := make([]byte, s.buffer.Len())
+	copy(b, s.buffer.Bytes())
+	return b
 }
 
 func (s *serializer) SetUInteger(v uint64) {

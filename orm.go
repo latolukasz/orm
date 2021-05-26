@@ -540,7 +540,8 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 		serializer.SetInteger(elem.Field(i).Interface().(time.Time).Unix())
 	}
 	for _, i := range fields.dates {
-		serializer.SetInteger(elem.Field(i).Interface().(time.Time).Unix())
+		t := elem.Field(i).Interface().(time.Time)
+		serializer.SetInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
 	}
 	if fields.fakeDelete > 0 {
 		serializer.SetBool(elem.Field(fields.fakeDelete).Bool())
@@ -689,10 +690,10 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		elem.Field(i).SetFloat(serializer.GetFloat())
 	}
 	for _, i := range fields.times {
-		elem.Field(i).Set(reflect.ValueOf(time.Unix(serializer.GetInteger(), 0)))
+		elem.Field(i).Set(reflect.ValueOf(time.Unix(serializer.GetInteger()-engine.registry.timeOffset, 0)))
 	}
 	for _, i := range fields.dates {
-		elem.Field(i).Set(reflect.ValueOf(time.Unix(serializer.GetInteger(), 0)))
+		elem.Field(i).Set(reflect.ValueOf(time.Unix(serializer.GetInteger()-engine.registry.timeOffset, 0)))
 	}
 	if fields.fakeDelete > 0 {
 		elem.Field(fields.fakeDelete).SetBool(serializer.GetBool())
@@ -1129,9 +1130,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.booleans {
 		val := value.Field(i).Bool()
-		//if hasOld && serializer.GetBool() == val {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetBool()
 			if old == val {
@@ -1151,9 +1149,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for k, i := range fields.floats {
 		val := value.Field(i).Float()
-		//if hasOld && math.Abs(val-serializer.GetFloat()) < precision {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetFloat()
 			if math.Abs(val-old) < fields.floatsPrecision[k] {
@@ -1169,9 +1164,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.times {
 		t := value.Field(i).Interface().(time.Time)
-		//if hasOld && serializer.GetInteger() == t.Unix() {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetInteger()
 			if old == t.Unix() {

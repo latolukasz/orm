@@ -169,7 +169,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	found := engine.LoadByID(1, entity)
 
 	assert.True(t, found)
-	return
 	assert.Equal(t, "Tom", entity.Name)
 	assert.Equal(t, 12, entity.Age)
 	assert.Equal(t, uint(7), entity.Uint)
