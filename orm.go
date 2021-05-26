@@ -3,12 +3,13 @@ package orm
 import (
 	"database/sql"
 	"fmt"
-	"github.com/google/go-cmp/cmp"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -813,7 +814,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			for j := 0; j < l; j++ {
 				e := getTableSchema(engine.registry, fields.refsTypes[k]).newEntity()
 				o := e.getORM()
-				o.idElem.SetUint(uint64(serializer.GetUInteger()))
+				o.idElem.SetUint(serializer.GetUInteger())
 				o.inDB = true
 				slice.Index(j).Set(o.value)
 			}
@@ -1539,6 +1540,8 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val interface{}
+		asString := ""
+		encoded := false
 		if !isNil {
 			val = f.Interface()
 		}
@@ -1553,23 +1556,27 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				}
 			} else {
 				oldValue := reflect.New(f.Type()).Elem().Interface()
+				newValue := reflect.New(f.Type()).Elem().Interface()
 				_ = jsoniter.ConfigFastest.Unmarshal(old, &oldValue)
-				fmt.Printf("NOW: %v\n", val)
-				fmt.Printf("OLD: %v\n", oldValue)
-				fmt.Printf("THESAME: %v\n", cmp.Equal(oldValue, val))
-				if cmp.Equal(oldValue, val) {
+				asString, err := jsoniter.ConfigFastest.Marshal(val)
+				checkError(err)
+				_ = jsoniter.ConfigFastest.Unmarshal(asString, &newValue)
+				if cmp.Equal(oldValue, newValue) {
 					continue
 				}
+				encoded = true
 			}
 		}
 
 		name := prefix + fields.fields[i].Name
 		if !isNil {
-			encoded, _ := jsoniter.ConfigFastest.Marshal(val)
-			valAsString := string(encoded)
-			bind[name] = valAsString
+			if !encoded {
+				encoded, _ := jsoniter.ConfigFastest.Marshal(val)
+				asString = string(encoded)
+			}
+			bind[name] = asString
 			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(valAsString)
+				updateBind[name] = orm.escapeSQLParam(asString)
 			}
 		} else {
 			attributes := tableSchema.tags[name]
