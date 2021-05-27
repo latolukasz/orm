@@ -132,7 +132,9 @@ type tableFields struct {
 	uintegers               []int
 	integers                []int
 	uintegersNullable       []int
+	uintegersNullableSize   []int
 	integersNullable        []int
+	integersNullableSize    []int
 	strings                 []int
 	stringsEnums            []int
 	enums                   []Enum
@@ -146,6 +148,7 @@ type tableFields struct {
 	floatsPrecision         []float64
 	floatsNullable          []int
 	floatsNullablePrecision []float64
+	floatsNullableSize      []int
 	timesNullable           []int
 	datesNullable           []int
 	times                   []int
@@ -731,6 +734,18 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			"*uint32",
 			"*uint64":
 			fields.uintegersNullable = append(fields.uintegersNullable, i)
+			switch typeName {
+			case "*uint":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 0)
+			case "*uint8":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 8)
+			case "*uint16":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 16)
+			case "*uint32":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 32)
+			case "*uint64":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 64)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -760,6 +775,18 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			"*int32",
 			"*int64":
 			fields.integersNullable = append(fields.integersNullable, i)
+			switch typeName {
+			case "*int":
+				fields.integersNullableSize = append(fields.integersNullableSize, 0)
+			case "*int8":
+				fields.integersNullableSize = append(fields.integersNullableSize, 8)
+			case "*int16":
+				fields.integersNullableSize = append(fields.integersNullableSize, 16)
+			case "*int32":
+				fields.integersNullableSize = append(fields.integersNullableSize, 32)
+			case "*int64":
+				fields.integersNullableSize = append(fields.integersNullableSize, 64)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -864,6 +891,9 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			precision := 8
 			if typeName == "*float32" {
 				precision = 4
+				fields.floatsNullableSize = append(fields.floatsNullableSize, 32)
+			} else {
+				fields.floatsNullableSize = append(fields.floatsNullableSize, 64)
 			}
 			precisionAttribute, has := tags["precision"]
 			if has {

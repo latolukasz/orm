@@ -405,6 +405,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				}
 				f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
 				f.updateCacheAfterUpdate(entity, bind, oldBind, current, schema, currentID, false)
+				entity.getORM().serialize(f.engine.getSerializer())
 			}
 		}
 	}

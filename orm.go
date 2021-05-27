@@ -572,7 +572,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetUInteger(f.Uint())
+			serializer.SetUInteger(f.Elem().Uint())
 		}
 	}
 	for _, i := range fields.integersNullable {
@@ -581,7 +581,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetInteger(f.Int())
+			serializer.SetInteger(f.Elem().Int())
 		}
 	}
 	k := 0
@@ -617,7 +617,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetBool(f.Bool())
+			serializer.SetBool(f.Elem().Bool())
 		}
 	}
 	for _, i := range fields.floatsNullable {
@@ -626,7 +626,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetFloat(f.Float())
+			serializer.SetFloat(f.Elem().Float())
 		}
 	}
 	for _, i := range fields.timesNullable {
@@ -644,7 +644,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetInteger(elem.Field(i).Interface().(time.Time).Unix())
+			serializer.SetInteger(elem.Field(i).Interface().(*time.Time).Unix())
 		}
 	}
 	for _, i := range fields.jsons {
@@ -730,28 +730,58 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	for _, i := range fields.strings {
 		elem.Field(i).SetString(serializer.GetString())
 	}
-	for _, i := range fields.uintegersNullable {
+	for k, i := range fields.uintegersNullable {
 		if serializer.GetBool() {
 			v := serializer.GetUInteger()
-			elem.Field(i).Set(reflect.ValueOf(&v))
+			switch fields.uintegersNullableSize[k] {
+			case 0:
+				val := uint(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 8:
+				val := uint8(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 16:
+				val := uint16(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 32:
+				val := uint32(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 64:
+				val := uint64(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			}
 			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			var v *uint8
-			f.Set(reflect.ValueOf(&v))
+			elem.Field(i).Set(reflect.Zero(f.Type()))
 		}
 	}
-	for _, i := range fields.integersNullable {
+	for k, i := range fields.integersNullable {
 		if serializer.GetBool() {
 			v := serializer.GetInteger()
-			elem.Field(i).Set(reflect.ValueOf(&v))
+			switch fields.integersNullableSize[k] {
+			case 0:
+				val := int(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 8:
+				val := int8(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 16:
+				val := int16(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 32:
+				val := int32(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			case 64:
+				val := int64(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			}
 			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			var v *int8
-			f.Set(reflect.ValueOf(&v))
+			elem.Field(i).Set(reflect.Zero(f.Type()))
 		}
 	}
 	k = 0
@@ -797,16 +827,20 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			f.Set(reflect.ValueOf(&v))
 		}
 	}
-	for _, i := range fields.floatsNullable {
+	for k, i := range fields.floatsNullable {
 		if serializer.GetBool() {
 			v := serializer.GetFloat()
-			elem.Field(i).Set(reflect.ValueOf(&v))
+			if fields.floatsNullableSize[k] == 32 {
+				val := float32(v)
+				elem.Field(i).Set(reflect.ValueOf(&val))
+			} else {
+				elem.Field(i).Set(reflect.ValueOf(&v))
+			}
 			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			var v *float64
-			f.Set(reflect.ValueOf(&v))
+			f.Set(reflect.Zero(f.Type()))
 		}
 	}
 	for _, i := range fields.timesNullable {
