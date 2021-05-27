@@ -365,11 +365,11 @@ func (orm *ORM) serialize(serializer *serializer) {
 func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
 	serializer := engine.getSerializer()
 	serializer.buffer.Reset()
-	deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
+	deserializeStructFromDB(engine, serializer, 0, orm.tableSchema.fields, pointers)
 	orm.binary = serializer.Serialize()
 }
 
-func deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
+func deserializeStructFromDB(engine *Engine, serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
 	for range fields.refs {
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SetUInteger(uint64(v.Int64))
@@ -392,11 +392,19 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		index++
 	}
 	for range fields.times {
-		serializer.SetInteger(*pointers[index].(*int64))
+		unix := *pointers[index].(*int64)
+		if unix != 0 {
+			unix -= engine.registry.timeOffset
+		}
+		serializer.SetInteger(unix)
 		index++
 	}
 	for range fields.dates {
-		serializer.SetInteger(*pointers[index].(*int64))
+		unix := *pointers[index].(*int64)
+		if unix != 0 {
+			unix -= engine.registry.timeOffset
+		}
+		serializer.SetInteger(unix)
 		index++
 	}
 	if fields.fakeDelete > 0 {
@@ -474,7 +482,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SetBool(v.Valid)
 		if v.Valid {
-			serializer.SetInteger(v.Int64)
+			serializer.SetInteger(v.Int64 - engine.registry.timeOffset)
 		}
 		index++
 	}
@@ -482,7 +490,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SetBool(v.Valid)
 		if v.Valid {
-			serializer.SetInteger(v.Int64)
+			serializer.SetInteger(v.Int64 - engine.registry.timeOffset)
 		}
 		index++
 	}
@@ -510,7 +518,7 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		index++
 	}
 	for _, subField := range fields.structsFields {
-		index += deserializeStructFromDB(serializer, index, subField, pointers)
+		index += deserializeStructFromDB(engine, serializer, index, subField, pointers)
 	}
 	return index
 }
@@ -537,11 +545,20 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 		serializer.SetFloat(elem.Field(i).Float())
 	}
 	for _, i := range fields.times {
-		serializer.SetInteger(elem.Field(i).Interface().(time.Time).Unix())
+		t := elem.Field(i).Interface().(time.Time)
+		if t.IsZero() {
+			serializer.SetInteger(0)
+		} else {
+			serializer.SetInteger(t.Unix())
+		}
 	}
 	for _, i := range fields.dates {
 		t := elem.Field(i).Interface().(time.Time)
-		serializer.SetInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
+		if t.IsZero() {
+			serializer.SetInteger(0)
+		} else {
+			serializer.SetInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
+		}
 	}
 	if fields.fakeDelete > 0 {
 		serializer.SetBool(elem.Field(fields.fakeDelete).Bool())
@@ -690,10 +707,22 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		elem.Field(i).SetFloat(serializer.GetFloat())
 	}
 	for _, i := range fields.times {
-		elem.Field(i).Set(reflect.ValueOf(time.Unix(serializer.GetInteger()-engine.registry.timeOffset, 0)))
+		f := elem.Field(i)
+		unix := serializer.GetInteger()
+		if unix == 0 {
+			f.Set(reflect.Zero(f.Type()))
+		} else {
+			f.Set(reflect.ValueOf(time.Unix(unix, 0)))
+		}
 	}
 	for _, i := range fields.dates {
-		elem.Field(i).Set(reflect.ValueOf(time.Unix(serializer.GetInteger()-engine.registry.timeOffset, 0)))
+		f := elem.Field(i)
+		unix := serializer.GetInteger()
+		if unix == 0 {
+			f.Set(reflect.Zero(f.Type()))
+		} else {
+			f.Set(reflect.ValueOf(time.Unix(unix, 0)))
+		}
 	}
 	if fields.fakeDelete > 0 {
 		elem.Field(fields.fakeDelete).SetBool(serializer.GetBool())
@@ -705,6 +734,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if serializer.GetBool() {
 			v := serializer.GetUInteger()
 			elem.Field(i).Set(reflect.ValueOf(&v))
+			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
@@ -716,6 +746,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if serializer.GetBool() {
 			v := serializer.GetInteger()
 			elem.Field(i).Set(reflect.ValueOf(&v))
+			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
@@ -758,6 +789,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if serializer.GetBool() {
 			v := serializer.GetBool()
 			elem.Field(i).Set(reflect.ValueOf(&v))
+			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
@@ -769,6 +801,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if serializer.GetBool() {
 			v := serializer.GetFloat()
 			elem.Field(i).Set(reflect.ValueOf(&v))
+			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
@@ -780,6 +813,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if serializer.GetBool() {
 			v := time.Unix(serializer.GetInteger(), 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
+			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
@@ -791,6 +825,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if serializer.GetBool() {
 			v := time.Unix(serializer.GetInteger(), 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
+			continue
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
@@ -1163,14 +1198,14 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.times {
-		t := value.Field(i).Interface().(time.Time)
+		f := value.Field(i)
+		t := f.Interface().(time.Time)
 		if hasOld {
 			old := serializer.GetInteger()
-			if old == t.Unix() {
+			if (old == 0 && f.IsZero()) || (old == t.Unix()) {
 				continue
 			}
 		}
-
 		name := prefix + fields.fields[i].Name
 		asString := t.Format(timeFormat)
 		bind[name] = asString
@@ -1181,8 +1216,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	for _, i := range fields.dates {
 		t := value.Field(i).Interface().(time.Time)
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		if hasOld && serializer.GetInteger() == t.Unix() {
-			continue
+		if hasOld {
+			old := serializer.GetInteger()
+			if old == 0 && t.IsZero() || old == t.Unix() {
+				continue
+			}
 		}
 		name := prefix + fields.fields[i].Name
 		asString := t.Format(dateformat)
@@ -1203,9 +1241,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	for _, i := range fields.strings {
 		val := value.Field(i).String()
-		//if hasOld && serializer.GetString() == val {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetString()
 			if old == val {

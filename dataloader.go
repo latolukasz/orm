@@ -245,7 +245,7 @@ func (b *dataLoaderBatch) search(schema *tableSchema, engine *Engine, ids []uint
 		id := pointers[0].(uint64)
 		serializer := engine.getSerializer()
 		serializer.buffer.Reset()
-		deserializeStructFromDB(serializer, 0, schema.fields, pointers)
+		deserializeStructFromDB(engine, serializer, 0, schema.fields, pointers)
 		result[id] = serializer.Serialize()
 		i++
 	}
