@@ -1313,7 +1313,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if !isNil && serializer.GetUInteger() == val {
+				if serializer.GetUInteger() == val && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1342,7 +1342,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if !isNil && serializer.GetInteger() == val {
+				if serializer.GetInteger() == val && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1478,7 +1478,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if !isNil && serializer.GetBool() == val {
+				if serializer.GetBool() == val && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1511,7 +1511,8 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if !isNil && math.Abs(val-serializer.GetFloat()) < fields.floatsNullablePrecision[k] {
+				v := serializer.GetFloat()
+				if !isNil && math.Abs(val-v) < fields.floatsNullablePrecision[k] {
 					continue
 				}
 			} else if isNil {
@@ -1540,7 +1541,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if !isNil && serializer.GetInteger() == val.Unix() {
+				if serializer.GetInteger() == val.Unix() && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1571,7 +1572,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 		if hasOld {
 			if serializer.GetBool() {
-				if !isNil && serializer.GetInteger() == val.Unix() {
+				if serializer.GetInteger() == val.Unix() && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1601,9 +1602,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		if !isNil {
 			val = f.Interface()
 		}
-		//if hasOld && serializer.GetString() == val {
-		//	continue
-		//}
 		if hasOld {
 			old := serializer.GetBytes()
 			if len(old) == 0 {
@@ -1614,21 +1612,22 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				oldValue := reflect.New(f.Type()).Elem().Interface()
 				newValue := reflect.New(f.Type()).Elem().Interface()
 				_ = jsoniter.ConfigFastest.Unmarshal(old, &oldValue)
-				asString, err := jsoniter.ConfigFastest.Marshal(val)
+				v, err := jsoniter.ConfigFastest.Marshal(val)
 				checkError(err)
-				_ = jsoniter.ConfigFastest.Unmarshal(asString, &newValue)
+				_ = jsoniter.ConfigFastest.Unmarshal(v, &newValue)
 				if cmp.Equal(oldValue, newValue) {
 					continue
 				}
 				encoded = true
+				asString = string(v)
 			}
 		}
 
 		name := prefix + fields.fields[i].Name
 		if !isNil {
 			if !encoded {
-				encoded, _ := jsoniter.ConfigFastest.Marshal(val)
-				asString = string(encoded)
+				v, _ := jsoniter.ConfigFastest.Marshal(val)
+				asString = string(v)
 			}
 			bind[name] = asString
 			if hasUpdate {
@@ -1665,9 +1664,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				val = string(encoded)
 			}
 		}
-		//if hasOld && serializer.GetString() == val {
-		//	continue
-		//}
 		if hasOld {
 			l := int(serializer.GetUInteger())
 			if l == 0 {
