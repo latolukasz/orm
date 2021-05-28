@@ -401,8 +401,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity4 := &flushEntity{}
 	found = engine.LoadByID(12, entity4)
 	assert.True(t, found)
-	assert.Nil(t, entity4.SetNullable)
 	assert.Nil(t, entity4.SetNotNull)
+	assert.Nil(t, entity4.SetNullable)
 	entity4.SetNullable = []string{"a", "c"}
 	engine.Flush(entity4)
 	entity4 = &flushEntity{}
@@ -451,7 +451,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity7 = &flushEntity{Name: "test_check_3", EnumNotNull: "Y"}
 	flusher.Track(entity7)
 	err = flusher.FlushWithFullCheck()
-	assert.EqualError(t, err, "Error 1265: Data truncated for column 'EnumNotNull' at row 1")
+	assert.EqualError(t, err, "unknown enum value for EnumNotNull - Y")
 	flusher.Track(entity7)
 	assert.Panics(t, func() {
 		_ = flusher.FlushWithCheck()

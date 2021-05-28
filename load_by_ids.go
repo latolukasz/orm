@@ -170,7 +170,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		for results.Next() {
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
-			id := pointers[0].(uint64)
+			id := *pointers[schema.idIndex].(*uint64)
 			k := idsMap[id]
 			if dbMap != nil {
 				k = dbMap[k]
@@ -423,7 +423,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			for results.Next() {
 				pointers := prepareScan(schema)
 				results.Scan(pointers...)
-				id := pointers[0].(uint64)
+				id := *pointers[schema.idIndex].(*uint64)
 				for _, r := range v2[schema.getCacheKey(id)] {
 					fillFromDBRow(id, engine, pointers, r, false, lazy)
 				}

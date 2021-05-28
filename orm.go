@@ -449,7 +449,7 @@ func deserializeStructFromDB(engine *Engine, serializer *serializer, index int, 
 	k = 0
 	for range fields.sliceStringsSets {
 		v := pointers[index].(*sql.NullString)
-		if v.Valid {
+		if v.Valid && v.String != "" {
 			values := strings.Split(v.String, ",")
 			serializer.SetUInteger(uint64(len(values)))
 			enum := fields.enums[k]
@@ -1267,9 +1267,13 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		val := value.Field(fields.fakeDelete).Bool()
 		if !hasOld || serializer.GetBool() != val {
 			name := prefix + fields.fields[fields.fakeDelete].Name
-			bind[name] = id
+			fakeID := uint64(0)
+			if val {
+				fakeID = id
+			}
+			bind[name] = fakeID
 			if hasUpdate {
-				updateBind[name] = strconv.FormatUint(id, 10)
+				updateBind[name] = strconv.FormatUint(fakeID, 10)
 			}
 		}
 	}
@@ -1457,9 +1461,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			attributes := tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				bind[name] = set.GetDefault()
+				bind[name] = ""
 				if hasUpdate {
-					updateBind[name] = "'" + set.GetDefault() + "'"
+					updateBind[name] = "''"
 				}
 			} else {
 				bind[name] = nil

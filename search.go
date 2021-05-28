@@ -181,7 +181,7 @@ func search(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, wit
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
-		id := pointers[0].(uint64)
+		id := *pointers[schema.idIndex].(*uint64)
 		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), true, lazy)
 		val = reflect.Append(val, value)
 		i++
