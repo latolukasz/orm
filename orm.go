@@ -346,12 +346,11 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, oldBind, current Bind, updat
 		current = make(Bind)
 	}
 	if orm.inDB && !orm.delete {
-		oldBind = make(Bind)
 		updateBind = make(map[string]string)
 	}
 	serializer := engine.getSerializer()
 	serializer.Reset(orm.binary)
-	orm.buildBind(id, serializer, bind, oldBind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "")
+	orm.buildBind(id, serializer, bind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "", -1)
 	has = id == 0 || len(bind) > 0
 	return bind, oldBind, current, updateBind, has
 }
@@ -1134,16 +1133,23 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 	return nil
 }
 
-func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, current Bind, updateBind map[string]string, tableSchema *tableSchema,
-	fields *tableFields, value reflect.Value, prefix string) {
+func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind, updateBind map[string]string, tableSchema *tableSchema,
+	fields *tableFields, value reflect.Value, prefix string, index int) int {
 	hasUpdate := updateBind != nil
+	hasCurrent := current != nil
 	noPrefix := prefix == ""
-	var hasOld = orm.inDB && !orm.delete
+	hasOld := orm.inDB && !orm.delete
 	for _, i := range fields.refs {
+		index++
 		f := value.Field(i)
 		val := uint64(0)
 		if !f.IsNil() {
 			val = f.Elem().Field(1).Uint()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = val
+			}
+		} else if hasCurrent {
+			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
 			old := serializer.GetUInteger()
@@ -1151,7 +1157,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				continue
 			}
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		if val == 0 {
 			bind[name] = nil
 			if hasUpdate {
@@ -1165,6 +1171,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.uintegers {
+		index++
 		if i == 1 && noPrefix {
 			serializer.GetUInteger()
 			continue
@@ -1176,13 +1183,14 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				continue
 			}
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		bind[name] = val
 		if hasUpdate {
 			updateBind[name] = strconv.FormatUint(val, 10)
 		}
 	}
 	for _, i := range fields.integers {
+		index++
 		val := value.Field(i).Int()
 		if hasOld {
 			old := serializer.GetInteger()
@@ -1191,13 +1199,14 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		bind[name] = val
 		if hasUpdate {
 			updateBind[name] = strconv.FormatInt(val, 10)
 		}
 	}
 	for _, i := range fields.booleans {
+		index++
 		val := value.Field(i).Bool()
 		if hasOld {
 			old := serializer.GetBool()
@@ -1206,7 +1215,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		bind[name] = val
 		if hasUpdate {
 			if val {
@@ -1217,6 +1226,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for k, i := range fields.floats {
+		index++
 		val := value.Field(i).Float()
 		if hasOld {
 			old := serializer.GetFloat()
@@ -1225,13 +1235,14 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		bind[name] = val
 		if hasUpdate {
 			updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
 		}
 	}
 	for _, i := range fields.times {
+		index++
 		f := value.Field(i)
 		t := f.Interface().(time.Time)
 		if hasOld {
@@ -1240,7 +1251,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				continue
 			}
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		asString := t.Format(timeFormat)
 		bind[name] = asString
 		if hasUpdate {
@@ -1248,6 +1259,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.dates {
+		index++
 		t := value.Field(i).Interface().(time.Time)
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 		if hasOld {
@@ -1256,7 +1268,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				continue
 			}
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		asString := t.Format(dateformat)
 		bind[name] = asString
 		if hasUpdate {
@@ -1264,9 +1276,10 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	if fields.fakeDelete > 0 {
+		index++
 		val := value.Field(fields.fakeDelete).Bool()
 		if !hasOld || serializer.GetBool() != val {
-			name := prefix + fields.fields[fields.fakeDelete].Name
+			name := tableSchema.columnNames[index]
 			fakeID := uint64(0)
 			if val {
 				fakeID = id
@@ -1278,6 +1291,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.strings {
+		index++
 		val := value.Field(i).String()
 		if hasOld {
 			old := serializer.GetString()
@@ -1286,7 +1300,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 			}
 		}
 
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		if val != "" {
 			bind[name] = val
 			if hasUpdate {
@@ -1309,6 +1323,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.uintegersNullable {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := uint64(0)
@@ -1324,7 +1339,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				continue
 			}
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		if isNil {
 			bind[name] = nil
 			if hasUpdate {
@@ -1338,6 +1353,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.integersNullable {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := int64(0)
@@ -1353,7 +1369,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 				continue
 			}
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		if isNil {
 			bind[name] = nil
 			if hasUpdate {
@@ -1368,13 +1384,14 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	k := 0
 	for _, i := range fields.stringsEnums {
+		index++
 		val := value.Field(i).String()
 		enum := fields.enums[k]
 		k++
 		if hasOld && serializer.GetUInteger() == uint64(enum.Index(val)) {
 			continue
 		}
-		name := prefix + fields.fields[i].Name
+		name := tableSchema.columnNames[index]
 		if val != "" {
 			if !enum.Has(val) {
 				panic(errors.New("unknown enum value for " + name + " - " + val))
@@ -1400,6 +1417,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.bytes {
+		index++
 		val := string(value.Field(i).Bytes())
 		if hasOld && serializer.GetString() == val {
 			continue
@@ -1419,6 +1437,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 	}
 	k = 0
 	for _, i := range fields.sliceStringsSets {
+		index++
 		val := value.Field(i).Interface().([]string)
 		set := fields.sets[k]
 		l := len(val)
@@ -1474,6 +1493,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.booleansNullable {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := false
@@ -1507,6 +1527,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for k, i := range fields.floatsNullable {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		val := float64(0)
@@ -1537,6 +1558,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.timesNullable {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val *time.Time
@@ -1567,6 +1589,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.datesNullable {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val time.Time
@@ -1598,6 +1621,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.jsons {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val interface{}
@@ -1654,6 +1678,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for _, i := range fields.refsMany {
+		index++
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val string
@@ -1708,8 +1733,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, oldBind, curr
 		}
 	}
 	for k, i := range fields.structs {
-		orm.buildBind(id, serializer, bind, oldBind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name)
+		index = orm.buildBind(id, serializer, bind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name, index)
 	}
+	return index
 }
 
 func (orm *ORM) escapeSQLParam(val string) string {
