@@ -87,6 +87,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 
 	pager := NewPager(1, 100)
 	var rows []*cachedSearchEntity
+	engine.EnableQueryDebug(QueryLoggerSourceLocalCache)
 	totalRows := engine.CachedSearch(&rows, "IndexAge", nil, 10)
 	assert.EqualValues(t, 5, totalRows)
 	assert.Len(t, rows, 5)

@@ -266,13 +266,15 @@ func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Ent
 
 func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, fillDataLoader bool, lazy bool) {
 	orm := initIfNeeded(engine.registry, entity)
-	orm.idElem.SetUint(id)
 	orm.inDB = true
 	orm.loaded = true
 	orm.lazy = lazy
 	orm.binary = binary
 	if !lazy {
+		engine.getSerializer().Reset(binary)
 		orm.deserialize(engine)
+	} else {
+		orm.idElem.SetUint(id)
 	}
 	if !fillDataLoader {
 		return
