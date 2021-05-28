@@ -1172,11 +1172,17 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 	}
 	for _, i := range fields.uintegers {
 		index++
+		val := value.Field(i).Uint()
+		if hasCurrent {
+			current[tableSchema.columnNames[index]] = val
+		}
 		if i == 1 && noPrefix {
 			serializer.GetUInteger()
 			continue
 		}
-		val := value.Field(i).Uint()
+		if hasCurrent {
+			current[tableSchema.columnNames[index]] = val
+		}
 		if hasOld {
 			old := serializer.GetUInteger()
 			if old == val {
