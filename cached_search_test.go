@@ -142,7 +142,6 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Len(t, DBLogger.Entries, 0)
 
 	rows[0].Age = 18
-	fmt.Printf("START\n")
 	engine.Flush(rows[0])
 
 	pager = NewPager(1, 10)

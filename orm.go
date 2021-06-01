@@ -1375,7 +1375,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		val := uint64(0)
 		if !isNil {
 			val = f.Elem().Uint()
-
 		}
 		if hasOld {
 			old := serializer.GetBool()
@@ -1771,25 +1770,19 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		name := tableSchema.columnNames[index]
 		if !isNil {
 			val = f.Interface()
-			if hasCurrent {
-				v, err := jsoniter.ConfigFastest.Marshal(val)
-				checkError(err)
-				asString = string(v)
-				current[tableSchema.columnNames[index]] = asString
-				encoded = true
-			}
-		} else if hasCurrent {
-			attributes := tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				current[tableSchema.columnNames[index]] = ""
-			} else {
-				current[tableSchema.columnNames[index]] = nil
-			}
 		}
 		if hasOld {
 			old := serializer.GetBytes()
 			if len(old) == 0 {
+				if hasCurrent {
+					attributes := tableSchema.tags[name]
+					required, hasRequired := attributes["required"]
+					if hasRequired && required == "true" {
+						current[tableSchema.columnNames[index]] = ""
+					} else {
+						current[tableSchema.columnNames[index]] = nil
+					}
+				}
 				if isNil {
 					continue
 				}
@@ -1797,14 +1790,13 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 				oldValue := reflect.New(f.Type()).Elem().Interface()
 				newValue := reflect.New(f.Type()).Elem().Interface()
 				_ = jsoniter.ConfigFastest.Unmarshal(old, &oldValue)
-				if !encoded {
-					v, err := jsoniter.ConfigFastest.Marshal(val)
-					checkError(err)
-					_ = jsoniter.ConfigFastest.Unmarshal(v, &newValue)
-					encoded = true
-					asString = string(v)
-				} else {
-					_ = jsoniter.ConfigFastest.UnmarshalFromString(asString, &newValue)
+				v, err := jsoniter.ConfigFastest.Marshal(val)
+				checkError(err)
+				_ = jsoniter.ConfigFastest.Unmarshal(v, &newValue)
+				encoded = true
+				asString = string(v)
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = string(old)
 				}
 				if cmp.Equal(oldValue, newValue) {
 					continue
@@ -1842,7 +1834,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		isNil := f.IsNil()
 		var val string
 		name := tableSchema.columnNames[index]
-		empty := true
 		if !isNil {
 			length := f.Len()
 			if length > 0 {
@@ -1852,24 +1843,20 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 				}
 				encoded, _ := jsoniter.ConfigFastest.Marshal(ids)
 				val = string(encoded)
-				if hasCurrent {
-					current[tableSchema.columnNames[index]] = val
-				}
-				empty = false
-			}
-		}
-		if empty && hasCurrent {
-			attributes := tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				current[tableSchema.columnNames[index]] = ""
-			} else {
-				current[tableSchema.columnNames[index]] = nil
 			}
 		}
 		if hasOld {
 			l := int(serializer.GetUInteger())
 			if l == 0 {
+				if hasCurrent {
+					attributes := tableSchema.tags[name]
+					required, hasRequired := attributes["required"]
+					if hasRequired && required == "true" {
+						current[tableSchema.columnNames[index]] = ""
+					} else {
+						current[tableSchema.columnNames[index]] = nil
+					}
+				}
 				if val == "" {
 					continue
 				}
@@ -1879,6 +1866,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 					old += "," + strconv.FormatUint(serializer.GetUInteger(), 10)
 				}
 				old += "]"
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = old
+				}
 				if old == val {
 					continue
 				}
