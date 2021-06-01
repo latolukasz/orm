@@ -152,7 +152,7 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			dirtyEvents, has := validMap["d"]
 			if has {
 				for _, row := range dirtyEvents.([]interface{}) {
-					row.(map[string]interface{})["Event"].(map[string]interface{})["I"] = id
+					row.(map[interface{}]interface{})["Event"].(map[interface{}]interface{})["I"] = id
 					id += db.GetPoolConfig().getAutoincrement()
 				}
 			}
@@ -184,10 +184,14 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 	dirtyEvents, has := validMap["d"]
 	if has {
 		for _, row := range dirtyEvents.([]interface{}) {
-			asMap := row.(map[string]interface{})
-			event := asMap["Event"].(map[string]interface{})
+			asMap := row.(map[interface{}]interface{})
+			event := asMap["Event"].(map[interface{}]interface{})
 			for _, stream := range asMap["Streams"].([]interface{}) {
-				r.redisFlusher.PublishMap(stream.(string), event)
+				converted := make(map[string]interface{}, len(event))
+				for k, v := range event {
+					converted[k.(string)] = v
+				}
+				r.redisFlusher.PublishMap(stream.(string), converted)
 			}
 		}
 		r.redisFlusher.Flush()
