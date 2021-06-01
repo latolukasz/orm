@@ -1142,14 +1142,16 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		val := uint64(0)
 		if !f.IsNil() {
 			val = f.Elem().Field(1).Uint()
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
 			old := serializer.GetUInteger()
+			if hasCurrent {
+				if old == 0 {
+					current[tableSchema.columnNames[index]] = nil
+				} else {
+					current[tableSchema.columnNames[index]] = old
+				}
+			}
 			if old == val {
 				continue
 			}
@@ -1174,11 +1176,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 			serializer.GetUInteger()
 			continue
 		}
-		if hasCurrent {
-			current[tableSchema.columnNames[index]] = val
-		}
 		if hasOld {
 			old := serializer.GetUInteger()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = old
+			}
 			if old == val {
 				continue
 			}
@@ -1192,11 +1194,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 	for _, i := range fields.integers {
 		index++
 		val := value.Field(i).Int()
-		if hasCurrent {
-			current[tableSchema.columnNames[index]] = val
-		}
 		if hasOld {
 			old := serializer.GetInteger()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = old
+			}
 			if old == val {
 				continue
 			}
@@ -1211,11 +1213,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 	for _, i := range fields.booleans {
 		index++
 		val := value.Field(i).Bool()
-		if hasCurrent {
-			current[tableSchema.columnNames[index]] = val
-		}
 		if hasOld {
 			old := serializer.GetBool()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = old
+			}
 			if old == val {
 				continue
 			}
@@ -1234,11 +1236,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 	for k, i := range fields.floats {
 		index++
 		val := value.Field(i).Float()
-		if hasCurrent {
-			current[tableSchema.columnNames[index]] = val
-		}
 		if hasOld {
 			old := serializer.GetFloat()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = old
+			}
 			if math.Abs(val-old) < fields.floatsPrecision[k] {
 				continue
 			}
@@ -1254,11 +1256,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		index++
 		f := value.Field(i)
 		t := f.Interface().(time.Time)
-		if hasCurrent {
-			current[tableSchema.columnNames[index]] = t.Format(timeFormat)
-		}
 		if hasOld {
 			old := serializer.GetInteger()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = time.Unix(old, 0).Format(timeFormat)
+			}
 			if (old == 0 && f.IsZero()) || (old == t.Unix()) {
 				continue
 			}
@@ -1274,11 +1276,11 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		index++
 		t := value.Field(i).Interface().(time.Time)
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		if hasCurrent {
-			current[tableSchema.columnNames[index]] = t.Format(dateformat)
-		}
 		if hasOld {
 			old := serializer.GetInteger()
+			if hasCurrent {
+				current[tableSchema.columnNames[index]] = time.Unix(old, 0).Format(dateformat)
+			}
 			if old == 0 && t.IsZero() || old == t.Unix() {
 				continue
 			}
@@ -1297,10 +1299,24 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		if val {
 			fakeID = id
 		}
-		if hasCurrent {
+		if hasCurrent && hasOld {
 			current[tableSchema.columnNames[index]] = fakeID
 		}
-		if !hasOld || serializer.GetBool() != val {
+		add := true
+		if hasOld {
+			old := serializer.GetBool()
+			if hasCurrent {
+				if old {
+					current[tableSchema.columnNames[index]] = id
+				} else {
+					current[tableSchema.columnNames[index]] = uint64(0)
+				}
+			}
+			if old == val {
+				add = false
+			}
+		}
+		if add {
 			name := tableSchema.columnNames[index]
 			bind[name] = fakeID
 			if hasUpdate {
@@ -1312,21 +1328,21 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		index++
 		val := value.Field(i).String()
 		name := tableSchema.columnNames[index]
-		if hasCurrent {
-			if val == "" {
-				attributes := tableSchema.tags[name]
-				required, hasRequired := attributes["required"]
-				if hasRequired && required == "true" {
-					current[tableSchema.columnNames[index]] = nil
-				} else {
-					current[tableSchema.columnNames[index]] = ""
-				}
-			} else {
-				current[tableSchema.columnNames[index]] = val
-			}
-		}
 		if hasOld {
 			old := serializer.GetString()
+			if hasCurrent {
+				if old == "" {
+					attributes := tableSchema.tags[name]
+					required, hasRequired := attributes["required"]
+					if hasRequired && required == "true" {
+						current[tableSchema.columnNames[index]] = nil
+					} else {
+						current[tableSchema.columnNames[index]] = ""
+					}
+				} else {
+					current[tableSchema.columnNames[index]] = old
+				}
+			}
 			if old == val {
 				continue
 			}
@@ -1359,15 +1375,19 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		val := uint64(0)
 		if !isNil {
 			val = f.Elem().Uint()
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
+
 		}
 		if hasOld {
-			if serializer.GetBool() {
-				if serializer.GetUInteger() == val && !isNil {
+			old := serializer.GetBool()
+			if !old && hasCurrent {
+				current[tableSchema.columnNames[index]] = nil
+			}
+			if old {
+				oldVal := serializer.GetUInteger()
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = oldVal
+				}
+				if oldVal == val && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1394,15 +1414,18 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		val := int64(0)
 		if !isNil {
 			val = f.Elem().Int()
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
-			if serializer.GetBool() {
-				if serializer.GetInteger() == val && !isNil {
+			old := serializer.GetBool()
+			if !old && hasCurrent {
+				current[tableSchema.columnNames[index]] = nil
+			}
+			if old {
+				oldVal := serializer.GetInteger()
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = oldVal
+				}
+				if oldVal == val && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1429,21 +1452,24 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		enum := fields.enums[k]
 		name := tableSchema.columnNames[index]
 		k++
-		if hasCurrent {
-			if val == "" {
-				attributes := tableSchema.tags[name]
-				required, hasRequired := attributes["required"]
-				if hasRequired && required == "true" {
-					current[name] = ""
+		if hasOld {
+			old := serializer.GetUInteger()
+			if hasCurrent {
+				if old == 0 {
+					attributes := tableSchema.tags[name]
+					required, hasRequired := attributes["required"]
+					if hasRequired && required == "true" {
+						current[name] = ""
+					} else {
+						current[name] = nil
+					}
 				} else {
-					current[name] = nil
+					current[name] = enum.GetFields()[old-1]
 				}
-			} else {
-				current[name] = val
 			}
-		}
-		if hasOld && serializer.GetUInteger() == uint64(enum.Index(val)) {
-			continue
+			if old == uint64(enum.Index(val)) {
+				continue
+			}
 		}
 		if val != "" {
 			if !enum.Has(val) {
@@ -1472,15 +1498,18 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 	for _, i := range fields.bytes {
 		index++
 		val := string(value.Field(i).Bytes())
-		if hasCurrent {
-			if val != "" {
-				current[tableSchema.columnNames[index]] = val
-			} else {
-				current[tableSchema.columnNames[index]] = nil
+		if hasOld {
+			old := serializer.GetString()
+			if hasCurrent {
+				if old != "" {
+					current[tableSchema.columnNames[index]] = val
+				} else {
+					current[tableSchema.columnNames[index]] = nil
+				}
 			}
-		}
-		if hasOld && serializer.GetString() == val {
-			continue
+			if old == val {
+				continue
+			}
 		}
 		name := tableSchema.columnNames[index]
 		if val != "" {
@@ -1503,10 +1532,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		l := len(val)
 		k++
 		name := tableSchema.columnNames[index]
-		if hasCurrent {
-			if l > 0 {
-				current[name] = strings.Join(val, ",")
-			} else {
+		if hasOld {
+			old := int(serializer.GetUInteger())
+			if hasCurrent {
 				attributes := tableSchema.tags[name]
 				required, hasRequired := attributes["required"]
 				if hasRequired && required == "true" {
@@ -1515,32 +1543,41 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 					current[name] = nil
 				}
 			}
-		}
-		if hasOld && l == int(serializer.GetUInteger()) {
-			if l == 0 {
-				continue
-			}
-			old := make([]int, l)
-			for j := range val {
-				old[j] = int(serializer.GetUInteger())
-			}
-			valid := true
-		MAIN:
-			for _, v := range val {
-				enumIndex := set.Index(v)
-				if enumIndex == 0 {
-					panic(errors.New("unknown set value for " + tableSchema.columnNames[index] + " - " + v))
+			if l == old {
+				if l == 0 {
+					continue
 				}
-				for _, o := range old {
-					if o == enumIndex {
-						continue MAIN
+				oldValues := make([]int, l)
+				if hasCurrent {
+					current[name] = ""
+				}
+				for j := range val {
+					oldValues[j] = int(serializer.GetUInteger())
+					if hasCurrent {
+						current[name] = current[name].(string) + "," + set.GetFields()[oldValues[j]-1]
 					}
 				}
-				valid = false
-				break
-			}
-			if valid {
-				continue
+				if hasCurrent {
+					current[name] = current[name].(string)[1:]
+				}
+				valid := true
+			MAIN:
+				for _, v := range val {
+					enumIndex := set.Index(v)
+					if enumIndex == 0 {
+						panic(errors.New("unknown set value for " + tableSchema.columnNames[index] + " - " + v))
+					}
+					for _, o := range oldValues {
+						if o == enumIndex {
+							continue MAIN
+						}
+					}
+					valid = false
+					break
+				}
+				if valid {
+					continue
+				}
 			}
 		}
 		if l > 0 {
@@ -1572,15 +1609,18 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		val := false
 		if !isNil {
 			val = f.Elem().Bool()
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
-			if serializer.GetBool() {
-				if serializer.GetBool() == val && !isNil {
+			old := serializer.GetBool()
+			if !old && hasCurrent {
+				current[tableSchema.columnNames[index]] = nil
+			}
+			if old {
+				oldVal := serializer.GetBool()
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = oldVal
+				}
+				if oldVal == val && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1611,15 +1651,17 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		val := float64(0)
 		if !isNil {
 			val = f.Elem().Float()
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
-			if serializer.GetBool() {
+			old := serializer.GetBool()
+			if !old && hasCurrent {
+				current[tableSchema.columnNames[index]] = nil
+			}
+			if old {
 				v := serializer.GetFloat()
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = v
+				}
 				if !isNil && math.Abs(val-v) < fields.floatsNullablePrecision[k] {
 					continue
 				}
@@ -1647,15 +1689,18 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		var val *time.Time
 		if !isNil {
 			val = f.Interface().(*time.Time)
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val.Format(timeFormat)
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
-			if serializer.GetBool() {
-				if serializer.GetInteger() == val.Unix() && !isNil {
+			old := serializer.GetBool()
+			if !old && hasCurrent {
+				current[tableSchema.columnNames[index]] = nil
+			}
+			if old {
+				oldVal := serializer.GetInteger()
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = time.Unix(oldVal, 0).Format(timeFormat)
+				}
+				if oldVal == val.Unix() && !isNil {
 					continue
 				}
 			} else if isNil {
@@ -1684,15 +1729,18 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		if !isNil {
 			val = *f.Interface().(*time.Time)
 			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, val.Location())
-			if hasCurrent {
-				current[tableSchema.columnNames[index]] = val.Format(dateformat)
-			}
-		} else if hasCurrent {
-			current[tableSchema.columnNames[index]] = nil
 		}
 		if hasOld {
-			if serializer.GetBool() {
-				if serializer.GetInteger() == val.Unix() && !isNil {
+			old := serializer.GetBool()
+			if !old && hasCurrent {
+				current[tableSchema.columnNames[index]] = nil
+			}
+			if old {
+				oldVal := serializer.GetInteger()
+				if hasCurrent {
+					current[tableSchema.columnNames[index]] = time.Unix(oldVal, 0).Format(dateformat)
+				}
+				if oldVal == val.Unix() && !isNil {
 					continue
 				}
 			} else if isNil {
