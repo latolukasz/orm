@@ -276,6 +276,37 @@ func (q *RedisSearchQuery) FilterIntLess(field string, value int64) *RedisSearch
 	return q.filterNumericMinMax(field, "-inf", "("+strconv.FormatInt(value, 10))
 }
 
+func (q *RedisSearchQuery) FilterUintMinMax(field string, min, max uint64) *RedisSearchQuery {
+	return q.filterNumericMinMax(field, strconv.FormatUint(min, 10), strconv.FormatUint(max, 10))
+}
+
+func (q *RedisSearchQuery) FilterUint(field string, value ...uint64) *RedisSearchQuery {
+	for _, val := range value {
+		q.FilterUintMinMax(field, val, val)
+	}
+	return q
+}
+
+func (q *RedisSearchQuery) FilterUintNull(field string) *RedisSearchQuery {
+	return q.FilterInt(field, RedisSearchNullNumber)
+}
+
+func (q *RedisSearchQuery) FilterUintGreaterEqual(field string, value uint64) *RedisSearchQuery {
+	return q.filterNumericMinMax(field, strconv.FormatUint(value, 10), "+inf")
+}
+
+func (q *RedisSearchQuery) FilterUintGreater(field string, value uint64) *RedisSearchQuery {
+	return q.filterNumericMinMax(field, "("+strconv.FormatUint(value, 10), "+inf")
+}
+
+func (q *RedisSearchQuery) FilterUintLessEqual(field string, value uint64) *RedisSearchQuery {
+	return q.filterNumericMinMax(field, "-inf", strconv.FormatUint(value, 10))
+}
+
+func (q *RedisSearchQuery) FilterUintLess(field string, value uint64) *RedisSearchQuery {
+	return q.filterNumericMinMax(field, "-inf", "("+strconv.FormatUint(value, 10))
+}
+
 func (q *RedisSearchQuery) FilterString(field string, value ...string) *RedisSearchQuery {
 	return q.filterString(field, true, value...)
 }
