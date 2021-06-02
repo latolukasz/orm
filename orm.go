@@ -300,6 +300,7 @@ func (orm *ORM) IsLazy() bool {
 
 func (orm *ORM) Fill(engine *Engine) {
 	if orm.lazy && orm.loaded {
+		engine.getSerializer().Reset(orm.binary)
 		orm.deserialize(engine)
 		orm.lazy = false
 	}
