@@ -74,7 +74,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	}
 	if useCache {
 		if localCache != nil {
-			localCache.Set(cacheKey, orm.binary)
+			localCache.Set(cacheKey, orm.copyBinary())
 		}
 		if redisCache != nil {
 			redisCache.Set(cacheKey, orm.binary, 0)

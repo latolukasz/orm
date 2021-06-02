@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"math"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -145,9 +144,9 @@ type tableFields struct {
 	booleans                []int
 	booleansNullable        []int
 	floats                  []int
-	floatsPrecision         []float64
+	floatsPrecision         []int
 	floatsNullable          []int
-	floatsNullablePrecision []float64
+	floatsNullablePrecision []int
 	floatsNullableSize      []int
 	timesNullable           []int
 	datesNullable           []int
@@ -867,14 +866,15 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			if has {
 				userPrecision, _ := strconv.Atoi(precisionAttribute)
 				precision = userPrecision
-			}
-			decimal, has := tags["decimal"]
-			if has {
-				decimalArgs := strings.Split(decimal, ",")
-				precision, _ = strconv.Atoi(decimalArgs[1])
+			} else {
+				decimal, has := tags["decimal"]
+				if has {
+					decimalArgs := strings.Split(decimal, ",")
+					precision, _ = strconv.Atoi(decimalArgs[1])
+				}
 			}
 			fields.floats = append(fields.floats, i)
-			fields.floatsPrecision = append(fields.floatsPrecision, 1/math.Pow10(precision))
+			fields.floatsPrecision = append(fields.floatsPrecision, precision)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
@@ -899,10 +899,14 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			if has {
 				userPrecision, _ := strconv.Atoi(precisionAttribute)
 				precision = userPrecision
+			} else {
+				precisionAttribute, has := tags["decimal"]
+				if has {
+					precision, _ = strconv.Atoi(strings.Split(precisionAttribute, ",")[1])
+				}
 			}
-
 			fields.floatsNullable = append(fields.floatsNullable, i)
-			fields.floatsNullablePrecision = append(fields.floatsNullablePrecision, 1/math.Pow10(precision))
+			fields.floatsNullablePrecision = append(fields.floatsNullablePrecision, precision)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric

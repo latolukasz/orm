@@ -69,6 +69,12 @@ func (orm *ORM) GetFieldLazy(engine *Engine, field string) interface{} {
 	return getFieldByName(engine, orm.tableSchema, orm.binary, field)
 }
 
+func (orm *ORM) copyBinary() []byte {
+	b := make([]byte, len(orm.binary))
+	copy(b, orm.binary)
+	return b
+}
+
 func getFieldByName(engine *Engine, tableSchema *tableSchema, binary []byte, field string) interface{} {
 	index, has := tableSchema.columnMapping[field]
 	if !has {
@@ -533,8 +539,10 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 	for _, i := range fields.booleans {
 		serializer.SetBool(elem.Field(i).Bool())
 	}
-	for _, i := range fields.floats {
-		serializer.SetFloat(elem.Field(i).Float())
+	for k, i := range fields.floats {
+		f := elem.Field(i).Float()
+		p := math.Pow10(fields.floatsPrecision[k])
+		serializer.SetFloat(math.Round(f*p) / p)
 	}
 	for _, i := range fields.times {
 		t := elem.Field(i).Interface().(time.Time)
@@ -612,13 +620,15 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(f.Elem().Bool())
 		}
 	}
-	for _, i := range fields.floatsNullable {
+	for k, i := range fields.floatsNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetFloat(f.Elem().Float())
+			val := f.Elem().Float()
+			p := math.Pow10(fields.floatsNullablePrecision[k])
+			serializer.SetFloat(math.Round(val*p) / p)
 		}
 	}
 	for _, i := range fields.timesNullable {
@@ -636,7 +646,8 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 			serializer.SetBool(false)
 		} else {
 			serializer.SetBool(true)
-			serializer.SetInteger(elem.Field(i).Interface().(*time.Time).Unix())
+			t := f.Interface().(*time.Time)
+			serializer.SetInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
 		}
 	}
 	for _, i := range fields.jsons {
@@ -682,7 +693,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			o.inDB = true
 			f.Set(o.value)
 		} else if !f.IsNil() {
-			elem.Field(i).Set(reflect.Zero(fields.refsTypes[k]))
+			elem.Field(i).Set(reflect.Zero(reflect.PtrTo(fields.refsTypes[k])))
 		}
 		k++
 	}
@@ -739,8 +750,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 				val := uint32(v)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 64:
-				val := uint64(v)
-				elem.Field(i).Set(reflect.ValueOf(&val))
+				elem.Field(i).Set(reflect.ValueOf(&v))
 			}
 			continue
 		}
@@ -766,8 +776,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 				val := int32(v)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 64:
-				val := int64(v)
-				elem.Field(i).Set(reflect.ValueOf(&val))
+				elem.Field(i).Set(reflect.ValueOf(&v))
 			}
 			continue
 		}
@@ -1237,7 +1246,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 			if hasCurrent {
 				current[tableSchema.columnNames[index]] = old
 			}
-			if math.Abs(val-old) < fields.floatsPrecision[k] {
+			if math.Abs(val-old) < (1 / float64(fields.floatsPrecision[k])) {
 				continue
 			}
 		}
@@ -1657,7 +1666,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 				if hasCurrent {
 					current[tableSchema.columnNames[index]] = v
 				}
-				if !isNil && math.Abs(val-v) < fields.floatsNullablePrecision[k] {
+				if !isNil && math.Abs(val-v) < (1/float64(fields.floatsNullablePrecision[k])) {
 					continue
 				}
 			} else if isNil {

@@ -123,7 +123,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 					fillFromBinary(ids[k], engine, []byte(val.(string)), e, false, lazy)
 					hasValid = true
 					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().binary)
+						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
 					}
 				} else {
 					missing = true
@@ -181,7 +181,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			if hasCache {
 				cacheKey := cacheKeys[idsMap[id]]
 				if hasLocalCache {
-					localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().binary)
+					localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().copyBinary())
 				}
 				if hasRedis {
 					redisCacheToSet = append(redisCacheToSet, cacheKey, e.getORM().binary)

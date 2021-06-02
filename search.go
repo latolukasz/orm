@@ -260,7 +260,7 @@ func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Ent
 	}
 	schema := entity.getORM().tableSchema
 	if !schema.hasLocalCache && engine.dataLoader != nil {
-		engine.dataLoader.Prime(schema, id, orm.binary)
+		engine.dataLoader.Prime(schema, id, orm.copyBinary())
 	}
 }
 
@@ -281,7 +281,7 @@ func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, fil
 	}
 	schema := entity.getORM().tableSchema
 	if !schema.hasLocalCache && engine.dataLoader != nil {
-		engine.dataLoader.Prime(schema, id, orm.binary)
+		engine.dataLoader.Prime(schema, id, orm.copyBinary())
 	}
 }
 
