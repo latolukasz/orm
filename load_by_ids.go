@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/shamaton/msgpack"
 )
 
 func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references []string, lazy bool) (missing bool, schema *tableSchema) {
@@ -394,11 +392,8 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 		}
 		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
 			if fromCache != nil && fromCache != cacheNilValue {
-				schema := v[key][0].(Entity).getORM().tableSchema
-				decoded := make([]interface{}, len(schema.columnNames))
-				_ = msgpack.Unmarshal([]byte(fromCache.(string)), &decoded)
 				for _, r := range v[key] {
-					fillFromDBRow(decoded[0].(uint64), engine, decoded, r, false, lazy)
+					fillFromBinary(r.GetID(), engine, []byte(fromCache.(string)), r, false, lazy)
 				}
 				fillRef(key, nil, redisMap, dbMap)
 			}
