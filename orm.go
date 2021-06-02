@@ -324,15 +324,11 @@ func (orm *ORM) GetDirtyBind(engine *Engine) (bind Bind, has bool) {
 }
 
 func (orm *ORM) getDirtyBind(engine *Engine) (bind, current Bind, updateBind map[string]string, has bool) {
-	if orm.delete {
-		return nil, nil, nil, true
-	}
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
 		} else {
 			orm.delete = true
-			return nil, nil, nil, true
 		}
 	}
 	id := orm.GetID()
@@ -341,14 +337,14 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, current Bind, updateBind map
 		if !orm.delete {
 			updateBind = make(map[string]string)
 		}
-		if orm.tableSchema.hasLog || len(orm.tableSchema.cachedIndexesAll) > 0 {
+		if orm.delete || orm.tableSchema.hasLog || len(orm.tableSchema.cachedIndexesAll) > 0 {
 			current = make(Bind)
 		}
 	}
 	serializer := engine.getSerializer()
 	serializer.Reset(orm.binary)
 	orm.buildBind(id, serializer, bind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "", -1)
-	has = id == 0 || len(bind) > 0
+	has = orm.delete || len(bind) > 0
 	return bind, current, updateBind, has
 }
 
@@ -1135,7 +1131,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 	hasUpdate := updateBind != nil
 	hasCurrent := current != nil
 	noPrefix := prefix == ""
-	hasOld := orm.inDB && !orm.delete
+	hasOld := orm.inDB
 	for _, i := range fields.refs {
 		index++
 		f := value.Field(i)

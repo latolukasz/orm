@@ -577,14 +577,14 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				orm := entity.getORM()
 				bind, current, _, _ := orm.getDirtyBind(f.engine)
 				if !lazy {
-					f.addDirtyQueues(bind, schema, id, "d", lazy)
-					f.addToLogQueue(schema, id, bind, nil, entity.getORM().logMeta, lazy)
+					f.addDirtyQueues(current, schema, id, "d", lazy)
+					f.addToLogQueue(schema, id, current, nil, entity.getORM().logMeta, lazy)
 				} else {
 					logEvent := f.addToLogQueue(schema, id, bind, nil, orm.logMeta, lazy)
 					if logEvent != nil {
 						logEvents = append(logEvents, logEvent)
 					}
-					dirtyEvent := f.addDirtyQueues(bind, schema, id, "d", lazy)
+					dirtyEvent := f.addDirtyQueues(current, schema, id, "d", lazy)
 					if dirtyEvent != nil {
 						dirtyEvents = append(dirtyEvents, dirtyEvent)
 					}
