@@ -679,6 +679,7 @@ func (orm *ORM) serializeFields(serializer *serializer, fields *tableFields, ele
 
 func (orm *ORM) deserialize(engine *Engine) {
 	orm.deserializeFields(engine, orm.tableSchema.fields, orm.elem)
+	orm.loaded = true
 }
 
 func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem reflect.Value) {
@@ -687,13 +688,16 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	for _, i := range fields.refs {
 		id := serializer.GetUInteger()
 		f := elem.Field(i)
+		isNil := f.IsNil()
 		if id > 0 {
-			e := getTableSchema(engine.registry, fields.refsTypes[k]).newEntity()
-			o := e.getORM()
-			o.idElem.SetUint(id)
-			o.inDB = true
-			f.Set(o.value)
-		} else if !f.IsNil() {
+			if isNil {
+				e := getTableSchema(engine.registry, fields.refsTypes[k]).newEntity()
+				o := e.getORM()
+				o.idElem.SetUint(id)
+				o.inDB = true
+				f.Set(o.value)
+			}
+		} else if !isNil {
 			elem.Field(i).Set(reflect.Zero(reflect.PtrTo(fields.refsTypes[k])))
 		}
 		k++
