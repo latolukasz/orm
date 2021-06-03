@@ -1345,9 +1345,9 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 					attributes := tableSchema.tags[name]
 					required, hasRequired := attributes["required"]
 					if hasRequired && required == "true" {
-						current[tableSchema.columnNames[index]] = nil
-					} else {
 						current[tableSchema.columnNames[index]] = ""
+					} else {
+						current[tableSchema.columnNames[index]] = nil
 					}
 				} else {
 					current[tableSchema.columnNames[index]] = old

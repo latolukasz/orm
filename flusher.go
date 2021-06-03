@@ -582,7 +582,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					f.addDirtyQueues(current, schema, id, "d", lazy)
 					f.addToLogQueue(schema, id, current, nil, entity.getORM().logMeta, lazy)
 				} else {
-					logEvent := f.addToLogQueue(schema, id, bind, nil, orm.logMeta, lazy)
+					logEvent := f.addToLogQueue(schema, id, current, nil, orm.logMeta, lazy)
 					if logEvent != nil {
 						logEvents = append(logEvents, logEvent)
 					}
@@ -786,7 +786,7 @@ func (f *flusher) addDirtyQueues(bind Bind, schema *tableSchema, id uint64, acti
 	return &dirtyQueueValue{Event: key, Streams: allStreams}
 }
 
-func (f *flusher) addToLogQueue(tableSchema *tableSchema, id uint64, before Bind, changes Bind, entityMeta Bind, lazy bool) *LogQueueValue {
+func (f *flusher) addToLogQueue(tableSchema *tableSchema, id uint64, before, changes, entityMeta Bind, lazy bool) *LogQueueValue {
 	if !tableSchema.hasLog {
 		return nil
 	}

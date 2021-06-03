@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shamaton/msgpack"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/pkg/errors"
 )
@@ -86,13 +86,13 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 	query := "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 	var meta, before, changes interface{}
 	if value.Meta != nil {
-		meta, _ = msgpack.Marshal(value.Meta)
+		meta, _ = jsoniter.ConfigFastest.Marshal(value.Meta)
 	}
 	if value.Before != nil {
-		before, _ = msgpack.Marshal(value.Before)
+		before, _ = jsoniter.ConfigFastest.Marshal(value.Before)
 	}
 	if value.Changes != nil {
-		changes, _ = msgpack.Marshal(value.Changes)
+		changes, _ = jsoniter.ConfigFastest.Marshal(value.Changes)
 	}
 	func() {
 		if r.logLogger != nil {
@@ -145,7 +145,7 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			logEvents, has := validMap["l"]
 			if has {
 				for _, row := range logEvents.([]interface{}) {
-					row.(map[string]interface{})["ID"] = id
+					row.(map[interface{}]interface{})["ID"] = id
 					id += db.GetPoolConfig().getAutoincrement()
 				}
 			}
@@ -164,19 +164,19 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 	if has {
 		for _, row := range logEvents.([]interface{}) {
 			logEvent := &LogQueueValue{}
-			asMap := row.(map[string]interface{})
+			asMap := row.(map[interface{}]interface{})
 			logEvent.ID, _ = strconv.ParseUint(fmt.Sprintf("%v", asMap["ID"]), 10, 64)
 			logEvent.PoolName = asMap["PoolName"].(string)
 			logEvent.TableName = asMap["TableName"].(string)
 			logEvent.Updated = time.Now()
 			if asMap["Meta"] != nil {
-				logEvent.Meta = asMap["Meta"].(map[string]interface{})
+				logEvent.Meta = r.convertMap(asMap["Meta"].(map[interface{}]interface{}))
 			}
 			if asMap["Before"] != nil {
-				logEvent.Before = asMap["Before"].(map[string]interface{})
+				logEvent.Before = r.convertMap(asMap["Before"].(map[interface{}]interface{}))
 			}
 			if asMap["Changes"] != nil {
-				logEvent.Changes = asMap["Changes"].(map[string]interface{})
+				logEvent.Changes = r.convertMap(asMap["Changes"].(map[interface{}]interface{}))
 			}
 			r.handleLog(logEvent)
 		}
@@ -187,16 +187,20 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			asMap := row.(map[interface{}]interface{})
 			event := asMap["Event"].(map[interface{}]interface{})
 			for _, stream := range asMap["Streams"].([]interface{}) {
-				converted := make(map[string]interface{}, len(event))
-				for k, v := range event {
-					converted[k.(string)] = v
-				}
-				r.redisFlusher.PublishMap(stream.(string), converted)
+				r.redisFlusher.PublishMap(stream.(string), r.convertMap(event))
 			}
 		}
 		r.redisFlusher.Flush()
 	}
 	return ids
+}
+
+func (r *BackgroundConsumer) convertMap(value map[interface{}]interface{}) map[string]interface{} {
+	newMap := make(map[string]interface{}, len(value))
+	for k, v := range value {
+		newMap[k.(string)] = v
+	}
+	return newMap
 }
 
 func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []uint64) {

@@ -33,7 +33,7 @@ type Engine struct {
 	redisSearchMutex          sync.Mutex
 	elastic                   map[string]*Elastic
 	elasticMutex              sync.Mutex
-	logMetaData               map[string]interface{}
+	logMetaData               Bind
 	logMetaDataMutex          sync.RWMutex
 	dataLoader                *dataLoader
 	hasRequestCache           bool
@@ -143,7 +143,7 @@ func (e *Engine) SetLogMetaData(key string, value interface{}) {
 	e.logMetaDataMutex.Lock()
 	defer e.logMetaDataMutex.Unlock()
 	if e.logMetaData == nil {
-		e.logMetaData = make(map[string]interface{})
+		e.logMetaData = make(Bind)
 	}
 	e.logMetaData[key] = value
 }
