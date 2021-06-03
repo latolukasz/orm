@@ -1887,7 +1887,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		if val != "" {
 			bind[name] = val
 			if hasUpdate {
-				updateBind[name] = val
+				updateBind[name] = "'" + val + "'"
 			}
 		} else {
 			attributes := tableSchema.tags[name]
