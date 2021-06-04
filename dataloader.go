@@ -5,8 +5,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/shamaton/msgpack"
 )
 
 const dataLoaderMaxPatch = 200
@@ -191,8 +189,7 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 					if val == nil {
 						toSet = cacheNilValue
 					} else {
-						encoded, _ := msgpack.Marshal(val)
-						toSet = string(encoded)
+						toSet = val
 					}
 					pairs[i+1] = toSet
 					i += 2
