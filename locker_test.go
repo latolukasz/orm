@@ -14,9 +14,10 @@ import (
 func TestLocker(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	testLogger := memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
@@ -66,9 +67,9 @@ func TestLocker(t *testing.T) {
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6389", 15)
-	validatedRegistry, err = registry.Validate()
+	validatedRegistry, err = registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine = validatedRegistry.CreateEngine()
+	engine = validatedRegistry.CreateEngine(ctx)
 	testLogger = memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
 	l = engine.GetRedis().GetLocker()

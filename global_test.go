@@ -24,12 +24,13 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	registry.RegisterLocalCache(1000)
 
 	registry.RegisterEntity(entities...)
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	if t != nil {
 		assert.Nil(t, err)
 	}
 
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	if t != nil {
 		assert.Equal(t, engine.GetRegistry(), validatedRegistry)
 	}
@@ -74,7 +75,7 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
-	indexer.Digest(context.Background())
+	indexer.Digest()
 
 	return engine
 }

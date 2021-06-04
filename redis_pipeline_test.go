@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -14,9 +15,10 @@ func TestRedisPipeline(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	r := engine.GetRedis()
 	r.FlushDB()
 	pipeLine := r.PipeLine()

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"testing"
 
 	"github.com/latolukasz/orm"
@@ -11,9 +12,10 @@ func TestRedisStatistics(t *testing.T) {
 	registry := &orm.Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedis("localhost:6382", 14, "another")
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	r := engine.GetRedis()
 	r.FlushDB()
 

@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -288,7 +287,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		receiver := NewBackgroundConsumer(engine)
 		receiver.DisableLoop()
 		receiver.blockTime = time.Millisecond
-		receiver.Digest(context.Background())
+		receiver.Digest()
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
 }

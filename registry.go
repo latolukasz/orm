@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	log2 "log"
@@ -38,7 +39,7 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate() (ValidatedRegistry, error) {
+func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -189,7 +190,7 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
-	engine := registry.CreateEngine()
+	engine := registry.CreateEngine(ctx)
 	for _, schema := range registry.tableSchemas {
 		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), "")
 		if err != nil {

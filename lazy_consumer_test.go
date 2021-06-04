@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -48,7 +47,7 @@ func TestLazyReceiver(t *testing.T) {
 	receiver.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	assert.True(t, validHeartBeat)
 
 	engine.GetLocalCache().Clear()
@@ -75,7 +74,7 @@ func TestLazyReceiver(t *testing.T) {
 	receiver.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	assert.True(t, validHeartBeat)
 
 	e = &lazyReceiverEntity{}
@@ -97,7 +96,7 @@ func TestLazyReceiver(t *testing.T) {
 	e = &lazyReceiverEntity{}
 	engine.LoadByID(1, e)
 	engine.NewFlusher().Delete(e).FlushLazy()
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	loaded = engine.LoadByID(1, e)
 	assert.False(t, loaded)
 }

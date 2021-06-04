@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"testing"
 
 	"github.com/apex/log/handlers/memory"
@@ -55,10 +56,11 @@ func TestEngine(t *testing.T) {
 
 func BenchmarkEngine(b *testing.B) {
 	registry := &Registry{}
-	validatedRegistry, _ := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, _ := registry.Validate(ctx)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		validatedRegistry.CreateEngine()
+		validatedRegistry.CreateEngine(ctx)
 	}
 }

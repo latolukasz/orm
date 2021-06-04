@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,16 +21,17 @@ func TestRedis(t *testing.T) {
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	testRedis(t, engine)
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6389", 15)
-	validatedRegistry, err = registry.Validate()
+	validatedRegistry, err = registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine = validatedRegistry.CreateEngine()
+	engine = validatedRegistry.CreateEngine(ctx)
 	testLogger := memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
 	assert.Panics(t, func() {

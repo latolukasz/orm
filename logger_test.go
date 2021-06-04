@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,8 +15,9 @@ import (
 
 func TestLogger(t *testing.T) {
 	registry := &Registry{}
-	validated, _ := registry.Validate()
-	engine := validated.CreateEngine()
+	ctx := context.Background()
+	validated, _ := registry.Validate(ctx)
+	engine := validated.CreateEngine(ctx)
 	logger := memory.New()
 	engine.EnableLogger(log2.WarnLevel, logger)
 	engine.Log().AddFields(log2.Fields{"a": "test", "b": "test2"})

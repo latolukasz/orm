@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
@@ -574,7 +573,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
-	receiver.Digest(context.Background())
+	receiver.Digest()
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false).FilterInt("Age", 101)
@@ -587,7 +586,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	for _, alter := range engine.GetRedisSearchIndexAlters() {
 		alter.Execute()
 	}
-	indexer.Digest(context.Background())
+	indexer.Digest()
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)
 	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 10))

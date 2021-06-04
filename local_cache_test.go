@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"testing"
 
 	apexLog "github.com/apex/log"
@@ -12,9 +13,10 @@ import (
 func TestLocalCache(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterLocalCache(100)
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	testLogger := memory.New()
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceLocalCache)
 

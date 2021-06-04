@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -514,7 +513,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity1, entity2, entity3)
 	flusher.Flush()
 
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	if local {
 		assert.Len(t, testLogger.Entries, 3)
 		assert.Equal(t, "START TRANSACTION", testLogger.Entries[0].Fields["Query"])

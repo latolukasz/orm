@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"testing"
 
 	"github.com/latolukasz/orm"
@@ -11,9 +12,10 @@ func TestRedisSearchStatistics(t *testing.T) {
 	registry := &orm.Registry{}
 	registry.RegisterRedis("localhost:6382", 0)
 	registry.RegisterRedisSearchIndex(&orm.RedisSearchIndex{Name: "test", RedisPool: "default"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	for _, alter := range engine.GetRedisSearchIndexAlters() {
 		alter.Execute()

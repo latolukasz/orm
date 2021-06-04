@@ -105,13 +105,14 @@ func (l *Lock) Release() {
 	}
 	l.has = false
 	start := time.Now()
-	err := l.lock.Release(l.engine.context)
+	err := l.lock.Release(context.Background())
 	if err == redislock.ErrLockNotHeld {
 		err = nil
 	}
 	if l.engine.hasRedisLogger {
 		l.locker.fillLogFields("[ORM][LOCKER][RELEASE]", start, l.key, "release lock", err, nil)
 	}
+	checkError(err)
 	close(l.done)
 }
 

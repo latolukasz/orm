@@ -14,9 +14,10 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group-1", "test-group-2"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	broker := engine.GetEventBroker()
 	eventFlusher := engine.GetEventBroker().NewFlusher()
@@ -34,13 +35,13 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	consumer2.(*eventsConsumer).garbageTick = time.Millisecond * 15
 	consumer2.DisableLoop()
 
-	consumer1.Consume(context.Background(), 1, true, func(events []Event) {})
+	consumer1.Consume(1, true, func(events []Event) {})
 	time.Sleep(time.Millisecond * 20)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 
-	consumer2.Consume(context.Background(), 1, true, func(events []Event) {})
+	consumer2.Consume(1, true, func(events []Event) {})
 	time.Sleep(time.Millisecond * 20)
-	consumer2.(*eventsConsumer).garbageCollector(context.Background(), engine)
+	consumer2.(*eventsConsumer).garbageCollector(engine)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 }
 
@@ -48,9 +49,10 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	broker := engine.GetEventBroker()
 
@@ -65,14 +67,14 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	}
 	eventFlusher.Flush()
 	assert.PanicsWithError(t, "test err a1", func() {
-		consumer.Consume(context.Background(), 1, true, func(events []Event) {
+		consumer.Consume(1, true, func(events []Event) {
 			panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
 		})
 	})
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(1), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 	i := 0
-	consumer.Consume(context.Background(), 1, true, func(events []Event) {
+	consumer.Consume(1, true, func(events []Event) {
 		i++
 		assert.Equal(t, fmt.Sprintf("a%d", i), events[0].RawData()["name"])
 		events[0].Skip()
@@ -87,12 +89,12 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		return nil
 	})
 	i = 0
-	consumer.Consume(context.Background(), 1, true, func(events []Event) {
+	consumer.Consume(1, true, func(events []Event) {
 		i++
 		panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
 	})
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(context.Background(), engine)
+	consumer.(*eventsConsumer).garbageCollector(engine)
 	assert.Equal(t, 20, i)
 	assert.Equal(t, 10, j)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
@@ -108,7 +110,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		return nil
 	})
 	i = 0
-	consumer.Consume(context.Background(), 10, true, func(events []Event) {
+	consumer.Consume(10, true, func(events []Event) {
 		i++
 		if i == 1 {
 			for k, e := range events {
@@ -129,7 +131,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	assert.Equal(t, 11, i)
 	assert.Equal(t, 10, j)
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(context.Background(), engine)
+	consumer.(*eventsConsumer).garbageCollector(engine)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(9), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 
@@ -139,7 +141,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		return fmt.Errorf("strange error: %v", err)
 	})
 	assert.PanicsWithError(t, "strange error: test err a1", func() {
-		consumer.Consume(context.Background(), 1, true, func(events []Event) {
+		consumer.Consume(1, true, func(events []Event) {
 			panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
 		})
 	})
@@ -152,18 +154,19 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	broker := engine.GetEventBroker()
 
 	consumer := broker.Consumer("test-consumer", "test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
 	consumer.DisableLoop()
-	consumer.Consume(context.Background(), 1, true, func(events []Event) {})
+	consumer.Consume(1, true, func(events []Event) {})
 	assert.Equal(t, 1, consumer.(*eventsConsumer).nr)
-	consumer.Consume(context.Background(), 1, true, func(events []Event) {
+	consumer.Consume(1, true, func(events []Event) {
 		for _, event := range events {
 			event.Skip()
 		}
@@ -183,7 +186,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 		consumer := broker.Consumer("test-consumer", "test-group")
 		consumer.(*eventsConsumer).blockTime = time.Millisecond
 		consumer.DisableLoop()
-		consumer.Consume(context.Background(), 5, true, func(events []Event) {
+		consumer.Consume(5, true, func(events []Event) {
 			assert.Equal(t, 1, consumer.(*eventsConsumer).nr)
 			iterations1 = true
 			for _, event := range events {
@@ -199,7 +202,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 		consumer.(*eventsConsumer).blockTime = time.Millisecond
 		consumer.DisableLoop()
 		consumer.SetLimit(2)
-		consumer.Consume(context.Background(), 5, true, func(events []Event) {
+		consumer.Consume(5, true, func(events []Event) {
 			for _, event := range events {
 				event.Skip()
 			}
@@ -221,7 +224,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	consumer.(*eventsConsumer).minIdle = time.Millisecond
 	consumer.(*eventsConsumer).claimDuration = time.Millisecond
 	time.Sleep(time.Millisecond * 100)
-	consumer.Consume(context.Background(), 100, true, func(events []Event) {
+	consumer.Consume(100, true, func(events []Event) {
 		for _, event := range events {
 			event.Skip()
 		}
@@ -238,9 +241,10 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group", "test-group-multi"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group", "test-group-multi"})
-	validatedRegistry, err := registry.Validate()
+	ctx, cancel := context.WithCancel(context.Background())
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	broker := engine.GetEventBroker()
 
@@ -252,8 +256,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer.SetHeartBeat(time.Second, func() {
 		heartBeats++
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	consumer.Consume(ctx, 5, true, func(events []Event) {
+	consumer.Consume(5, true, func(events []Event) {
 		for _, event := range events {
 			event.Skip()
 		}
@@ -264,7 +267,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
 	}
 	iterations := 0
-	consumer.Consume(ctx, 5, true, func(events []Event) {
+	consumer.Consume(5, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
@@ -287,12 +290,12 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, 2, iterations)
 	assert.Equal(t, 2, heartBeats)
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(context.Background(), engine)
+	consumer.(*eventsConsumer).garbageCollector(engine)
 	time.Sleep(time.Second)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(10), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 	iterations = 0
-	consumer.Consume(ctx, 10, true, func(events []Event) {
+	consumer.Consume(10, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 10)
 		for _, event := range events {
@@ -306,7 +309,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
 	}
 	iterations = 0
-	consumer.Consume(ctx, 5, true, func(events []Event) {
+	consumer.Consume(5, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
@@ -323,7 +326,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, int64(10), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 	iterations = 0
 	heartBeats = 0
-	consumer.Consume(ctx, 5, true, func(events []Event) {
+	consumer.Consume(5, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
@@ -351,7 +354,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer = broker.Consumer("test-consumer", "test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
 	iterations = 0
-	consumer.Consume(ctx, 5, true, func(events []Event) {
+	consumer.Consume(5, true, func(events []Event) {
 		iterations++
 		if iterations == 1 {
 			assert.Len(t, events, 5)
@@ -413,7 +416,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		engine.GetEventBroker().PublishMap("test-stream-a", EventAsMap{"name": fmt.Sprintf("a%d", i)})
 		engine.GetEventBroker().PublishMap("test-stream-b", EventAsMap{"name": fmt.Sprintf("b%d", i)})
 	}
-	consumer.Consume(ctx, 8, true, func(events []Event) {
+	consumer.Consume(8, true, func(events []Event) {
 		iterations++
 		if iterations == 1 {
 			assert.Len(t, events, 16)
@@ -438,7 +441,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		consumer = broker.Consumer("test-consumer-unique", "test-group")
 		consumer.DisableLoop()
 		consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
-		consumer.Consume(ctx, 8, true, func(events []Event) {
+		consumer.Consume(8, true, func(events []Event) {
 			iterations++
 			messages += len(events)
 			for _, event := range events {
@@ -458,7 +461,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		time.Sleep(time.Millisecond * 200)
 		cancel()
 	}()
-	consumer.Consume(ctx, 1, true, func(events []Event) {
+	consumer.Consume(1, true, func(events []Event) {
 		valid = false
 		for _, event := range events {
 			event.Skip()
@@ -471,15 +474,16 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		Age  int
 	}
 
+	engine = validatedRegistry.CreateEngine(context.Background())
 	eventFlusher := engine.GetEventBroker().NewFlusher()
 	eventFlusher.Publish("test-stream", testStructEvent{Name: "a", Age: 18})
 	eventFlusher.Publish("test-stream", testStructEvent{Name: "b", Age: 20})
 	eventFlusher.Flush()
 	valid = false
-	consumer = broker.Consumer("test-consumer-unique", "test-group")
+	consumer = engine.GetEventBroker().Consumer("test-consumer-unique", "test-group")
 	consumer.DisableLoop()
 	consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
-	consumer.Consume(context.Background(), 10, true, func(events []Event) {
+	consumer.Consume(10, true, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 2)
 		for i, event := range events {

@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -252,20 +253,21 @@ func testSchema(t *testing.T, version int) {
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidIndexEntity{})
-	_, err := registry.Validate()
+	ctx := context.Background()
+	_, err := registry.Validate(ctx)
 	assert.EqualError(t, err, "invalid entity struct 'orm.schemaInvalidIndexEntity': invalid index position 'invalid' in index 'TestIndex'")
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidMaxStringEntity{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "invalid entity struct 'orm.schemaInvalidMaxStringEntity': invalid max string: invalid")
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterLocalCache(1000)
 	registry.RegisterEntity(&schemaEntity{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "invalid entity struct 'orm.schemaEntity': unregistered enum orm.TestEnum")
 
 	engine = PrepareTables(t, &Registry{}, 5, &schemaToDropEntity{})
@@ -283,7 +285,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "mysql pool 'invalid' not found")
 
 	registry = &Registry{}
@@ -293,7 +295,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema2{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "local cache pool 'invalid' not found")
 
 	registry = &Registry{}
@@ -303,7 +305,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema3{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
 	registry = &Registry{}
@@ -313,7 +315,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema4{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.NoError(t, err)
 
 	registry = &Registry{}
@@ -324,7 +326,7 @@ func testSchema(t *testing.T, version int) {
 		Name string `orm:"index=test,test2"`
 	}
 	registry.RegisterEntity(&invalidSchema5{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.NotNil(t, err)
 
 	registry = &Registry{}
@@ -336,7 +338,7 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `queryOne:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema6{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in orm.invalidSchema6")
 
 	registry = &Registry{}
@@ -348,7 +350,7 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `query:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema7{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "missing index for cached query 'IndexName' in orm.invalidSchema7")
 
 	registry = &Registry{}
@@ -361,7 +363,7 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `queryOne:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema8{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in orm.invalidSchema8")
 
 	registry = &Registry{}
@@ -374,6 +376,6 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `query:":Name = ? ORDER BY :Age DESC"`
 	}
 	registry.RegisterEntity(&invalidSchema9{})
-	_, err = registry.Validate()
+	_, err = registry.Validate(ctx)
 	assert.EqualError(t, err, "missing index for cached query 'IndexName' in orm.invalidSchema9")
 }

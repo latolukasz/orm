@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -185,7 +184,7 @@ type EventConsumerHandler func([]Event)
 type ConsumerErrorHandler func(err interface{}, event Event) error
 
 type EventsConsumer interface {
-	Consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler)
+	Consume(count int, blocking bool, handler EventConsumerHandler)
 	DisableLoop()
 	SetLimit(limit int)
 	SetHeartBeat(duration time.Duration, beat func())
@@ -242,7 +241,7 @@ func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
 	speedPrefixKey := group + "_" + redisPool
 	speedLogger := &speedHandler{}
 	eb.engine.AddQueryLogger(speedLogger, logApex.InfoLevel, QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
-	return &eventsConsumer{eventConsumerBase: eventConsumerBase{loop: true, limit: 1, blockTime: time.Second * 30},
+	return &eventsConsumer{eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, limit: 1, blockTime: time.Second * 30},
 		redis: eb.engine.GetRedis(redisPool), name: name, streams: streams, group: group,
 		lockTTL: time.Second * 90, lockTick: time.Minute,
 		garbageTick: time.Second * 30, minIdle: pendingClaimCheckDuration,
@@ -251,6 +250,7 @@ func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
+	engine            *Engine
 	loop              bool
 	limit             int
 	errorHandler      ConsumerErrorHandler
@@ -310,9 +310,9 @@ func (b *eventConsumerBase) HeartBeat(force bool) {
 	}
 }
 
-func (r *eventsConsumer) Consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler) {
+func (r *eventsConsumer) Consume(count int, blocking bool, handler EventConsumerHandler) {
 	for {
-		valid := r.consume(ctx, count, blocking, handler)
+		valid := r.consume(count, blocking, handler)
 		if valid || !r.loop {
 			break
 		}
@@ -320,7 +320,7 @@ func (r *eventsConsumer) Consume(ctx context.Context, count int, blocking bool, 
 	}
 }
 
-func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler) bool {
+func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumerHandler) bool {
 	uniqueLockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
 	runningKey := uniqueLockKey + "_running"
 	locker := r.redis.GetLocker()
@@ -330,7 +330,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	for {
 		nr++
 		lockName = uniqueLockKey + "-" + strconv.Itoa(nr)
-		locked, has := locker.Obtain(ctx, lockName, r.lockTTL, 0)
+		locked, has := locker.Obtain(r.engine.context, lockName, r.lockTTL, 0)
 		if !has {
 			if nr < r.limit {
 				continue
@@ -358,13 +358,13 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	go func() {
 		for {
 			select {
-			case <-ctx.Done():
+			case <-r.engine.context.Done():
 				canceled = true
 				return
 			case <-done:
 				return
 			case <-ticker.C:
-				if !lock.Refresh(ctx, r.lockTTL) {
+				if !lock.Refresh(r.engine.context, r.lockTTL) {
 					hasLock = false
 					return
 				}
@@ -375,17 +375,17 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 		}
 	}()
 	garbageTicker := time.NewTicker(r.garbageTick)
-	engine := r.redis.engine.registry.CreateEngine()
+	engine := r.redis.engine.registry.CreateEngine(r.redis.engine.context)
 	go func() {
-		r.garbageCollector(ctx, engine)
+		r.garbageCollector(engine)
 		for {
 			select {
-			case <-ctx.Done():
+			case <-r.redis.engine.context.Done():
 				return
 			case <-done:
 				return
 			case <-garbageTicker.C:
-				r.garbageCollector(ctx, engine)
+				r.garbageCollector(engine)
 			}
 		}
 	}()
@@ -617,11 +617,11 @@ func (r *eventsConsumer) incrementID(id string) string {
 	return s[0] + "-" + strconv.Itoa(counter+1)
 }
 
-func (r *eventsConsumer) garbageCollector(ctx context.Context, engine *Engine) {
+func (r *eventsConsumer) garbageCollector(engine *Engine) {
 	redisGarbage := engine.GetRedis(r.redis.config.GetCode())
 	if r.limit > 1 {
 		lockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
-		_, has := redisGarbage.GetLocker().Obtain(ctx, lockKey, time.Second*20, 0)
+		_, has := redisGarbage.GetLocker().Obtain(engine.context, lockKey, time.Second*20, 0)
 		if !has {
 			return
 		}

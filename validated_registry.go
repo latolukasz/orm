@@ -7,7 +7,7 @@ import (
 )
 
 type ValidatedRegistry interface {
-	CreateEngine() *Engine
+	CreateEngine(ctx context.Context) *Engine
 	GetTableSchema(entityName string) TableSchema
 	GetTableSchemaForEntity(entity Entity) TableSchema
 	GetSourceRegistry() *Registry
@@ -83,8 +83,8 @@ func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
 	return r.redisServers
 }
 
-func (r *validatedRegistry) CreateEngine() *Engine {
-	return &Engine{registry: r, context: context.Background()}
+func (r *validatedRegistry) CreateEngine(ctx context.Context) *Engine {
+	return &Engine{registry: r, context: ctx}
 }
 
 func (r *validatedRegistry) GetTableSchema(entityName string) TableSchema {

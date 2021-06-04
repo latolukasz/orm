@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
@@ -64,7 +63,7 @@ func TestRedisSearch(t *testing.T) {
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
-	indexer.Digest(context.Background())
+	indexer.Digest()
 
 	info := search.Info("test")
 	assert.True(t, strings.HasPrefix(info.Name, "test:"))
@@ -116,7 +115,7 @@ func TestRedisSearch(t *testing.T) {
 		return newID, newID < 1000
 	}
 	search.ForceReindex("test2")
-	indexer.Digest(context.Background())
+	indexer.Digest()
 
 	testIndex2.AddTextField("title2", 1, false, false, false)
 	testIndex2.AddNumericField("id", true, false)
@@ -132,7 +131,7 @@ func TestRedisSearch(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	search.ForceReindex("test2")
-	indexer.Digest(context.Background())
+	indexer.Digest()
 	time.Sleep(time.Millisecond * 100)
 
 	pusher := engine.NewRedisSearchIndexPusher("search")

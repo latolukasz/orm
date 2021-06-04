@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -35,13 +34,13 @@ type dirtyQueueValue struct {
 
 type BackgroundConsumer struct {
 	eventConsumerBase
-	engine       *Engine
 	logLogger    func(log *LogQueueValue)
 	redisFlusher RedisFlusher
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
-	c := &BackgroundConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
+	c := &BackgroundConsumer{redisFlusher: engine.NewRedisFlusher()}
+	c.engine = engine
 	c.loop = true
 	c.limit = 1
 	c.blockTime = time.Second * 30
@@ -52,10 +51,10 @@ func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
 	r.logLogger = logger
 }
 
-func (r *BackgroundConsumer) Digest(ctx context.Context) {
+func (r *BackgroundConsumer) Digest() {
 	consumer := r.engine.GetEventBroker().Consumer("default-consumer", asyncConsumerGroupName).(*eventsConsumer)
 	consumer.eventConsumerBase = r.eventConsumerBase
-	consumer.Consume(ctx, 100, true, func(events []Event) {
+	consumer.Consume(100, true, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:
