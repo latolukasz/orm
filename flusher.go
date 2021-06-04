@@ -391,6 +391,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			if lazy {
 				var logEvents []*LogQueueValue
 				var dirtyEvents []*dirtyQueueValue
+				serializer := f.engine.getSerializer()
+				serializer.buffer.Reset()
+				entity.getORM().serialize(serializer)
 				logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, bind, current, schema, currentID, true)
 				if logEvent != nil {
 					logEvents = append(logEvents, logEvent)
