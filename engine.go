@@ -18,23 +18,15 @@ import (
 var defaultQueryDebug = text.New(os.Stdout)
 
 type Engine struct {
-	mutex                     sync.Mutex
 	registry                  *validatedRegistry
 	context                   context.Context
 	dbs                       map[string]*DB
-	dbsMutex                  sync.Mutex
 	clickHouseDbs             map[string]*ClickHouse
-	clickHouseMutex           sync.Mutex
 	localCache                map[string]*LocalCache
-	localCacheMutex           sync.Mutex
 	redis                     map[string]*RedisCache
-	redisMutex                sync.Mutex
 	redisSearch               map[string]*RedisSearch
-	redisSearchMutex          sync.Mutex
 	elastic                   map[string]*Elastic
-	elasticMutex              sync.Mutex
 	logMetaData               Bind
-	logMetaDataMutex          sync.RWMutex
 	dataLoader                *dataLoader
 	hasRequestCache           bool
 	queryLoggers              map[QueryLoggerSource]*logger
@@ -45,8 +37,6 @@ type Engine struct {
 	hasElasticLogger          bool
 	hasLocalCacheLogger       bool
 	log                       *log
-	logOnce                   sync.Once
-	logMutex                  sync.Mutex
 	logDebugOnce              sync.Once
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
@@ -56,15 +46,13 @@ type Engine struct {
 }
 
 func (e *Engine) Log() Log {
-	e.logOnce.Do(func() {
+	if e.log == nil {
 		e.log = newLog(e)
-	})
+	}
 	return e.log
 }
 
 func (e *Engine) EnableRequestCache(goroutines bool) {
-	e.mutex.Lock()
-	defer e.mutex.Unlock()
 	if goroutines {
 		e.dataLoader = &dataLoader{engine: e, maxBatchSize: dataLoaderMaxPatch}
 		e.hasRequestCache = false
@@ -79,8 +67,6 @@ func (e *Engine) EnableLogger(level logApex.Level, handlers ...logApex.Handler) 
 		handlers = []logApex.Handler{&jsonHandler{}}
 	}
 	l := e.Log()
-	e.logMutex.Lock()
-	defer e.logMutex.Unlock()
 	for _, handler := range handlers {
 		l.(*log).logger.handler.Handlers = append(e.log.logger.handler.Handlers, levelHandler.New(handler, level))
 	}
@@ -98,8 +84,6 @@ func (e *Engine) AddQueryLogger(handler logApex.Handler, level logApex.Level, so
 		source = []QueryLoggerSource{QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceElastic,
 			QueryLoggerSourceClickHouse, QueryLoggerSourceStreams}
 	}
-	e.logMutex.Lock()
-	defer e.logMutex.Unlock()
 	if e.queryLoggers == nil {
 		e.queryLoggers = make(map[QueryLoggerSource]*logger)
 	}
@@ -140,8 +124,6 @@ func (e *Engine) EnableQueryDebug(source ...QueryLoggerSource) {
 }
 
 func (e *Engine) SetLogMetaData(key string, value interface{}) {
-	e.logMetaDataMutex.Lock()
-	defer e.logMetaDataMutex.Unlock()
 	if e.logMetaData == nil {
 		e.logMetaData = make(Bind)
 	}
@@ -153,8 +135,6 @@ func (e *Engine) GetMysql(code ...string) *DB {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.dbsMutex.Lock()
-	defer e.dbsMutex.Unlock()
 	db, has := e.dbs[dbCode]
 	if !has {
 		config, has := e.registry.mySQLServers[dbCode]
@@ -176,8 +156,6 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.localCacheMutex.Lock()
-	defer e.localCacheMutex.Unlock()
 	cache, has := e.localCache[dbCode]
 	if !has {
 		config, has := e.registry.localCacheServers[dbCode]
@@ -208,8 +186,6 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.redisMutex.Lock()
-	defer e.redisMutex.Unlock()
 	cache, has := e.redis[dbCode]
 	if !has {
 		config, has := e.registry.redisServers[dbCode]
@@ -235,8 +211,6 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.redisSearchMutex.Lock()
-	defer e.redisSearchMutex.Unlock()
 	cache, has := e.redisSearch[dbCode]
 	if !has {
 		config, has := e.registry.redisServers[dbCode]
@@ -263,8 +237,6 @@ func (e *Engine) GetClickHouse(code ...string) *ClickHouse {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.clickHouseMutex.Lock()
-	defer e.clickHouseMutex.Unlock()
 	ch, has := e.clickHouseDbs[dbCode]
 	if !has {
 		val, has := e.registry.clickHouseClients[dbCode]
@@ -286,8 +258,6 @@ func (e *Engine) GetElastic(code ...string) *Elastic {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.elasticMutex.Lock()
-	defer e.elasticMutex.Unlock()
 	elastic, has := e.elastic[dbCode]
 	if !has {
 		val, has := e.registry.elasticServers[dbCode]
