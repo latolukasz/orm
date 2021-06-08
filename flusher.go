@@ -606,7 +606,8 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 						f.getRedisFlusher().Del(redisCache.config.GetCode(), cacheKey)
 						f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 					}
-				} else if !hasLocalCache && f.engine.dataLoader != nil {
+				}
+				if !hasLocalCache && f.engine.dataLoader != nil {
 					f.addToDataLoader(schema, id, nil)
 				}
 				if schema.hasSearchCache {
@@ -704,7 +705,8 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), cacheKey)
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 		}
-	} else if !hasLocalCache && !lazy && f.engine.dataLoader != nil {
+	}
+	if !hasLocalCache && !lazy && f.engine.dataLoader != nil {
 		f.addToDataLoader(schema, id, entity.getORM().copyBinary())
 	}
 	f.fillRedisSearchFromBind(schema, bind, id)
@@ -750,7 +752,8 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, sche
 			redisFlusher.Del(redisCache.config.GetCode(), keysOld...)
 			redisFlusher.Del(redisCache.config.GetCode(), keysNew...)
 		}
-	} else if !hasLocalCache && f.engine.dataLoader != nil {
+	}
+	if !hasLocalCache && f.engine.dataLoader != nil {
 		f.addToDataLoader(schema, currentID, entity.getORM().copyBinary())
 	}
 	f.fillRedisSearchFromBind(schema, bind, entity.GetID())

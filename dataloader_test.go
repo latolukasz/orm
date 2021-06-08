@@ -67,14 +67,14 @@ func TestDataLoader(t *testing.T) {
 
 	go func() {
 		entity2 := &dataLoaderEntity{}
-		found2 := engine.LoadByID(1, entity2)
+		found2 := engine.Clone().LoadByID(1, entity2)
 		assert.True(t, found2)
 		assert.Equal(t, uint(1), entity2.ID)
 		assert.Equal(t, "a", entity2.Name)
 	}()
 	go func() {
 		entity3 := &dataLoaderEntity{}
-		found3 := engine.LoadByID(2, entity3)
+		found3 := engine.Clone().LoadByID(2, entity3)
 		assert.True(t, found3)
 		assert.Equal(t, uint(2), entity3.ID)
 		assert.Equal(t, "b", entity3.Name)

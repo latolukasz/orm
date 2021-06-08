@@ -45,6 +45,14 @@ type Engine struct {
 	serializer                *serializer
 }
 
+func (e *Engine) Clone() *Engine {
+	newEngine := &Engine{}
+	newEngine.registry = e.registry
+	newEngine.context = e.context
+	newEngine.dataLoader = e.dataLoader
+	return newEngine
+}
+
 func (e *Engine) Log() Log {
 	if e.log == nil {
 		e.log = newLog(e)
