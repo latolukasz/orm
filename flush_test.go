@@ -592,6 +592,22 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "1334", entitiesRefs[0].Name)
 	assert.Equal(t, "1434", entitiesRefs[1].Name)
 	assert.Equal(t, "1534", entitiesRefs[2].Name)
+
+	if redis && !local {
+		testLogger2 := memory.New()
+		engine.AddQueryLogger(testLogger2, apexLog.InfoLevel)
+		testLogger.Entries = make([]*apexLog.Entry, 0)
+		engine.GetMysql().Begin()
+		entity4.ReferenceOne = &flushEntityReference{}
+		engine.Flush(entity4)
+		engine.GetMysql().Commit()
+		assert.Len(t, testLogger2.Entries, 5)
+		assert.Equal(t, "[ORM][MYSQL][BEGIN]", testLogger2.Entries[0].Message)
+		assert.Equal(t, "[ORM][MYSQL][EXEC]", testLogger2.Entries[1].Message)
+		assert.Equal(t, "[ORM][MYSQL][EXEC]", testLogger2.Entries[2].Message)
+		assert.Equal(t, "[ORM][MYSQL][COMMIT]", testLogger2.Entries[3].Message)
+		assert.Equal(t, "[ORM][REDIS][EXEC]", testLogger2.Entries[4].Message)
+	}
 }
 
 // 17 allocs/op - 6 for Exec

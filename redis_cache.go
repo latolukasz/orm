@@ -692,7 +692,7 @@ func (r *RedisCache) XGroupDelConsumer(stream, group, consumer string) int64 {
 	start := time.Now()
 	deleted, err := r.client.XGroupDelConsumer(r.ctx, stream, group, consumer).Result()
 	if r.engine.hasStreamsLogger {
-		r.fillStreamsLogFields("[ORM][STREAMS][XDEL]", start, "XGROUP",
+		r.fillStreamsLogFields("[ORM][STREAMS][XDEL]", start, "xdel",
 			map[string]interface{}{"stream": stream, "group": group, "consumer": "consumer", "action": "delete consumer"}, err)
 	}
 	checkError(err)
@@ -742,7 +742,7 @@ func (r *RedisCache) xAdd(stream string, values interface{}) (id string) {
 	start := time.Now()
 	id, err := r.client.XAdd(r.ctx, a).Result()
 	if r.engine.hasStreamsLogger {
-		r.fillStreamsLogFields("[ORM][STREAMS][XADD]", start, "xtrim",
+		r.fillStreamsLogFields("[ORM][STREAMS][XADD]", start, "xadd",
 			map[string]interface{}{"stream": stream, "id": a.ID, "events": 1}, err)
 	}
 	checkError(err)
