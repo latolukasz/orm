@@ -206,7 +206,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	insertArguments := make(map[reflect.Type][]interface{})
 	insertBinds := make(map[reflect.Type][]map[string]interface{})
 	insertReflectValues := make(map[reflect.Type][]Entity)
-	isInTransaction := transaction
 
 	var referencesToFlash map[Entity]Entity
 
@@ -216,8 +215,8 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			panic(fmt.Errorf("lazy entity and can't be flushed: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
 		}
 		schema := entity.getORM().tableSchema
-		if !isInTransaction && schema.GetMysql(f.engine).inTransaction {
-			isInTransaction = true
+		if !transaction && schema.GetMysql(f.engine).inTransaction {
+			transaction = true
 		}
 		for _, refName := range schema.refOne {
 			refValue := entity.getORM().elem.FieldByName(refName)
@@ -427,7 +426,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				rest = append(rest, v)
 			}
 		}
-		f.flush(true, false, transaction, rest...)
+		if len(rest) > 0 {
+			f.flush(true, false, transaction, rest...)
+		}
 		return
 	}
 	for typeOf, values := range insertKeys {
@@ -622,7 +623,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		}
 		for cacheCode, keys := range f.localCacheSets {
 			cache := f.engine.GetLocalCache(cacheCode)
-			if !isInTransaction {
+			if !transaction {
 				cache.MSet(keys...)
 			} else {
 				if f.engine.afterCommitLocalCacheSets == nil {
@@ -644,11 +645,11 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				deletesRedisCache[cacheCode] = commands.deletes
 			}
 		}
-	} else if isInTransaction {
+	} else if transaction {
 		f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
 	}
 	for schema, rows := range f.dataLoaderSets {
-		if !isInTransaction {
+		if !transaction {
 			for id, value := range rows {
 				f.engine.dataLoader.Prime(schema, id, value)
 			}
@@ -668,7 +669,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		f.getRedisFlusher().Publish(lazyChannelName, f.lazyMap)
 		f.lazyMap = nil
 	}
-	if f.redisFlusher != nil && !isInTransaction && root {
+	if f.redisFlusher != nil && !transaction && root {
 		f.redisFlusher.Flush()
 	}
 }
