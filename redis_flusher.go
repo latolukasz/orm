@@ -1,8 +1,6 @@
 package orm
 
 import (
-	"sync"
-
 	"github.com/shamaton/msgpack"
 )
 
@@ -30,7 +28,6 @@ type redisFlusherCommands struct {
 
 type redisFlusher struct {
 	engine    *Engine
-	mutex     sync.Mutex
 	pipelines map[string]*redisFlusherCommands
 }
 
@@ -38,8 +35,6 @@ func (f *redisFlusher) Del(redisPool string, keys ...string) {
 	if len(keys) == 0 {
 		return
 	}
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	if f.pipelines == nil {
 		f.pipelines = make(map[string]*redisFlusherCommands)
 	}
@@ -58,8 +53,6 @@ func (f *redisFlusher) Del(redisPool string, keys ...string) {
 }
 
 func (f *redisFlusher) PublishMap(stream string, event EventAsMap) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	if f.pipelines == nil {
 		f.pipelines = make(map[string]*redisFlusherCommands)
 	}
@@ -92,8 +85,6 @@ func (f *redisFlusher) Publish(stream string, event interface{}) {
 }
 
 func (f *redisFlusher) HSet(redisPool, key string, values ...interface{}) {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	if f.pipelines == nil {
 		f.pipelines = make(map[string]*redisFlusherCommands)
 	}
@@ -113,8 +104,6 @@ func (f *redisFlusher) HSet(redisPool, key string, values ...interface{}) {
 }
 
 func (f *redisFlusher) Flush() {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	for poolCode, commands := range f.pipelines {
 		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1
 		if usePool {

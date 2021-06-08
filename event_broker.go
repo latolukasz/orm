@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/shamaton/msgpack"
@@ -87,7 +86,6 @@ type EventFlusher interface {
 
 type eventFlusher struct {
 	eb     *eventBroker
-	mutex  sync.Mutex
 	events map[string][]EventAsMap
 }
 
@@ -96,8 +94,6 @@ type eventBroker struct {
 }
 
 func (ef *eventFlusher) PublishMap(stream string, event EventAsMap) {
-	ef.mutex.Lock()
-	defer ef.mutex.Unlock()
 	if ef.events[stream] == nil {
 		ef.events[stream] = []EventAsMap{event}
 	} else {
@@ -110,8 +106,6 @@ func (ef *eventFlusher) Publish(stream string, event interface{}) {
 	if err != nil {
 		panic(err)
 	}
-	ef.mutex.Lock()
-	defer ef.mutex.Unlock()
 	if ef.events[stream] == nil {
 		ef.events[stream] = []EventAsMap{{"_s": string(asJSON)}}
 	} else {
@@ -120,8 +114,6 @@ func (ef *eventFlusher) Publish(stream string, event interface{}) {
 }
 
 func (ef *eventFlusher) Flush() {
-	ef.mutex.Lock()
-	defer ef.mutex.Unlock()
 	grouped := make(map[*RedisCache]map[string][]EventAsMap)
 	for stream, events := range ef.events {
 		r := getRedisForStream(ef.eb.engine, stream)

@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -49,7 +48,6 @@ type flusher struct {
 	engine                 *Engine
 	trackedEntities        []Entity
 	trackedEntitiesCounter int
-	mutex                  sync.Mutex
 	redisFlusher           *redisFlusher
 	updateSQLs             map[string][]string
 	deleteBinds            map[reflect.Type]map[uint64]Entity
@@ -60,8 +58,6 @@ type flusher struct {
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	for _, entity := range entity {
 		initIfNeeded(f.engine.registry, entity)
 		if f.trackedEntities == nil {
@@ -129,8 +125,6 @@ func (f *flusher) FlushInTransaction() {
 }
 
 func (f *flusher) Clear() {
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
 	f.clear()
@@ -149,8 +143,6 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 	if f.trackedEntitiesCounter == 0 {
 		return
 	}
-	f.mutex.Lock()
-	defer f.mutex.Unlock()
 	var dbPools map[string]*DB
 	if transaction {
 		dbPools = make(map[string]*DB)
