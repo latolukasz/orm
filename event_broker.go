@@ -375,9 +375,9 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 		}
 	}()
 	garbageTicker := time.NewTicker(r.garbageTick)
-	engine := r.redis.engine.registry.CreateEngine(r.redis.engine.context)
+	subEngine := r.redis.engine.Clone()
 	go func() {
-		r.garbageCollector(engine)
+		r.garbageCollector(subEngine)
 		for {
 			select {
 			case <-r.redis.engine.context.Done():
@@ -385,7 +385,7 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 			case <-done:
 				return
 			case <-garbageTicker.C:
-				r.garbageCollector(engine)
+				r.garbageCollector(subEngine)
 			}
 		}
 	}()
