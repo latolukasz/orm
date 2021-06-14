@@ -89,7 +89,7 @@ func TestSearch(t *testing.T) {
 	assert.Len(t, rows, 8)
 	assert.False(t, rows[0].IsLazy())
 
-	total = engine.SearchWithCountLAzy(NewWhere("ID > 2"), nil, &rows)
+	total = engine.SearchWithCountLazy(NewWhere("ID > 2"), nil, &rows)
 	assert.Equal(t, 8, total)
 	assert.Len(t, rows, 8)
 	assert.True(t, rows[0].IsLazy())

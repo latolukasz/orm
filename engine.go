@@ -342,7 +342,7 @@ func (e *Engine) SearchWithCount(where *Where, pager *Pager, entities interface{
 	return search(true, e, where, pager, true, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
-func (e *Engine) SearchWithCountLAzy(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
+func (e *Engine) SearchWithCountLazy(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
 	return search(true, e, where, pager, true, true, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
