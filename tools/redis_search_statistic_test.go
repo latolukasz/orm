@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	jsoniter "github.com/json-iterator/go"
+
 	"github.com/latolukasz/orm"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,4 +26,7 @@ func TestRedisSearchStatistics(t *testing.T) {
 	assert.Len(t, stats, 1)
 	assert.Equal(t, "test", stats[0].Index.Name)
 	assert.Len(t, stats[0].Versions, 1)
+	asJSON, err := jsoniter.ConfigFastest.Marshal(stats)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, asJSON)
 }

@@ -59,7 +59,7 @@ type RedisSearchIndex struct {
 	SkipInitialScan bool
 	StopWords       []string
 	Fields          []RedisSearchIndexField
-	Indexer         RedisSearchIndexerFunc
+	Indexer         RedisSearchIndexerFunc `json:"-"`
 }
 
 func (rs *RedisSearchIndex) AddTextField(name string, weight float64, sortable, noindex, nostem bool) {
