@@ -182,7 +182,7 @@ func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int
 	for range fields.stringsEnums {
 		v := serializer.GetUInteger()
 		if i == index {
-			return v, true, i
+			return int(v), true, i
 		}
 		i++
 	}
@@ -198,9 +198,9 @@ func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int
 	for range fields.sliceStringsSets {
 		l := int(serializer.GetUInteger())
 		if i == index {
-			val := make([]uint64, l)
+			val := make([]int, l)
 			for k := 0; k < l; k++ {
-				val[k] = serializer.GetUInteger()
+				val[k] = int(serializer.GetUInteger())
 			}
 			return val, true, i
 		}
