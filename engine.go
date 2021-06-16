@@ -315,6 +315,11 @@ func (e *Engine) Delete(entity Entity) {
 	e.Flush(entity)
 }
 
+func (e *Engine) DeleteLazy(entity Entity) {
+	entity.markToDelete()
+	e.FlushLazy(entity)
+}
+
 func (e *Engine) ForceDelete(entity Entity) {
 	entity.forceMarkToDelete()
 	e.Flush(entity)
