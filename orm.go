@@ -1360,7 +1360,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		if val != "" {
 			bind[name] = val
 			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(val)
+				updateBind[name] = escapeSQLParam(val)
 			}
 		} else {
 			attributes := tableSchema.tags[name]
@@ -1524,7 +1524,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		if val != "" {
 			bind[name] = val
 			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(val)
+				updateBind[name] = escapeSQLParam(val)
 			}
 		} else {
 			bind[name] = nil
@@ -1820,7 +1820,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 			}
 			bind[name] = asString
 			if hasUpdate {
-				updateBind[name] = orm.escapeSQLParam(asString)
+				updateBind[name] = escapeSQLParam(asString)
 			}
 		} else {
 			attributes := tableSchema.tags[name]
@@ -1909,37 +1909,6 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		index = orm.buildBind(id, serializer, bind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name, index)
 	}
 	return index
-}
-
-func (orm *ORM) escapeSQLParam(val string) string {
-	dest := make([]byte, 0, 2*len(val))
-	var escape byte
-	for i := 0; i < len(val); i++ {
-		c := val[i]
-		escape = 0
-		switch c {
-		case 0:
-			escape = '0'
-		case '\n':
-			escape = 'n'
-		case '\r':
-			escape = 'r'
-		case '\\':
-			escape = '\\'
-		case '\'':
-			escape = '\''
-		case '"':
-			escape = '"'
-		case '\032':
-			escape = 'Z'
-		}
-		if escape != 0 {
-			dest = append(dest, '\\', escape)
-		} else {
-			dest = append(dest, c)
-		}
-	}
-	return "'" + string(dest) + "'"
 }
 
 func checkError(err error) {
