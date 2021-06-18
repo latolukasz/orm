@@ -68,7 +68,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		if localCache == nil {
 			localCache, _ = schema.GetLocalCache(engine)
 		}
-		inCache := localCache.MGetFast(cacheKeys...)
+		inCache := localCache.MGet(cacheKeys...)
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
@@ -371,10 +371,10 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			for key, fromCache := range engine.GetLocalCache(k).MGet(keys...) {
 				if fromCache != nil && fromCache != cacheNilValue {
 					data := fromCache.([]byte)
-					for _, r := range v[key] {
+					for _, r := range v[keys[key]] {
 						fillFromBinary(r.GetID(), engine, data, r, false, lazy)
 					}
-					fillRef(key, localMap, redisMap, dbMap)
+					fillRef(keys[key], localMap, redisMap, dbMap)
 				}
 			}
 		}
@@ -390,12 +390,12 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			keys[i] = k
 			i++
 		}
-		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
+		for key, fromCache := range engine.GetRedis(k).MGetFast(keys...) {
 			if fromCache != nil && fromCache != cacheNilValue {
-				for _, r := range v[key] {
+				for _, r := range v[keys[key]] {
 					fillFromBinary(r.GetID(), engine, []byte(fromCache.(string)), r, false, lazy)
 				}
-				fillRef(key, nil, redisMap, dbMap)
+				fillRef(keys[key], nil, redisMap, dbMap)
 			}
 		}
 	}

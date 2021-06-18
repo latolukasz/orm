@@ -326,7 +326,7 @@ func (db *DB) QueryRow(query *Where, toFill ...interface{}) (found bool) {
 	return true
 }
 
-func (db *DB) Query(query string, args ...interface{}) (rows Rows, deferF func()) {
+func (db *DB) Query(query string, args ...interface{}) (rows Rows, close func()) {
 	start := time.Now()
 	result, err := db.client.Query(query, args...)
 	if db.engine.hasDBLogger {

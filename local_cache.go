@@ -74,27 +74,7 @@ func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
 	return
 }
 
-func (c *LocalCache) MGet(keys ...string) map[string]interface{} {
-	c.config.m.Lock()
-	defer c.config.m.Unlock()
-
-	results := make(map[string]interface{}, len(keys))
-	misses := 0
-	for _, key := range keys {
-		value, ok := c.lru.Get(key)
-		if !ok {
-			misses++
-			value = nil
-		}
-		results[key] = value
-	}
-	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][MGET]", "mget", misses, map[string]interface{}{"Keys": keys})
-	}
-	return results
-}
-
-func (c *LocalCache) MGetFast(keys ...string) []interface{} {
+func (c *LocalCache) MGet(keys ...string) []interface{} {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 
