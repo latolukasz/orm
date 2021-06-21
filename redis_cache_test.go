@@ -150,7 +150,7 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, int64(0), r.ZCount("test_z", "10", "20"))
 
 	r.MSet("key_1", "a", "key_2", "b")
-	assert.Equal(t, map[string]interface{}{"key_1": "a", "key_2": "b", "missing": nil}, r.MGet("key_1", "key_2", "missing"))
+	assert.Equal(t, []interface{}{"a", "b", nil}, r.MGet("key_1", "key_2", "missing"))
 
 	added = r.SAdd("test_s", "a", "b", "c", "d", "a")
 	assert.Equal(t, int64(4), added)

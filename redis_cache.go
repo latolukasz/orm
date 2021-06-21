@@ -451,26 +451,7 @@ func (r *RedisCache) MSet(pairs ...interface{}) {
 	checkError(err)
 }
 
-func (r *RedisCache) MGet(keys ...string) map[string]interface{} {
-	start := time.Now()
-	val, err := r.client.MGet(r.ctx, keys...).Result()
-	results := make(map[string]interface{}, len(keys))
-	misses := 0
-	for index, v := range val {
-		results[keys[index]] = v
-		if v == nil {
-			misses++
-		}
-	}
-	if r.engine.hasRedisLogger {
-		r.fillLogFields("[ORM][REDIS][MGET]", start, "mget", misses, len(keys),
-			map[string]interface{}{"Keys": keys}, err)
-	}
-	checkError(err)
-	return results
-}
-
-func (r *RedisCache) MGetFast(keys ...string) []interface{} {
+func (r *RedisCache) MGet(keys ...string) []interface{} {
 	start := time.Now()
 	val, err := r.client.MGet(r.ctx, keys...).Result()
 	results := make([]interface{}, len(keys))

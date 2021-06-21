@@ -163,7 +163,7 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 			cacheKeys[index] = cacheKey
 		}
 		if hasRedis {
-			cacheKeys = b.getKeysForNils(l, schema, redisCache.MGet(cacheKeys...), keysMapping, resultsKeys, results)
+			cacheKeys = b.getKeysForNils(l, schema, cacheKeys, redisCache.MGet(cacheKeys...), keysMapping, resultsKeys, results)
 			redisCacheKeys = cacheKeys
 		}
 		ids = make([]uint64, len(cacheKeys))
@@ -207,19 +207,20 @@ func (b *dataLoaderBatch) end(l *dataLoader) {
 	close(b.done)
 }
 
-func (b *dataLoaderBatch) getKeysForNils(l *dataLoader, schema *tableSchema, rows map[string]interface{}, keyMapping map[string]uint64,
+func (b *dataLoaderBatch) getKeysForNils(l *dataLoader, schema *tableSchema, allKeys []string, rows []interface{}, keyMapping map[string]uint64,
 	resultsKeys map[string][]byte, results map[string][]byte) []string {
 	keys := make([]string, 0)
 	for k, v := range rows {
 		if v == nil {
-			keys = append(keys, k)
+			keys = append(keys, allKeys[k])
 		} else {
+			cacheKey := allKeys[k]
 			if v == cacheNilValue {
-				resultsKeys[k] = nil
+				resultsKeys[cacheKey] = nil
 			} else {
 				binary := []byte(v.(string))
-				resultsKeys[k] = binary
-				results[l.key(schema, keyMapping[k])] = binary
+				resultsKeys[cacheKey] = binary
+				results[l.key(schema, keyMapping[cacheKey])] = binary
 			}
 		}
 	}

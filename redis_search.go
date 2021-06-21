@@ -1068,7 +1068,7 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 	for _, pool := range engine.GetRegistry().GetRedisPools() {
 		poolName := pool.GetCode()
 		r := engine.GetRedis(poolName)
-		if r.GetPoolConfig().GetDB() > 0 {
+		if r.GetPoolConfig().GetDatabase() > 0 {
 			continue
 		}
 		info := r.Info("Modules")

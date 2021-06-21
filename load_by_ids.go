@@ -107,7 +107,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 	}
 	if hasRedis && len(ids) > 0 {
 		redisCache, _ = schema.GetRedisCache(engine)
-		inCache := redisCache.MGetFast(cacheKeys...)
+		inCache := redisCache.MGet(cacheKeys...)
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
@@ -390,7 +390,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			keys[i] = k
 			i++
 		}
-		for key, fromCache := range engine.GetRedis(k).MGetFast(keys...) {
+		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
 			if fromCache != nil && fromCache != cacheNilValue {
 				for _, r := range v[keys[key]] {
 					fillFromBinary(r.GetID(), engine, []byte(fromCache.(string)), r, false, lazy)
