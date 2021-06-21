@@ -45,6 +45,10 @@ type Engine struct {
 	serializer                *serializer
 }
 
+func (e *Engine) GetContext() context.Context {
+	return e.context
+}
+
 func (e *Engine) Clone() *Engine {
 	newEngine := &Engine{}
 	newEngine.registry = e.registry
