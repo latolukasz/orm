@@ -45,11 +45,12 @@ func (c *LocalCache) GetPoolConfig() LocalCachePoolConfig {
 	return c.config
 }
 
-func (c *LocalCache) GetSet(key string, ttlSeconds int, provider GetSetProvider) interface{} {
+func (c *LocalCache) GetSet(key string, ttl time.Duration, provider func() interface{}) interface{} {
 	val, has := c.Get(key)
 	if has {
 		ttlVal := val.(ttlValue)
-		if time.Now().Unix()-ttlVal.time <= int64(ttlSeconds) {
+		seconds := int64(ttl.Seconds())
+		if seconds == 0 || time.Now().Unix()-ttlVal.time <= seconds {
 			return ttlVal.value
 		}
 	}
@@ -115,7 +116,7 @@ func (c *LocalCache) MSet(pairs ...interface{}) {
 	}
 }
 
-func (c *LocalCache) HMget(key string, fields ...string) map[string]interface{} {
+func (c *LocalCache) HMGet(key string, fields ...string) map[string]interface{} {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 
@@ -143,7 +144,7 @@ func (c *LocalCache) HMget(key string, fields ...string) map[string]interface{} 
 	return results
 }
 
-func (c *LocalCache) HMset(key string, fields map[string]interface{}) {
+func (c *LocalCache) HMSet(key string, fields map[string]interface{}) {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 
@@ -169,13 +170,6 @@ func (c *LocalCache) Remove(keys ...string) {
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("[ORM][LOCAL][REMOVE]", "remove", -1, map[string]interface{}{"Keys": keys})
 	}
-}
-
-func (c *LocalCache) GetObjectsCount() int {
-	c.config.m.Lock()
-	defer c.config.m.Unlock()
-
-	return c.lru.Len()
 }
 
 func (c *LocalCache) Clear() {

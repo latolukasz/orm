@@ -22,8 +22,6 @@ type RedisCache struct {
 	config  RedisPoolConfig
 }
 
-type GetSetProvider func() interface{}
-
 func (r *RedisCache) RateLimit(key string, limit redis_rate.Limit) bool {
 	if r.limiter == nil {
 		r.limiter = redis_rate.NewLimiter(r.client)
@@ -38,7 +36,7 @@ func (r *RedisCache) RateLimit(key string, limit redis_rate.Limit) bool {
 	return res.Allowed > 0
 }
 
-func (r *RedisCache) GetSet(key string, ttlSeconds int, provider GetSetProvider) interface{} {
+func (r *RedisCache) GetSet(key string, ttlSeconds int, provider func() interface{}) interface{} {
 	val, has := r.Get(key)
 	if !has {
 		userVal := provider()
@@ -266,7 +264,7 @@ func (r *RedisCache) HDel(key string, fields ...string) {
 	checkError(err)
 }
 
-func (r *RedisCache) HMget(key string, fields ...string) map[string]interface{} {
+func (r *RedisCache) HMGet(key string, fields ...string) map[string]interface{} {
 	start := time.Now()
 	val, err := r.client.HMGet(r.ctx, key, fields...).Result()
 	results := make(map[string]interface{}, len(fields))

@@ -59,21 +59,21 @@ func cachedSearch(engine *Engine, entities interface{}, indexName string, pager 
 	var nilsKeys []string
 	if hasLocalCache {
 		nilsKeys = make([]string, 0)
-		fromCache = localCache.HMget(cacheKey, pages...)
+		fromCache = localCache.HMGet(cacheKey, pages...)
 		for key, val := range fromCache {
 			if val == nil {
 				nilsKeys = append(nilsKeys, key)
 			}
 		}
 		if hasRedis && len(nilsKeys) > 0 {
-			fromRedis := redisCache.HMget(cacheKey, nilsKeys...)
+			fromRedis := redisCache.HMGet(cacheKey, nilsKeys...)
 			for key, idsFromRedis := range fromRedis {
 				fromCache[key] = idsFromRedis
 			}
 		}
 	} else if hasRedis {
 		fromRedis = true
-		fromCache = redisCache.HMget(cacheKey, pages...)
+		fromCache = redisCache.HMGet(cacheKey, pages...)
 	}
 	hasNil := false
 	totalRows = 0
@@ -154,7 +154,7 @@ func cachedSearch(engine *Engine, entities interface{}, indexName string, pager 
 			values = append(values, filledPages[v]...)
 			fields[v] = values
 		}
-		localCache.HMset(cacheKey, fields)
+		localCache.HMSet(cacheKey, fields)
 	}
 
 	resultsIDs := make([]uint64, 0)
@@ -204,10 +204,10 @@ func cachedSearchOne(engine *Engine, entity Entity, indexName string, fillStruct
 	cacheKey := getCacheKeySearch(schema, indexName, Where.GetParameters()...)
 	var fromCache map[string]interface{}
 	if hasLocalCache {
-		fromCache = localCache.HMget(cacheKey, "1")
+		fromCache = localCache.HMGet(cacheKey, "1")
 	}
 	if fromCache["1"] == nil && hasRedis {
-		fromCache = redisCache.HMget(cacheKey, "1")
+		fromCache = redisCache.HMGet(cacheKey, "1")
 	}
 	if fromCache["1"] == nil {
 		results, _ := searchIDs(true, engine, Where, NewPager(1, 1), false, entityType)
@@ -218,7 +218,7 @@ func cachedSearchOne(engine *Engine, entity Entity, indexName string, fillStruct
 			value += " " + strconv.FormatUint(results[0], 10)
 		}
 		if hasLocalCache {
-			localCache.HMset(cacheKey, map[string]interface{}{"1": value})
+			localCache.HMSet(cacheKey, map[string]interface{}{"1": value})
 		}
 		if hasRedis {
 			redisCache.HSet(cacheKey, "1", value)
