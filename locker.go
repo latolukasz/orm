@@ -38,7 +38,7 @@ func (r *RedisCache) GetLocker() *Locker {
 	return r.locker
 }
 
-func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
+func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
 	if ttl == 0 {
 		panic(errors.New("ttl must be higher than zero"))
 	}
@@ -53,7 +53,7 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 		options = &redislock.Options{RetryStrategy: redislock.LimitRetry(redislock.ExponentialBackoff(minInterval, maxInterval), max)}
 	}
 	start := time.Now()
-	redisLock, err := l.locker.Obtain(ctx, key, ttl, options)
+	redisLock, err := l.locker.Obtain(l.engine.context, key, ttl, options)
 	if err != nil {
 		if err == redislock.ErrNotObtained {
 			if l.engine.hasRedisLogger {
@@ -74,7 +74,7 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 	go func() {
 		for {
 			select {
-			case <-ctx.Done():
+			case <-l.engine.context.Done():
 				lock.Release()
 				return
 			case <-lock.timer.C:
@@ -124,12 +124,12 @@ func (l *Lock) TTL() time.Duration {
 	return d
 }
 
-func (l *Lock) Refresh(ctx context.Context, ttl time.Duration) bool {
+func (l *Lock) Refresh(ttl time.Duration) bool {
 	if !l.has {
 		return false
 	}
 	start := time.Now()
-	err := l.lock.Refresh(ctx, ttl, nil)
+	err := l.lock.Refresh(l.engine.context, ttl, nil)
 	has := true
 	if err == redislock.ErrNotObtained {
 		has = false

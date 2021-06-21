@@ -23,13 +23,13 @@ func TestLocker(t *testing.T) {
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
 
 	l := engine.GetRedis().GetLocker()
-	lock, has := l.Obtain(engine.context, "test_key", time.Second, 0)
+	lock, has := l.Obtain("test_key", time.Second, 0)
 	assert.True(t, has)
 	assert.NotNil(t, lock)
-	has = lock.Refresh(engine.context, time.Second)
+	has = lock.Refresh(time.Second)
 	assert.True(t, has)
 
-	_, has = l.Obtain(engine.context, "test_key", time.Second, time.Millisecond)
+	_, has = l.Obtain("test_key", time.Second, time.Millisecond)
 	assert.False(t, has)
 
 	left := lock.TTL()
@@ -37,33 +37,36 @@ func TestLocker(t *testing.T) {
 
 	lock.Release()
 	lock.Release()
-	has = lock.Refresh(engine.context, time.Second)
+	has = lock.Refresh(time.Second)
 	assert.False(t, has)
 	lock.has = true
 	lock.done = make(chan bool)
 	lock.Release()
-	_, has = l.Obtain(engine.context, "test_key", time.Second, time.Millisecond)
+	_, has = l.Obtain("test_key", time.Second, time.Millisecond)
 	assert.True(t, has)
 	lock.has = true
 	lock.done = make(chan bool)
-	has = lock.Refresh(engine.context, time.Second)
+	has = lock.Refresh(time.Second)
 	assert.False(t, has)
 
 	assert.PanicsWithError(t, "ttl must be higher than zero", func() {
-		_, _ = l.Obtain(engine.context, "test_key", 0, time.Millisecond)
+		_, _ = l.Obtain("test_key", 0, time.Millisecond)
 	})
 
-	lock, has = l.Obtain(engine.context, "test_key_2", time.Millisecond*3, 0)
+	lock, has = l.Obtain("test_key_2", time.Millisecond*3, 0)
 	assert.True(t, has)
 	time.Sleep(time.Millisecond * 4)
 	assert.Equal(t, time.Duration(0), lock.TTL())
 
 	ctxCancel, cancel := context.WithCancel(engine.context)
-	lock, has = l.Obtain(ctxCancel, "test_key_3", time.Millisecond*3, 0)
+	l2 := validatedRegistry.CreateEngine(ctxCancel).GetRedis().GetLocker()
+	lock, has = l2.Obtain("test_key_3", time.Millisecond*3, 0)
 	assert.True(t, has)
 	cancel()
 	time.Sleep(time.Millisecond)
-	assert.Equal(t, time.Duration(0), lock.TTL())
+	assert.PanicsWithError(t, "context canceled", func() {
+		assert.Equal(t, time.Duration(0), lock.TTL())
+	})
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6389", 15)
@@ -74,6 +77,6 @@ func TestLocker(t *testing.T) {
 	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
 	l = engine.GetRedis().GetLocker()
 	assert.Panics(t, func() {
-		_, _ = l.Obtain(engine.context, "test_key", time.Second, time.Millisecond)
+		_, _ = l.Obtain("test_key", time.Second, time.Millisecond)
 	})
 }

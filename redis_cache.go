@@ -22,12 +22,16 @@ type RedisCache struct {
 	config  RedisPoolConfig
 }
 
-func (r *RedisCache) RateLimit(key string, limit redis_rate.Limit) bool {
+func (r *RedisCache) RateLimit(key string, period time.Duration, limit int) bool {
 	if r.limiter == nil {
 		r.limiter = redis_rate.NewLimiter(r.client)
 	}
 	start := time.Now()
-	res, err := r.limiter.Allow(r.client.Context(), key, limit)
+	res, err := r.limiter.Allow(r.client.Context(), key, redis_rate.Limit{
+		Rate:   limit,
+		Period: period,
+		Burst:  limit,
+	})
 	if r.engine.hasRedisLogger {
 		r.fillLogFields("[ORM][REDIS][RATE_LIMIT]", start,
 			"rate_limit", 0, 1, map[string]interface{}{"Key": key}, err)

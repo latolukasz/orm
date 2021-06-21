@@ -10,8 +10,6 @@ import (
 	apexLog "github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 
-	"github.com/go-redis/redis_rate/v9"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,9 +45,9 @@ func testRedis(t *testing.T, engine *Engine) {
 	r.FlushDB()
 	testLogger.Entries = make([]*apexLog.Entry, 0)
 
-	assert.True(t, r.RateLimit("test", redis_rate.PerSecond(2)))
-	assert.True(t, r.RateLimit("test", redis_rate.PerSecond(2)))
-	assert.False(t, r.RateLimit("test", redis_rate.PerSecond(2)))
+	assert.True(t, r.RateLimit("test", time.Second, 2))
+	assert.True(t, r.RateLimit("test", time.Second, 2))
+	assert.False(t, r.RateLimit("test", time.Second, 2))
 	assert.Len(t, testLogger.Entries, 3)
 
 	valid := false

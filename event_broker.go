@@ -322,7 +322,7 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 	for {
 		nr++
 		lockName = uniqueLockKey + "-" + strconv.Itoa(nr)
-		locked, has := locker.Obtain(r.engine.context, lockName, r.lockTTL, 0)
+		locked, has := locker.Obtain(lockName, r.lockTTL, 0)
 		if !has {
 			if nr < r.limit {
 				continue
@@ -356,7 +356,7 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 			case <-done:
 				return
 			case <-ticker.C:
-				if !lock.Refresh(r.engine.context, r.lockTTL) {
+				if !lock.Refresh(r.lockTTL) {
 					hasLock = false
 					return
 				}
@@ -613,7 +613,7 @@ func (r *eventsConsumer) garbageCollector(engine *Engine) {
 	redisGarbage := engine.GetRedis(r.redis.config.GetCode())
 	if r.limit > 1 {
 		lockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
-		_, has := redisGarbage.GetLocker().Obtain(engine.context, lockKey, time.Second*20, 0)
+		_, has := redisGarbage.GetLocker().Obtain(lockKey, time.Second*20, 0)
 		if !has {
 			return
 		}
