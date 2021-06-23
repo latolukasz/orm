@@ -143,7 +143,6 @@ type EventsConsumer interface {
 	Consume(count int, handler EventConsumerHandler)
 	DisableLoop()
 	SetLimit(limit int)
-	SetHeartBeat(duration time.Duration, beat func())
 	SetErrorHandler(handler ConsumerErrorHandler)
 }
 
@@ -206,14 +205,11 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	engine            *Engine
-	loop              bool
-	limit             int
-	errorHandler      ConsumerErrorHandler
-	heartBeat         func()
-	heartBeatDuration time.Duration
-	heartBeatTime     time.Time
-	blockTime         time.Duration
+	engine       *Engine
+	loop         bool
+	limit        int
+	errorHandler ConsumerErrorHandler
+	blockTime    time.Duration
 }
 
 type eventsConsumer struct {
@@ -249,20 +245,8 @@ func (b *eventConsumerBase) SetLimit(limit int) {
 	b.limit = limit
 }
 
-func (b *eventConsumerBase) SetHeartBeat(duration time.Duration, beat func()) {
-	b.heartBeat = beat
-	b.heartBeatDuration = duration
-}
-
 func (b *eventConsumerBase) SetErrorHandler(handler ConsumerErrorHandler) {
 	b.errorHandler = handler
-}
-
-func (b *eventConsumerBase) HeartBeat(force bool) {
-	if b.heartBeat != nil && (force || time.Since(b.heartBeatTime) >= b.heartBeatDuration) {
-		b.heartBeat()
-		b.heartBeatTime = time.Now()
-	}
 }
 
 func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) {
@@ -351,9 +335,6 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 	}
 	keys := []string{"pending", "0", ">"}
 	streams := make([]string, len(r.streams)*2)
-	if r.heartBeat != nil {
-		r.heartBeatTime = time.Now()
-	}
 	pendingChecked := false
 	var pendingCheckedTime time.Time
 	b := r.blockTime
@@ -455,7 +436,6 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 						}
 					}
 				}
-				r.HeartBeat(false)
 				if totalMessages == 0 {
 					continue KEYS
 				}
@@ -552,7 +532,6 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 			}
 		}
 		if !r.loop {
-			r.HeartBeat(true)
 			break
 		}
 	}

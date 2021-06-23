@@ -267,19 +267,13 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	broker := engine.GetEventBroker()
 
 	consumer := broker.Consumer("test-group")
-
 	consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
 	consumer.DisableLoop()
-	heartBeats := 0
-	consumer.SetHeartBeat(time.Second, func() {
-		heartBeats++
-	})
 	consumer.Consume(5, func(events []Event) {
 		for _, event := range events {
 			event.Skip()
 		}
 	})
-	assert.Equal(t, 1, heartBeats)
 
 	type testEvent struct {
 		Name string
@@ -321,7 +315,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		}
 	})
 	assert.Equal(t, 2, iterations)
-	assert.Equal(t, 2, heartBeats)
 	time.Sleep(time.Millisecond * 20)
 	consumer.(*eventsConsumer).garbageCollector(engine)
 	time.Sleep(time.Second)
@@ -357,7 +350,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(10), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 	iterations = 0
-	heartBeats = 0
 	consumer.Consume(5, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
@@ -377,7 +369,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	time.Sleep(time.Millisecond * 300)
 	assert.Equal(t, 2, iterations)
-	assert.Equal(t, 1, heartBeats)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(6), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 

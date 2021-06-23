@@ -39,10 +39,6 @@ func TestDirtyConsumer(t *testing.T) {
 	engine.Flush(e)
 
 	valid := false
-	validHeartBeat := false
-	consumer.SetHeartBeat(time.Minute, func() {
-		validHeartBeat = true
-	})
 	consumer.Consume(10, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 2)
@@ -60,7 +56,6 @@ func TestDirtyConsumer(t *testing.T) {
 		assert.Equal(t, "dirtyReceiverEntity", dirty1.TableSchema().GetTableName())
 	})
 	assert.True(t, valid)
-	assert.True(t, validHeartBeat)
 
 	iterations := 0
 	consumer2.Consume(1, func(events []Event) {

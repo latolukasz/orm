@@ -45,16 +45,11 @@ func TestLogReceiver(t *testing.T) {
 	engine.Flush(e2)
 
 	valid := false
-	validHeartBeat := false
 	consumer.SetLogLogger(func(log *LogQueueValue) {
 		valid = true
 	})
-	consumer.SetHeartBeat(time.Minute, func() {
-		validHeartBeat = true
-	})
 	consumer.Digest()
 	assert.True(t, valid)
-	assert.True(t, validHeartBeat)
 
 	var entityID int
 	var meta sql.NullString

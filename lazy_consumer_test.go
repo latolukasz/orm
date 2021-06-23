@@ -43,12 +43,7 @@ func TestLazyReceiver(t *testing.T) {
 	loaded := engine.LoadByID(1, e)
 	assert.False(t, loaded)
 
-	validHeartBeat := false
-	receiver.SetHeartBeat(time.Minute, func() {
-		validHeartBeat = true
-	})
 	receiver.Digest()
-	assert.True(t, validHeartBeat)
 
 	engine.GetLocalCache().Clear()
 	loaded = engine.LoadByID(1, e)
@@ -70,12 +65,7 @@ func TestLazyReceiver(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "John", e.Name)
 
-	validHeartBeat = false
-	receiver.SetHeartBeat(time.Minute, func() {
-		validHeartBeat = true
-	})
 	receiver.Digest()
-	assert.True(t, validHeartBeat)
 
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)
