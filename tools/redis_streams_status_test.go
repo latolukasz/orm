@@ -60,9 +60,9 @@ func TestRedisStreamsStatus(t *testing.T) {
 	}
 	assert.True(t, valid)
 
-	consumer := engine.GetEventBroker().Consumer("test-consumer", "test-group")
+	consumer := engine.GetEventBroker().Consumer("test-group")
 	consumer.DisableLoop()
-	consumer.Consume(11000, false, func(events []orm.Event) {
+	consumer.Consume(11000, func(events []orm.Event) {
 		for _, event := range events {
 			event.Skip()
 		}
@@ -81,7 +81,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 			assert.Equal(t, "test-group", stream.Groups[0].Group)
 			assert.Equal(t, uint64(10001), stream.Groups[0].Pending)
 			assert.Len(t, stream.Groups[0].Consumers, 1)
-			assert.Equal(t, "test-consumer-1", stream.Groups[0].Consumers[0].Name)
+			assert.Equal(t, "test-group-1", stream.Groups[0].Consumers[0].Name)
 			assert.Equal(t, uint64(10001), stream.Groups[0].Consumers[0].Pending)
 			assert.Equal(t, int64(10001), stream.Groups[0].SpeedEvents)
 			assert.GreaterOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.01)

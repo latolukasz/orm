@@ -60,7 +60,7 @@ func (ev *event) Unserialize(value interface{}) error {
 
 type EventBroker interface {
 	Publish(stream string, event interface{}) (id string)
-	Consumer(name, group string) EventsConsumer
+	Consumer(group string) EventsConsumer
 	NewFlusher() EventFlusher
 }
 
@@ -142,7 +142,7 @@ type EventConsumerHandler func([]Event)
 type ConsumerErrorHandler func(err interface{}, event Event) error
 
 type EventsConsumer interface {
-	Consume(count int, blocking bool, handler EventConsumerHandler)
+	Consume(count int, handler EventConsumerHandler)
 	DisableLoop()
 	SetLimit(limit int)
 	SetHeartBeat(duration time.Duration, beat func())
@@ -174,7 +174,7 @@ func (s *speedHandler) Clear() {
 	s.RedisMicroseconds = 0
 }
 
-func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
+func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	streams := make([]string, 0)
 	for _, row := range eb.engine.registry.redisStreamGroups {
 		for stream, groups := range row {
@@ -200,7 +200,7 @@ func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
 	speedLogger := &speedHandler{}
 	eb.engine.AddQueryLogger(speedLogger, logApex.InfoLevel, QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
 	return &eventsConsumer{eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, limit: 1, blockTime: time.Second * 30},
-		redis: eb.engine.GetRedis(redisPool), name: name, streams: streams, group: group,
+		redis: eb.engine.GetRedis(redisPool), streams: streams, group: group,
 		lockTTL: time.Second * 90, lockTick: time.Minute,
 		garbageTick: time.Second * 30, minIdle: pendingClaimCheckDuration,
 		claimDuration: pendingClaimCheckDuration, speedLimit: 10000, speedPrefixKey: speedPrefixKey,
@@ -221,7 +221,6 @@ type eventConsumerBase struct {
 type eventsConsumer struct {
 	eventConsumerBase
 	redis                  *RedisCache
-	name                   string
 	nr                     int
 	speedPrefixKey         string
 	deadConsumers          int
@@ -268,9 +267,9 @@ func (b *eventConsumerBase) HeartBeat(force bool) {
 	}
 }
 
-func (r *eventsConsumer) Consume(count int, blocking bool, handler EventConsumerHandler) {
+func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) {
 	for {
-		valid := r.consume(count, blocking, handler)
+		valid := r.consume(count, handler)
 		if valid || !r.loop {
 			break
 		}
@@ -278,8 +277,8 @@ func (r *eventsConsumer) Consume(count int, blocking bool, handler EventConsumer
 	}
 }
 
-func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumerHandler) bool {
-	uniqueLockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
+func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
+	uniqueLockKey := r.group + "_" + r.redis.config.GetCode()
 	runningKey := uniqueLockKey + "_running"
 	locker := r.redis.GetLocker()
 	nr := 0
@@ -293,7 +292,7 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 			if nr < r.limit {
 				continue
 			}
-			panic(fmt.Errorf("consumer %s for group %s limit %d reached", r.name, r.group, r.limit))
+			panic(fmt.Errorf("consumer for group %s limit %d reached", r.group, r.limit))
 		}
 		lock = locked
 		r.nr = nr
@@ -360,7 +359,7 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 	pendingChecked := false
 	var pendingCheckedTime time.Time
 	b := r.blockTime
-	if !blocking {
+	if !r.loop {
 		b = -1
 	}
 	for {
@@ -460,9 +459,6 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 				}
 				r.HeartBeat(false)
 				if totalMessages == 0 {
-					if r.loop && !blocking && normalCheck {
-						time.Sleep(time.Second * 30)
-					}
 					continue KEYS
 				}
 				events := make([]Event, totalMessages)
@@ -566,7 +562,7 @@ func (r *eventsConsumer) consume(count int, blocking bool, handler EventConsumer
 }
 
 func (r *eventsConsumer) getName() string {
-	return r.name + "-" + r.nrString
+	return r.group + "-" + r.nrString
 }
 
 func (r *eventsConsumer) incrementID(id string) string {
@@ -578,7 +574,7 @@ func (r *eventsConsumer) incrementID(id string) string {
 func (r *eventsConsumer) garbageCollector(engine *Engine) {
 	redisGarbage := engine.GetRedis(r.redis.config.GetCode())
 	if r.limit > 1 {
-		lockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
+		lockKey := r.group + "_" + r.redis.config.GetCode()
 		_, has := redisGarbage.GetLocker().Obtain(lockKey, time.Second*20, 0)
 		if !has {
 			return

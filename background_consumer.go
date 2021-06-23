@@ -52,9 +52,9 @@ func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
 }
 
 func (r *BackgroundConsumer) Digest() {
-	consumer := r.engine.GetEventBroker().Consumer("default-consumer", asyncConsumerGroupName).(*eventsConsumer)
+	consumer := r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
 	consumer.eventConsumerBase = r.eventConsumerBase
-	consumer.Consume(100, true, func(events []Event) {
+	consumer.Consume(100, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:

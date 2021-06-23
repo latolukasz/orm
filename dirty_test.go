@@ -26,10 +26,10 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.Len(t, channels, 1)
 	assert.Len(t, channels["default"], 3)
 
-	consumer := engine.GetEventBroker().Consumer("default-consumer", "test-group-1")
+	consumer := engine.GetEventBroker().Consumer("test-group-1")
 	consumer.DisableLoop()
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
-	consumer2 := engine.GetEventBroker().Consumer("default-consumer", "test-group-2")
+	consumer2 := engine.GetEventBroker().Consumer("test-group-2")
 	consumer2.DisableLoop()
 	consumer2.(*eventsConsumer).blockTime = time.Millisecond
 
@@ -43,7 +43,7 @@ func TestDirtyConsumer(t *testing.T) {
 	consumer.SetHeartBeat(time.Minute, func() {
 		validHeartBeat = true
 	})
-	consumer.Consume(10, true, func(events []Event) {
+	consumer.Consume(10, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 2)
 		dirty1 := EventDirtyEntity(events[0])
@@ -63,7 +63,7 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.True(t, validHeartBeat)
 
 	iterations := 0
-	consumer2.Consume(1, true, func(events []Event) {
+	consumer2.Consume(1, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -78,7 +78,7 @@ func TestDirtyConsumer(t *testing.T) {
 	e.Name = "Bob"
 	engine.Flush(e)
 	valid = false
-	consumer.Consume(2, true, func(events []Event) {
+	consumer.Consume(2, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -91,7 +91,7 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.True(t, valid)
 
 	valid = false
-	consumer2.Consume(1, true, func(events []Event) {
+	consumer2.Consume(1, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -106,14 +106,14 @@ func TestDirtyConsumer(t *testing.T) {
 	e.Age = 30
 	engine.Flush(e)
 	valid = false
-	consumer.Consume(2, true, func(events []Event) {
+	consumer.Consume(2, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		assert.Equal(t, uint64(2), EventDirtyEntity(events[0]).ID())
 	})
 	assert.True(t, valid)
 	valid = true
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		valid = false
 	})
 	assert.True(t, valid)
@@ -121,7 +121,7 @@ func TestDirtyConsumer(t *testing.T) {
 	e.Name = "test transaction"
 	engine.NewFlusher().Track(e).FlushInTransaction()
 	valid = false
-	consumer.Consume(2, true, func(events []Event) {
+	consumer.Consume(2, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		assert.Equal(t, uint64(2), EventDirtyEntity(events[0]).ID())
@@ -129,7 +129,7 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.True(t, valid)
 
 	valid = false
-	consumer2.Consume(1, true, func(events []Event) {
+	consumer2.Consume(1, func(events []Event) {
 		valid = true
 	})
 	assert.True(t, valid)
@@ -137,7 +137,7 @@ func TestDirtyConsumer(t *testing.T) {
 	engine.Delete(e)
 
 	valid = false
-	consumer.Consume(2, true, func(events []Event) {
+	consumer.Consume(2, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -150,7 +150,7 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.True(t, valid)
 
 	valid = false
-	consumer2.Consume(1, true, func(events []Event) {
+	consumer2.Consume(1, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -164,7 +164,7 @@ func TestDirtyConsumer(t *testing.T) {
 
 	engine.NewFlusher().MarkDirty(e, "name_changed", 2)
 	valid = false
-	consumer2.Consume(1, true, func(events []Event) {
+	consumer2.Consume(1, func(events []Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
@@ -180,7 +180,7 @@ func TestDirtyConsumer(t *testing.T) {
 	engine.FlushLazy(e)
 
 	valid = false
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		valid = true
 	})
 	assert.False(t, valid)
@@ -190,7 +190,7 @@ func TestDirtyConsumer(t *testing.T) {
 	receiver.blockTime = time.Millisecond
 	receiver.Digest()
 
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
 		assert.True(t, dirty.Added())
@@ -206,12 +206,12 @@ func TestDirtyConsumer(t *testing.T) {
 	e.Age = 40
 	engine.FlushLazy(e)
 	valid = false
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		valid = true
 	})
 	assert.False(t, valid)
 	receiver.Digest()
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
 		assert.False(t, dirty.Added())
@@ -228,12 +228,12 @@ func TestDirtyConsumer(t *testing.T) {
 	flusher.Delete(e)
 	flusher.FlushLazy()
 	valid = false
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		valid = true
 	})
 	assert.False(t, valid)
 	receiver.Digest()
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
 		assert.False(t, dirty.Added())
@@ -256,7 +256,7 @@ func TestDirtyConsumer(t *testing.T) {
 
 	valid = false
 	receiver.Digest()
-	consumer.Consume(1, true, func(events []Event) {
+	consumer.Consume(1, func(events []Event) {
 		assert.Len(t, events, 1)
 		dirty := EventDirtyEntity(events[0])
 		assert.False(t, dirty.Added())
