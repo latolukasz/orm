@@ -134,7 +134,7 @@ func (f *flusher) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
 	entityName := f.engine.GetRegistry().GetTableSchemaForEntity(entity).GetType().String()
 	flusher := f.engine.GetEventBroker().NewFlusher()
 	for _, id := range ids {
-		flusher.PublishMap(queueCode, EventAsMap{"A": "u", "I": id, "E": entityName})
+		flusher.Publish(queueCode, dirtyEvent{A: "u", I: id, E: entityName})
 	}
 	flusher.Flush()
 }
@@ -757,7 +757,7 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, sche
 }
 
 func (f *flusher) addDirtyQueues(bind Bind, schema *tableSchema, id uint64, action string, lazy bool) *dirtyQueueValue {
-	var key EventAsMap
+	var key *dirtyEvent
 	var allStreams []string
 	for stream, columns := range schema.dirtyFields {
 		for _, column := range columns {
@@ -769,10 +769,10 @@ func (f *flusher) addDirtyQueues(bind Bind, schema *tableSchema, id uint64, acti
 				continue
 			}
 			if key == nil {
-				key = EventAsMap{"E": schema.t.String(), "I": id, "A": action}
+				key = &dirtyEvent{A: action, E: schema.t.String(), I: id}
 			}
 			if !lazy {
-				f.getRedisFlusher().PublishMap(stream, key)
+				f.getRedisFlusher().Publish(stream, key)
 			} else {
 				allStreams = append(allStreams, stream)
 			}

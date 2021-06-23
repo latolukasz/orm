@@ -21,8 +21,11 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	engine.GetRedis().FlushDB()
 	broker := engine.GetEventBroker()
 	eventFlusher := engine.GetEventBroker().NewFlusher()
+	type testEvent struct {
+		Name string
+	}
 	for i := 1; i <= 10; i++ {
-		eventFlusher.PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	eventFlusher.Flush()
 
@@ -61,14 +64,20 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	consumer.(*eventsConsumer).garbageTick = time.Millisecond * 15
 	consumer.DisableLoop()
 
+	type testEvent struct {
+		Name string
+	}
+	e := &testEvent{}
+
 	eventFlusher := engine.GetEventBroker().NewFlusher()
 	for i := 1; i <= 10; i++ {
-		eventFlusher.PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	eventFlusher.Flush()
 	assert.PanicsWithError(t, "test err a1", func() {
 		consumer.Consume(1, true, func(events []Event) {
-			panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
+			_ = events[0].Unserialize(e)
+			panic(fmt.Errorf("test err %v", e.Name))
 		})
 	})
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
@@ -76,7 +85,8 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	i := 0
 	consumer.Consume(1, true, func(events []Event) {
 		i++
-		assert.Equal(t, fmt.Sprintf("a%d", i), events[0].RawData()["name"])
+		_ = events[0].Unserialize(e)
+		assert.Equal(t, fmt.Sprintf("a%d", i), e.Name)
 		events[0].Skip()
 	})
 	assert.Equal(t, 10, i)
@@ -91,7 +101,8 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	i = 0
 	consumer.Consume(1, true, func(events []Event) {
 		i++
-		panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
+		_ = events[0].Unserialize(e)
+		panic(fmt.Errorf("test err %v", e.Name))
 	})
 	time.Sleep(time.Millisecond * 20)
 	consumer.(*eventsConsumer).garbageCollector(engine)
@@ -106,26 +117,29 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		if j == 4 {
 			j++
 		}
-		assert.Equal(t, fmt.Sprintf("a%d", j), event.RawData()["name"])
+		_ = event.Unserialize(e)
+		assert.Equal(t, fmt.Sprintf("a%d", j), e.Name)
 		return nil
 	})
 	i = 0
 	consumer.Consume(10, true, func(events []Event) {
 		i++
 		if i == 1 {
-			for k, e := range events {
+			for k, ev := range events {
 				if k == 3 {
-					e.Ack()
+					ev.Ack()
 				}
 			}
-			panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
+			_ = events[0].Unserialize(e)
+			panic(fmt.Errorf("test err %v", e.Name))
 		} else {
 			assert.Len(t, events, 1)
 			if i == 5 {
 				i++
 			}
-			assert.Equal(t, fmt.Sprintf("a%d", i-1), events[0].RawData()["name"])
-			panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, fmt.Sprintf("a%d", i-1), e.Name)
+			panic(fmt.Errorf("test err %v", e.Name))
 		}
 	})
 	assert.Equal(t, 11, i)
@@ -142,7 +156,8 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	})
 	assert.PanicsWithError(t, "strange error: test err a1", func() {
 		consumer.Consume(1, true, func(events []Event) {
-			panic(fmt.Errorf("test err %v", events[0].RawData()["name"]))
+			_ = events[0].Unserialize(e)
+			panic(fmt.Errorf("test err %v", e.Name))
 		})
 	})
 	assert.Equal(t, 1, j)
@@ -172,10 +187,13 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 		}
 	})
 	assert.Equal(t, 1, consumer.(*eventsConsumer).nr)
+	type testEvent struct {
+		Name string
+	}
 
 	engine.GetRedis().FlushDB()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	iterations1 := false
 	iterations2 := false
@@ -263,25 +281,40 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.Equal(t, 1, heartBeats)
 
+	type testEvent struct {
+		Name string
+	}
+	e := &testEvent{}
+
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	iterations := 0
 	consumer.Consume(5, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
-			assert.Equal(t, "a1", events[0].RawData()["name"])
-			assert.Equal(t, "a2", events[1].RawData()["name"])
-			assert.Equal(t, "a3", events[2].RawData()["name"])
-			assert.Equal(t, "a4", events[3].RawData()["name"])
-			assert.Equal(t, "a5", events[4].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a1", e.Name)
+			_ = events[1].Unserialize(e)
+			assert.Equal(t, "a2", e.Name)
+			_ = events[2].Unserialize(e)
+			assert.Equal(t, "a3", e.Name)
+			_ = events[3].Unserialize(e)
+			assert.Equal(t, "a4", e.Name)
+			_ = events[4].Unserialize(e)
+			assert.Equal(t, "a5", e.Name)
 		} else {
-			assert.Equal(t, "a6", events[0].RawData()["name"])
-			assert.Equal(t, "a7", events[1].RawData()["name"])
-			assert.Equal(t, "a8", events[2].RawData()["name"])
-			assert.Equal(t, "a9", events[3].RawData()["name"])
-			assert.Equal(t, "a10", events[4].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a6", e.Name)
+			_ = events[1].Unserialize(e)
+			assert.Equal(t, "a7", e.Name)
+			_ = events[2].Unserialize(e)
+			assert.Equal(t, "a8", e.Name)
+			_ = events[3].Unserialize(e)
+			assert.Equal(t, "a9", e.Name)
+			_ = events[4].Unserialize(e)
+			assert.Equal(t, "a10", e.Name)
 		}
 		for _, event := range events {
 			event.Skip()
@@ -298,24 +331,23 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer.Consume(10, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 10)
-		for _, event := range events {
-			assert.Len(t, event.RawData(), 1)
-		}
 	})
 	assert.Equal(t, 1, iterations)
 
 	engine.GetRedis().XTrim("test-stream", 0, false)
 	for i := 11; i <= 20; i++ {
-		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	iterations = 0
 	consumer.Consume(5, true, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
-			assert.Equal(t, "a11", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a11", e.Name)
 		} else {
-			assert.Equal(t, "a16", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a16", e.Name)
 		}
 		for _, event := range events {
 			event.Skip()
@@ -330,9 +362,11 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
-			assert.Equal(t, "a11", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a11", e.Name)
 		} else {
-			assert.Equal(t, "a16", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a16", e.Name)
 		}
 		events[0].Ack()
 		events[1].Ack()
@@ -349,7 +383,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 
 	engine.GetRedis().FlushDB()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	consumer = broker.Consumer("test-consumer", "test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
@@ -358,7 +392,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		iterations++
 		if iterations == 1 {
 			assert.Len(t, events, 5)
-			assert.Equal(t, "a1", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a1", e.Name)
 			events[0].Ack()
 			events[1].Ack()
 			events[2].Skip()
@@ -366,7 +401,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			events[4].Skip()
 		} else if iterations == 2 {
 			assert.Len(t, events, 5)
-			assert.Equal(t, "a6", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a6", e.Name)
 			events[0].Ack()
 			events[1].Ack()
 			events[2].Skip()
@@ -374,11 +410,16 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			events[4].Skip()
 		} else if iterations == 3 {
 			assert.Len(t, events, 5)
-			assert.Equal(t, "a3", events[0].RawData()["name"])
-			assert.Equal(t, "a4", events[1].RawData()["name"])
-			assert.Equal(t, "a5", events[2].RawData()["name"])
-			assert.Equal(t, "a8", events[3].RawData()["name"])
-			assert.Equal(t, "a9", events[4].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a3", e.Name)
+			_ = events[1].Unserialize(e)
+			assert.Equal(t, "a4", e.Name)
+			_ = events[2].Unserialize(e)
+			assert.Equal(t, "a5", e.Name)
+			_ = events[3].Unserialize(e)
+			assert.Equal(t, "a8", e.Name)
+			_ = events[4].Unserialize(e)
+			assert.Equal(t, "a9", e.Name)
 			events[0].Ack()
 			events[1].Ack()
 			events[2].Skip()
@@ -386,19 +427,24 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			events[4].Skip()
 		} else if iterations == 4 {
 			assert.Len(t, events, 1)
-			assert.Equal(t, "a10", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a10", e.Name)
 			events[0].Ack()
 		} else if iterations == 5 {
 			assert.Len(t, events, 3)
-			assert.Equal(t, "a5", events[0].RawData()["name"])
-			assert.Equal(t, "a8", events[1].RawData()["name"])
-			assert.Equal(t, "a9", events[2].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a5", e.Name)
+			_ = events[1].Unserialize(e)
+			assert.Equal(t, "a8", e.Name)
+			_ = events[2].Unserialize(e)
+			assert.Equal(t, "a9", e.Name)
 			events[0].Ack()
 			events[1].Ack()
 			events[2].Skip()
 		} else if iterations == 6 {
 			assert.Len(t, events, 1)
-			assert.Equal(t, "a9", events[0].RawData()["name"])
+			_ = events[0].Unserialize(e)
+			assert.Equal(t, "a9", e.Name)
 			events[0].Ack()
 			go func() {
 				time.Sleep(time.Millisecond * 100)
@@ -413,8 +459,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
 	consumer.DisableLoop()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().PublishMap("test-stream-a", EventAsMap{"name": fmt.Sprintf("a%d", i)})
-		engine.GetEventBroker().PublishMap("test-stream-b", EventAsMap{"name": fmt.Sprintf("b%d", i)})
+		engine.GetEventBroker().Publish("test-stream-a", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream-b", testEvent{fmt.Sprintf("b%d", i)})
 	}
 	consumer.Consume(8, true, func(events []Event) {
 		iterations++
@@ -435,7 +481,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	valid := false
 	consumer = broker.Consumer("test-consumer-unique", "test-group")
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	go func() {
 		consumer = broker.Consumer("test-consumer-unique", "test-group")
@@ -488,7 +534,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		assert.Len(t, events, 2)
 		for i, event := range events {
 			data := &testStructEvent{}
-			assert.True(t, event.IsSerialized())
 			err := event.Unserialize(data)
 			assert.NoError(t, err)
 			if i == 0 {

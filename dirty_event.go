@@ -1,9 +1,5 @@
 package orm
 
-import (
-	"strconv"
-)
-
 type DirtyEntityEvent interface {
 	ID() uint64
 	TableSchema() TableSchema
@@ -12,12 +8,18 @@ type DirtyEntityEvent interface {
 	Deleted() bool
 }
 
+type dirtyEvent struct {
+	I uint64
+	A string
+	E string
+}
+
 func EventDirtyEntity(e Event) DirtyEntityEvent {
-	data := e.RawData()
-	id, _ := strconv.ParseUint(data["I"].(string), 10, 64)
-	action := data["A"].(string)
-	schema := e.(*event).consumer.redis.engine.registry.GetTableSchema(data["E"].(string))
-	return &dirtyEntityEvent{id: id, schema: schema, added: action == "i", updated: action == "u", deleted: action == "d"}
+	data := dirtyEvent{}
+	err := e.Unserialize(&data)
+	checkError(err)
+	schema := e.(*event).consumer.redis.engine.registry.GetTableSchema(data.E)
+	return &dirtyEntityEvent{id: data.I, schema: schema, added: data.A == "i", updated: data.A == "u", deleted: data.A == "d"}
 }
 
 type dirtyEntityEvent struct {

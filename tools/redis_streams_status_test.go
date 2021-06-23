@@ -37,8 +37,11 @@ func TestRedisStreamsStatus(t *testing.T) {
 
 	r.XGroupCreateMkStream("test-stream", "test-group", "0")
 	flusher := engine.GetEventBroker().NewFlusher()
+	type testEvent struct {
+		Name string
+	}
 	for i := 1; i <= 10001; i++ {
-		flusher.PublishMap("test-stream", orm.EventAsMap{"a": "b"})
+		flusher.Publish("test-stream", testEvent{"b"})
 	}
 	flusher.Flush()
 	time.Sleep(time.Millisecond * 500)

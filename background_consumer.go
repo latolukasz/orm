@@ -28,7 +28,7 @@ type LogQueueValue struct {
 }
 
 type dirtyQueueValue struct {
-	Event   EventAsMap
+	Event   *dirtyEvent
 	Streams []string
 }
 
@@ -184,9 +184,9 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 	if has {
 		for _, row := range dirtyEvents.([]interface{}) {
 			asMap := row.(map[interface{}]interface{})
-			event := asMap["Event"].(map[interface{}]interface{})
+			e := asMap["Event"].(map[interface{}]interface{})
 			for _, stream := range asMap["Streams"].([]interface{}) {
-				r.redisFlusher.PublishMap(stream.(string), r.convertMap(event))
+				r.redisFlusher.Publish(stream.(string), e)
 			}
 		}
 		r.redisFlusher.Flush()

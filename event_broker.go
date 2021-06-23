@@ -17,16 +17,12 @@ const countPending = 100
 const pendingClaimCheckDuration = time.Minute * 2
 const speedHSetKey = "_orm_ss"
 
-type EventAsMap map[string]interface{}
-
 type Event interface {
 	Ack()
 	Skip()
 	ID() string
 	Stream() string
-	RawData() map[string]interface{}
 	Unserialize(val interface{}) error
-	IsSerialized() bool
 }
 
 type event struct {
@@ -54,10 +50,6 @@ func (ev *event) Stream() string {
 	return ev.stream
 }
 
-func (ev *event) RawData() map[string]interface{} {
-	return ev.message.Values
-}
-
 func (ev *event) Unserialize(value interface{}) error {
 	val, has := ev.message.Values["_s"]
 	if !has {
@@ -66,59 +58,40 @@ func (ev *event) Unserialize(value interface{}) error {
 	return msgpack.Unmarshal([]byte(val.(string)), &value)
 }
 
-func (ev *event) IsSerialized() bool {
-	_, has := ev.message.Values["_s"]
-	return has
-}
-
 type EventBroker interface {
-	PublishMap(stream string, event EventAsMap) (id string)
 	Publish(stream string, event interface{}) (id string)
 	Consumer(name, group string) EventsConsumer
 	NewFlusher() EventFlusher
 }
 
 type EventFlusher interface {
-	PublishMap(stream string, event EventAsMap)
 	Publish(stream string, event interface{})
 	Flush()
 }
 
 type eventFlusher struct {
 	eb     *eventBroker
-	events map[string][]EventAsMap
+	events map[string][][]string
 }
 
 type eventBroker struct {
 	engine *Engine
 }
 
-func (ef *eventFlusher) PublishMap(stream string, event EventAsMap) {
-	if ef.events[stream] == nil {
-		ef.events[stream] = []EventAsMap{event}
-	} else {
-		ef.events[stream] = append(ef.events[stream], event)
-	}
-}
-
 func (ef *eventFlusher) Publish(stream string, event interface{}) {
-	asJSON, err := msgpack.Marshal(event)
+	asString, err := msgpack.Marshal(event)
 	if err != nil {
 		panic(err)
 	}
-	if ef.events[stream] == nil {
-		ef.events[stream] = []EventAsMap{{"_s": string(asJSON)}}
-	} else {
-		ef.events[stream] = append(ef.events[stream], EventAsMap{"_s": string(asJSON)})
-	}
+	ef.events[stream] = append(ef.events[stream], []string{"_s", string(asString)})
 }
 
 func (ef *eventFlusher) Flush() {
-	grouped := make(map[*RedisCache]map[string][]EventAsMap)
+	grouped := make(map[*RedisCache]map[string][][]string)
 	for stream, events := range ef.events {
 		r := getRedisForStream(ef.eb.engine, stream)
 		if grouped[r] == nil {
-			grouped[r] = make(map[string][]EventAsMap)
+			grouped[r] = make(map[string][][]string)
 		}
 		if grouped[r][stream] == nil {
 			grouped[r][stream] = events
@@ -130,13 +103,12 @@ func (ef *eventFlusher) Flush() {
 		p := r.PipeLine()
 		for stream, list := range events {
 			for _, e := range list {
-				var v map[string]interface{} = e
-				p.XAdd(stream, v)
+				p.XAdd(stream, e)
 			}
 		}
 		p.Exec()
 	}
-	ef.events = make(map[string][]EventAsMap)
+	ef.events = make(map[string][][]string)
 }
 
 func (e *Engine) GetEventBroker() EventBroker {
@@ -147,21 +119,15 @@ func (e *Engine) GetEventBroker() EventBroker {
 }
 
 func (eb *eventBroker) NewFlusher() EventFlusher {
-	return &eventFlusher{eb: eb, events: make(map[string][]EventAsMap)}
-}
-
-func (eb *eventBroker) PublishMap(stream string, event EventAsMap) (id string) {
-	var v map[string]interface{} = event
-	id = getRedisForStream(eb.engine, stream).xAdd(stream, v)
-	return id
+	return &eventFlusher{eb: eb, events: make(map[string][][]string)}
 }
 
 func (eb *eventBroker) Publish(stream string, event interface{}) (id string) {
-	asJSON, err := msgpack.Marshal(event)
+	asString, err := msgpack.Marshal(event)
 	if err != nil {
 		panic(err)
 	}
-	return eb.PublishMap(stream, EventAsMap{"_s": string(asJSON)})
+	return getRedisForStream(eb.engine, stream).xAdd(stream, []string{"_s", string(asString)})
 }
 
 func getRedisForStream(engine *Engine, stream string) *RedisCache {
