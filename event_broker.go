@@ -22,7 +22,7 @@ type Event interface {
 	Skip()
 	ID() string
 	Stream() string
-	Unserialize(val interface{}) error
+	Unserialize(val interface{})
 }
 
 type event struct {
@@ -50,12 +50,10 @@ func (ev *event) Stream() string {
 	return ev.stream
 }
 
-func (ev *event) Unserialize(value interface{}) error {
-	val, has := ev.message.Values["_s"]
-	if !has {
-		return fmt.Errorf("event without struct data")
-	}
-	return msgpack.Unmarshal([]byte(val.(string)), &value)
+func (ev *event) Unserialize(value interface{}) {
+	val := ev.message.Values["_s"]
+	err := msgpack.Unmarshal([]byte(val.(string)), &value)
+	checkError(err)
 }
 
 type EventBroker interface {

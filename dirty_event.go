@@ -16,8 +16,7 @@ type dirtyEvent struct {
 
 func EventDirtyEntity(e Event) DirtyEntityEvent {
 	data := dirtyEvent{}
-	err := e.Unserialize(&data)
-	checkError(err)
+	e.Unserialize(&data)
 	schema := e.(*event).consumer.redis.engine.registry.GetTableSchema(data.E)
 	return &dirtyEntityEvent{id: data.I, schema: schema, added: data.A == "i", updated: data.A == "u", deleted: data.A == "d"}
 }

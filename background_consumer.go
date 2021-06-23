@@ -70,11 +70,7 @@ func (r *BackgroundConsumer) Digest() {
 
 func (r *BackgroundConsumer) handleLogEvent(event Event) {
 	var value LogQueueValue
-	err := event.Unserialize(&value)
-	if err != nil {
-		event.Ack()
-		return
-	}
+	event.Unserialize(&value)
 	r.handleLog(&value)
 	event.Ack()
 }
@@ -109,11 +105,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 
 func (r *BackgroundConsumer) handleLazy(event Event) {
 	var data map[string]interface{}
-	err := event.Unserialize(&data)
-	if err != nil {
-		event.Ack()
-		return
-	}
+	event.Unserialize(&data)
 	ids := r.handleQueries(r.engine, data)
 	r.handleCache(data, ids)
 	event.Ack()
@@ -241,11 +233,7 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 
 func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 	indexEvent := &redisIndexerEvent{}
-	err := event.Unserialize(indexEvent)
-	if err != nil {
-		event.Ack()
-		return
-	}
+	event.Unserialize(indexEvent)
 	var indexDefinition *RedisSearchIndex
 	redisPool := ""
 	for pool, list := range r.engine.registry.redisSearchIndexes {

@@ -76,7 +76,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	eventFlusher.Flush()
 	assert.PanicsWithError(t, "test err a1", func() {
 		consumer.Consume(1, func(events []Event) {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			panic(fmt.Errorf("test err %v", e.Name))
 		})
 	})
@@ -85,7 +85,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	i := 0
 	consumer.Consume(1, func(events []Event) {
 		i++
-		_ = events[0].Unserialize(e)
+		events[0].Unserialize(e)
 		assert.Equal(t, fmt.Sprintf("a%d", i), e.Name)
 		events[0].Skip()
 	})
@@ -101,7 +101,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	i = 0
 	consumer.Consume(1, func(events []Event) {
 		i++
-		_ = events[0].Unserialize(e)
+		events[0].Unserialize(e)
 		panic(fmt.Errorf("test err %v", e.Name))
 	})
 	time.Sleep(time.Millisecond * 20)
@@ -117,7 +117,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		if j == 4 {
 			j++
 		}
-		_ = event.Unserialize(e)
+		event.Unserialize(e)
 		assert.Equal(t, fmt.Sprintf("a%d", j), e.Name)
 		return nil
 	})
@@ -130,14 +130,14 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 					ev.Ack()
 				}
 			}
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			panic(fmt.Errorf("test err %v", e.Name))
 		} else {
 			assert.Len(t, events, 1)
 			if i == 5 {
 				i++
 			}
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, fmt.Sprintf("a%d", i-1), e.Name)
 			panic(fmt.Errorf("test err %v", e.Name))
 		}
@@ -156,7 +156,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	})
 	assert.PanicsWithError(t, "strange error: test err a1", func() {
 		consumer.Consume(1, func(events []Event) {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			panic(fmt.Errorf("test err %v", e.Name))
 		})
 	})
@@ -294,26 +294,26 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a1", e.Name)
-			_ = events[1].Unserialize(e)
+			events[1].Unserialize(e)
 			assert.Equal(t, "a2", e.Name)
-			_ = events[2].Unserialize(e)
+			events[2].Unserialize(e)
 			assert.Equal(t, "a3", e.Name)
-			_ = events[3].Unserialize(e)
+			events[3].Unserialize(e)
 			assert.Equal(t, "a4", e.Name)
-			_ = events[4].Unserialize(e)
+			events[4].Unserialize(e)
 			assert.Equal(t, "a5", e.Name)
 		} else {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a6", e.Name)
-			_ = events[1].Unserialize(e)
+			events[1].Unserialize(e)
 			assert.Equal(t, "a7", e.Name)
-			_ = events[2].Unserialize(e)
+			events[2].Unserialize(e)
 			assert.Equal(t, "a8", e.Name)
-			_ = events[3].Unserialize(e)
+			events[3].Unserialize(e)
 			assert.Equal(t, "a9", e.Name)
-			_ = events[4].Unserialize(e)
+			events[4].Unserialize(e)
 			assert.Equal(t, "a10", e.Name)
 		}
 		for _, event := range events {
@@ -343,10 +343,10 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a11", e.Name)
 		} else {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a16", e.Name)
 		}
 		for _, event := range events {
@@ -362,10 +362,10 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		iterations++
 		assert.Len(t, events, 5)
 		if iterations == 1 {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a11", e.Name)
 		} else {
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a16", e.Name)
 		}
 		events[0].Ack()
@@ -392,7 +392,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		iterations++
 		if iterations == 1 {
 			assert.Len(t, events, 5)
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a1", e.Name)
 			events[0].Ack()
 			events[1].Ack()
@@ -401,7 +401,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			events[4].Skip()
 		} else if iterations == 2 {
 			assert.Len(t, events, 5)
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a6", e.Name)
 			events[0].Ack()
 			events[1].Ack()
@@ -410,15 +410,15 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			events[4].Skip()
 		} else if iterations == 3 {
 			assert.Len(t, events, 5)
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a3", e.Name)
-			_ = events[1].Unserialize(e)
+			events[1].Unserialize(e)
 			assert.Equal(t, "a4", e.Name)
-			_ = events[2].Unserialize(e)
+			events[2].Unserialize(e)
 			assert.Equal(t, "a5", e.Name)
-			_ = events[3].Unserialize(e)
+			events[3].Unserialize(e)
 			assert.Equal(t, "a8", e.Name)
-			_ = events[4].Unserialize(e)
+			events[4].Unserialize(e)
 			assert.Equal(t, "a9", e.Name)
 			events[0].Ack()
 			events[1].Ack()
@@ -427,23 +427,23 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			events[4].Skip()
 		} else if iterations == 4 {
 			assert.Len(t, events, 1)
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a10", e.Name)
 			events[0].Ack()
 		} else if iterations == 5 {
 			assert.Len(t, events, 3)
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a5", e.Name)
-			_ = events[1].Unserialize(e)
+			events[1].Unserialize(e)
 			assert.Equal(t, "a8", e.Name)
-			_ = events[2].Unserialize(e)
+			events[2].Unserialize(e)
 			assert.Equal(t, "a9", e.Name)
 			events[0].Ack()
 			events[1].Ack()
 			events[2].Skip()
 		} else if iterations == 6 {
 			assert.Len(t, events, 1)
-			_ = events[0].Unserialize(e)
+			events[0].Unserialize(e)
 			assert.Equal(t, "a9", e.Name)
 			events[0].Ack()
 			go func() {
@@ -534,8 +534,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		assert.Len(t, events, 2)
 		for i, event := range events {
 			data := &testStructEvent{}
-			err := event.Unserialize(data)
-			assert.NoError(t, err)
+			event.Unserialize(data)
 			if i == 0 {
 				assert.Equal(t, "a", data.Name)
 				assert.Equal(t, 18, data.Age)
