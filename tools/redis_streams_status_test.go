@@ -63,9 +63,6 @@ func TestRedisStreamsStatus(t *testing.T) {
 	consumer := engine.GetEventBroker().Consumer("test-group")
 	consumer.DisableLoop()
 	consumer.Consume(11000, func(events []orm.Event) {
-		for _, event := range events {
-			event.Skip()
-		}
 		engine.GetRedis().Get("hello")
 		engine.GetRedis().Get("hello2")
 		engine.GetMysql().Query("SELECT 1")
@@ -79,11 +76,8 @@ func TestRedisStreamsStatus(t *testing.T) {
 			assert.Equal(t, uint64(10001), stream.Len)
 			assert.Len(t, stream.Groups, 1)
 			assert.Equal(t, "test-group", stream.Groups[0].Group)
-			assert.Equal(t, uint64(10001), stream.Groups[0].Pending)
-			assert.Len(t, stream.Groups[0].Consumers, 1)
-			assert.Equal(t, "test-group-1", stream.Groups[0].Consumers[0].Name)
-			assert.Equal(t, uint64(10001), stream.Groups[0].Consumers[0].Pending)
-			assert.Equal(t, int64(10001), stream.Groups[0].SpeedEvents)
+			assert.Equal(t, uint64(0), stream.Groups[0].Pending)
+			assert.Len(t, stream.Groups[0].Consumers, 0)
 			assert.GreaterOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.01)
 			assert.LessOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.012)
 			assert.GreaterOrEqual(t, stream.Groups[0].RedisQueriesPerEvent, 0.00019)

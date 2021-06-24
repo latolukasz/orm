@@ -19,7 +19,6 @@ const speedHSetKey = "_orm_ss"
 
 type Event interface {
 	Ack()
-	Skip()
 	ID() string
 	Stream() string
 	Unserialize(val interface{})
@@ -30,16 +29,11 @@ type event struct {
 	stream   string
 	message  redis.XMessage
 	ack      bool
-	skip     bool
 }
 
 func (ev *event) Ack() {
 	ev.consumer.redis.XAck(ev.stream, ev.consumer.group, ev.message.ID)
 	ev.ack = true
-}
-
-func (ev *event) Skip() {
-	ev.skip = true
 }
 
 func (ev *event) ID() string {
@@ -346,8 +340,6 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 		for _, key := range keys {
 			invalidCheck := key == "0"
 			pendingCheck := key == "pending"
-			normalCheck := key == ">"
-			started := time.Now()
 			if pendingCheck {
 				if pendingChecked && time.Since(pendingCheckedTime) < r.claimDuration {
 					continue
@@ -457,7 +449,7 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 								finalEvents := make([]Event, 0)
 								for _, row := range events {
 									e := row.(*event)
-									if !e.ack && !e.skip {
+									if !e.ack {
 										finalEvents = append(finalEvents, row)
 									}
 								}
@@ -493,7 +485,7 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 					ev := ev.(*event)
 					if ev.ack {
 						totalACK++
-					} else if !ev.skip {
+					} else {
 						if toAck == nil {
 							toAck = make(map[string][]string)
 						}
@@ -524,9 +516,6 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 					r.speedRedisMicroseconds = 0
 				}
 				if r.deadConsumers > 0 && time.Since(pendingCheckedTime) >= r.claimDuration {
-					break
-				}
-				if normalCheck && time.Since(started) > time.Minute*10 {
 					break
 				}
 			}
