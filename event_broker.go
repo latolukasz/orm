@@ -47,19 +47,19 @@ func (ev *event) Stream() string {
 }
 
 func (ev *event) Unserialize(value interface{}) {
-	val := ev.message.Values["_s"]
+	val := ev.message.Values["s"]
 	err := msgpack.Unmarshal([]byte(val.(string)), &value)
 	checkError(err)
 }
 
 type EventBroker interface {
-	Publish(stream string, event interface{}) (id string)
+	Publish(stream string, event interface{}, meta ...string) (id string)
 	Consumer(group string) EventsConsumer
 	NewFlusher() EventFlusher
 }
 
 type EventFlusher interface {
-	Publish(stream string, event interface{})
+	Publish(stream string, event interface{}, meta ...string)
 	Flush()
 }
 
@@ -72,12 +72,22 @@ type eventBroker struct {
 	engine *Engine
 }
 
-func (ef *eventFlusher) Publish(stream string, event interface{}) {
+func createEventSlice(event interface{}, meta []string) []string {
 	asString, err := msgpack.Marshal(event)
 	if err != nil {
 		panic(err)
 	}
-	ef.events[stream] = append(ef.events[stream], []string{"_s", string(asString)})
+	values := make([]string, len(meta)+2)
+	values[0] = "s"
+	values[1] = string(asString)
+	for k, v := range meta {
+		values[k+2] = v
+	}
+	return values
+}
+
+func (ef *eventFlusher) Publish(stream string, event interface{}, meta ...string) {
+	ef.events[stream] = append(ef.events[stream], createEventSlice(event, meta))
 }
 
 func (ef *eventFlusher) Flush() {
@@ -116,12 +126,8 @@ func (eb *eventBroker) NewFlusher() EventFlusher {
 	return &eventFlusher{eb: eb, events: make(map[string][][]string)}
 }
 
-func (eb *eventBroker) Publish(stream string, event interface{}) (id string) {
-	asString, err := msgpack.Marshal(event)
-	if err != nil {
-		panic(err)
-	}
-	return getRedisForStream(eb.engine, stream).xAdd(stream, []string{"_s", string(asString)})
+func (eb *eventBroker) Publish(stream string, event interface{}, meta ...string) (id string) {
+	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(event, meta))
 }
 
 func getRedisForStream(engine *Engine, stream string) *RedisCache {

@@ -1,9 +1,5 @@
 package orm
 
-import (
-	"github.com/shamaton/msgpack"
-)
-
 const (
 	commandDelete = iota
 	commandXAdd   = iota
@@ -12,7 +8,7 @@ const (
 
 type RedisFlusher interface {
 	Del(redisPool string, keys ...string)
-	Publish(stream string, event interface{})
+	Publish(stream string, event interface{}, meta ...string)
 	Flush()
 	HSet(redisPool, key string, values ...interface{})
 }
@@ -51,12 +47,8 @@ func (f *redisFlusher) Del(redisPool string, keys ...string) {
 	commands.deletes = append(commands.deletes, keys...)
 }
 
-func (f *redisFlusher) Publish(stream string, event interface{}) {
-	asString, err := msgpack.Marshal(event)
-	if err != nil {
-		panic(err)
-	}
-	eventRaw := []string{"_s", string(asString)}
+func (f *redisFlusher) Publish(stream string, event interface{}, meta ...string) {
+	eventRaw := createEventSlice(event, meta)
 	if f.pipelines == nil {
 		f.pipelines = make(map[string]*redisFlusherCommands)
 	}

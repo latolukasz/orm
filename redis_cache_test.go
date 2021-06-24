@@ -206,30 +206,30 @@ func testRedis(t *testing.T, engine *Engine) {
 
 	events := r.XRange("test-stream", "-", "+", 2)
 	assert.Len(t, events, 2)
-	assert.Equal(t, "\xa2a1", events[0].Values["_s"])
-	assert.Equal(t, "\xa2a2", events[1].Values["_s"])
+	assert.Equal(t, "\xa2a1", events[0].Values["s"])
+	assert.Equal(t, "\xa2a2", events[1].Values["s"])
 
 	infoGroups = r.XInfoGroups("test-stream-invalid")
 	assert.Len(t, infoGroups, 0)
 
 	events = r.XRevRange("test-stream", "+", "-", 2)
 	assert.Len(t, events, 2)
-	assert.Equal(t, "\xa2a5", events[0].Values["_s"])
-	assert.Equal(t, "\xa2a4", events[1].Values["_s"])
+	assert.Equal(t, "\xa2a5", events[0].Values["s"])
+	assert.Equal(t, "\xa2a4", events[1].Values["s"])
 
 	tmpEventID := engine.GetEventBroker().Publish("test-stream", "new")
 	assert.Equal(t, int64(1), r.XDel("test-stream", tmpEventID))
 	events = r.XRevRange("test-stream", "+", "-", 2)
 	assert.Len(t, events, 2)
-	assert.Equal(t, "\xa2a5", events[0].Values["_s"])
-	assert.Equal(t, "\xa2a4", events[1].Values["_s"])
+	assert.Equal(t, "\xa2a5", events[0].Values["s"])
+	assert.Equal(t, "\xa2a4", events[1].Values["s"])
 
 	streams := r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", ">"},
 		Consumer: "test-consumer"})
 	assert.Len(t, streams, 1)
 	assert.Equal(t, "test-stream", streams[0].Stream)
 	assert.Len(t, streams[0].Messages, 5)
-	assert.Equal(t, "\xa2a1", streams[0].Messages[0].Values["_s"])
+	assert.Equal(t, "\xa2a1", streams[0].Messages[0].Values["s"])
 	assert.Equal(t, int64(5), r.XLen("test-stream"))
 	infoGroups = r.XInfoGroups("test-stream")
 	assert.Len(t, infoGroups, 1)
