@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/shamaton/msgpack"
 
 	logApex "github.com/apex/log"
@@ -131,7 +133,7 @@ func getRedisForStream(engine *Engine, stream string) *RedisCache {
 }
 
 type EventConsumerHandler func([]Event)
-type ConsumerErrorHandler func(err interface{}, event Event) error
+type ConsumerErrorHandler func(err error, event Event)
 
 type EventsConsumer interface {
 	Consume(count int, handler EventConsumerHandler)
@@ -457,10 +459,11 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 									func() {
 										defer func() {
 											if rec := recover(); rec != nil {
-												err := r.errorHandler(rec, e)
-												if err != nil {
-													panic(err)
+												asErr, isError := rec.(error)
+												if !isError {
+													asErr = errors.New(fmt.Sprintf("%v", rec))
 												}
+												r.errorHandler(asErr, e)
 											}
 										}()
 										handler([]Event{e})

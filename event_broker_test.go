@@ -92,9 +92,8 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	assert.Equal(t, int64(0), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 
 	j := 0
-	consumer.SetErrorHandler(func(err interface{}, event Event) error {
+	consumer.SetErrorHandler(func(err error, event Event) {
 		j++
-		return nil
 	})
 	i = 0
 	for i := 1; i <= 10; i++ {
@@ -114,14 +113,13 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	assert.Equal(t, int64(10), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 
 	j = 0
-	consumer.SetErrorHandler(func(err interface{}, event Event) error {
+	consumer.SetErrorHandler(func(err error, event Event) {
 		j++
 		if j == 4 {
 			j++
 		}
 		event.Unserialize(e)
 		assert.Equal(t, fmt.Sprintf("a%d", j), e.Name)
-		return nil
 	})
 	i = 0
 	consumer.Consume(10, func(events []Event) {
@@ -152,9 +150,9 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	assert.Equal(t, int64(9), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 
 	j = 0
-	consumer.SetErrorHandler(func(err interface{}, event Event) error {
+	consumer.SetErrorHandler(func(err error, event Event) {
 		j++
-		return fmt.Errorf("strange error: %v", err)
+		panic(fmt.Errorf("strange error: %v", err))
 	})
 	assert.PanicsWithError(t, "strange error: test err a1", func() {
 		consumer.Consume(1, func(events []Event) {
