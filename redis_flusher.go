@@ -47,8 +47,8 @@ func (f *redisFlusher) Del(redisPool string, keys ...string) {
 	commands.deletes = append(commands.deletes, keys...)
 }
 
-func (f *redisFlusher) Publish(stream string, event interface{}, meta ...string) {
-	eventRaw := createEventSlice(event, meta)
+func (f *redisFlusher) Publish(stream string, body interface{}, meta ...string) {
+	eventRaw := createEventSlice(body, meta)
 	if f.pipelines == nil {
 		f.pipelines = make(map[string]*redisFlusherCommands)
 	}

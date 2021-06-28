@@ -23,6 +23,7 @@ type Event interface {
 	Ack()
 	ID() string
 	Stream() string
+	Tag(key string) (value string)
 	Unserialize(val interface{})
 }
 
@@ -46,6 +47,14 @@ func (ev *event) Stream() string {
 	return ev.stream
 }
 
+func (ev *event) Tag(key string) (value string) {
+	val, has := ev.message.Values[key]
+	if has {
+		return val.(string)
+	}
+	return ""
+}
+
 func (ev *event) Unserialize(value interface{}) {
 	val := ev.message.Values["s"]
 	err := msgpack.Unmarshal([]byte(val.(string)), &value)
@@ -53,13 +62,13 @@ func (ev *event) Unserialize(value interface{}) {
 }
 
 type EventBroker interface {
-	Publish(stream string, event interface{}, meta ...string) (id string)
+	Publish(stream string, body interface{}, meta ...string) (id string)
 	Consumer(group string) EventsConsumer
 	NewFlusher() EventFlusher
 }
 
 type EventFlusher interface {
-	Publish(stream string, event interface{}, meta ...string)
+	Publish(stream string, body interface{}, meta ...string)
 	Flush()
 }
 
@@ -72,8 +81,11 @@ type eventBroker struct {
 	engine *Engine
 }
 
-func createEventSlice(event interface{}, meta []string) []string {
-	asString, err := msgpack.Marshal(event)
+func createEventSlice(body interface{}, meta []string) []string {
+	if body == nil {
+		return meta
+	}
+	asString, err := msgpack.Marshal(body)
 	if err != nil {
 		panic(err)
 	}
@@ -86,8 +98,8 @@ func createEventSlice(event interface{}, meta []string) []string {
 	return values
 }
 
-func (ef *eventFlusher) Publish(stream string, event interface{}, meta ...string) {
-	ef.events[stream] = append(ef.events[stream], createEventSlice(event, meta))
+func (ef *eventFlusher) Publish(stream string, body interface{}, meta ...string) {
+	ef.events[stream] = append(ef.events[stream], createEventSlice(body, meta))
 }
 
 func (ef *eventFlusher) Flush() {
@@ -126,8 +138,8 @@ func (eb *eventBroker) NewFlusher() EventFlusher {
 	return &eventFlusher{eb: eb, events: make(map[string][][]string)}
 }
 
-func (eb *eventBroker) Publish(stream string, event interface{}, meta ...string) (id string) {
-	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(event, meta))
+func (eb *eventBroker) Publish(stream string, body interface{}, meta ...string) (id string) {
+	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(body, meta))
 }
 
 func getRedisForStream(engine *Engine, stream string) *RedisCache {

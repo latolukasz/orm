@@ -410,4 +410,21 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		}
 	})
 	assert.True(t, valid)
+
+	eventFlusher.Publish("test-stream", "test", "tag", "val1", "tag2", "val2")
+	eventFlusher.Publish("test-stream", nil, "tag3", "val3")
+	eventFlusher.Flush()
+	valid = false
+	consumer.Consume(10, func(events []Event) {
+		valid = true
+		assert.Len(t, events, 2)
+		data := ""
+		events[0].Unserialize(&data)
+		assert.Equal(t, "test", data)
+		assert.Equal(t, "val1", events[0].Tag("tag"))
+		assert.Equal(t, "val2", events[0].Tag("tag2"))
+		assert.Equal(t, "", events[0].Tag("tag3"))
+		assert.Equal(t, "val3", events[1].Tag("tag3"))
+	})
+	assert.True(t, valid)
 }

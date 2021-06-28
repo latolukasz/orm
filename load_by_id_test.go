@@ -3,9 +3,6 @@ package orm
 import (
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
-	"github.com/shamaton/msgpack"
-
 	apexLog "github.com/apex/log"
 	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/assert"
@@ -236,34 +233,6 @@ func BenchmarkLoadByIDLocalCacheLazy(b *testing.B) {
 
 func BenchmarkLoadByIDRedisCacheLazy(b *testing.B) {
 	benchmarkLoadByIDLocalCache(b, true, false, true)
-}
-
-var serializeData = []interface{}{17458, 179388, uint8(2), uint16(17), 982, "Name 2", "Name", false, true, float32(1.338832), 12324.23}
-
-// LEN: 68 BenchmarkSerializeJSON-12    	 1156762	       930.9 ns/op	     496 B/op	      15 allocs/op
-func BenchmarkSerializeJSON(b *testing.B) {
-	val := serializeData
-	encoded, _ := jsoniter.ConfigFastest.Marshal(val)
-	asString := string(encoded)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for n := 0; n < b.N; n++ {
-		decoded := make([]interface{}, 6)
-		_ = jsoniter.ConfigFastest.Unmarshal([]byte(asString), &decoded)
-	}
-}
-
-//LEN 42 BenchmarkSerializeMessagePack2-12    	 1046724	      1133 ns/op	     496 B/op	      13 allocs/op
-func BenchmarkSerializeMessagePack(b *testing.B) {
-	val := serializeData
-	encoded, _ := msgpack.Marshal(val)
-	asString := string(encoded)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for n := 0; n < b.N; n++ {
-		decoded := make([]interface{}, 6)
-		_ = msgpack.Unmarshal([]byte(asString), &decoded)
-	}
 }
 
 func benchmarkLoadByIDLocalCache(b *testing.B, lazy, local, redis bool) {
