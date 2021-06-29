@@ -39,7 +39,6 @@ type Flusher interface {
 	FlushLazy()
 	FlushInTransaction()
 	Clear()
-	MarkDirty(entity Entity, queueCode string, ids ...uint64)
 	Delete(entity ...Entity) Flusher
 	ForceDelete(entity ...Entity) Flusher
 }
@@ -128,15 +127,6 @@ func (f *flusher) Clear() {
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
 	f.clear()
-}
-
-func (f *flusher) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
-	entityName := f.engine.GetRegistry().GetTableSchemaForEntity(entity).GetType().String()
-	flusher := f.engine.GetEventBroker().NewFlusher()
-	for _, id := range ids {
-		flusher.Publish(queueCode, dirtyEvent{A: "u", I: id, E: entityName})
-	}
-	flusher.Flush()
 }
 
 func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {

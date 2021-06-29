@@ -157,7 +157,7 @@ func TestDirtyConsumer(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	engine.NewFlusher().MarkDirty(e, "name_changed", 2)
+	engine.MarkDirty(e, "name_changed", 2)
 	valid = false
 	consumer2.Consume(1, func(events []Event) {
 		valid = true

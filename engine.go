@@ -343,6 +343,15 @@ func (e *Engine) DeleteMany(entities ...Entity) {
 	e.FlushMany(entities...)
 }
 
+func (e *Engine) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
+	entityName := e.GetRegistry().GetTableSchemaForEntity(entity).GetType().String()
+	flusher := e.GetEventBroker().NewFlusher()
+	for _, id := range ids {
+		flusher.Publish(queueCode, dirtyEvent{A: "u", I: id, E: entityName})
+	}
+	flusher.Flush()
+}
+
 func (e *Engine) GetRegistry() ValidatedRegistry {
 	return e.registry
 }
