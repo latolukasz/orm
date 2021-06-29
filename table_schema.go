@@ -72,6 +72,7 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 type TableSchema interface {
 	GetTableName() string
 	GetType() reflect.Type
+	NewEntity() Entity
 	DropTable(engine *Engine)
 	TruncateTable(engine *Engine)
 	UpdateSchema(engine *Engine)
@@ -1062,7 +1063,7 @@ func (tableSchema *tableSchema) getCacheKey(id uint64) string {
 	return tableSchema.cachePrefix + ":" + strconv.FormatUint(id, 10)
 }
 
-func (tableSchema *tableSchema) newEntity() Entity {
+func (tableSchema *tableSchema) NewEntity() Entity {
 	val := reflect.New(tableSchema.t)
 	e := val.Interface().(Entity)
 	orm := e.getORM()

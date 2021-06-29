@@ -691,7 +691,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		isNil := f.IsNil()
 		if id > 0 {
 			if isNil {
-				e := getTableSchema(engine.registry, fields.refsTypes[k]).newEntity()
+				e := getTableSchema(engine.registry, fields.refsTypes[k]).NewEntity()
 				o := e.getORM()
 				o.idElem.SetUint(id)
 				o.inDB = true
@@ -894,7 +894,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		if l > 0 {
 			slice := reflect.MakeSlice(reflect.SliceOf(refType), l, l)
 			for j := 0; j < l; j++ {
-				e := getTableSchema(engine.registry, fields.refsTypes[k]).newEntity()
+				e := getTableSchema(engine.registry, fields.refsTypes[k]).NewEntity()
 				o := e.getORM()
 				o.idElem.SetUint(serializer.GetUInteger())
 				o.inDB = true

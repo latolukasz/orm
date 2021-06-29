@@ -30,7 +30,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			if row == nil {
 				missing = true
 			} else {
-				entity := schema.newEntity()
+				entity := schema.NewEntity()
 				fillFromBinary(ids[i], engine, row, entity, false, lazy)
 				newSlice.Index(i).Set(entity.getORM().value)
 				hasValid = true
@@ -73,7 +73,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		for i, val := range inCache {
 			if val != nil {
 				if val != cacheNilValue {
-					e := schema.newEntity()
+					e := schema.NewEntity()
 					newSlice.Index(i).Set(e.getORM().value)
 					fillFromBinary(ids[i], engine, val.([]byte), e, false, lazy)
 					hasValid = true
@@ -116,7 +116,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 					if hasLocalCache {
 						k = cacheMap[k]
 					}
-					e := schema.newEntity()
+					e := schema.NewEntity()
 					newSlice.Index(k).Set(e.getORM().value)
 					fillFromBinary(ids[k], engine, []byte(val.(string)), e, false, lazy)
 					hasValid = true
@@ -173,7 +173,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			if dbMap != nil {
 				k = dbMap[k]
 			}
-			e := schema.newEntity()
+			e := schema.NewEntity()
 			newSlice.Index(k).Set(e.getORM().value)
 			fillFromDBRow(id, engine, pointers, e, true, lazy)
 			if hasCache {
