@@ -22,7 +22,7 @@ func TestEngine(t *testing.T) {
 	assert.True(t, is)
 	assert.Equal(t, log2.WarnLevel, handler.Level)
 	engine.AddQueryLogger(memory.New(), log2.InfoLevel)
-	assert.Len(t, engine.queryLoggers, 5)
+	assert.Len(t, engine.queryLoggers, 4)
 
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
 		engine.GetMysql("test")
@@ -32,9 +32,6 @@ func TestEngine(t *testing.T) {
 	})
 	assert.PanicsWithError(t, "unregistered redis cache pool 'test'", func() {
 		engine.GetRedis("test")
-	})
-	assert.PanicsWithError(t, "unregistered elastic pool 'test'", func() {
-		engine.GetElastic("test")
 	})
 	assert.PanicsWithError(t, "unregistered clickhouse pool 'test'", func() {
 		engine.GetClickHouse("test")
@@ -47,10 +44,10 @@ func TestEngine(t *testing.T) {
 	assert.Equal(t, log2.DebugLevel, handler.Level)
 
 	engine.EnableQueryDebug()
-	assert.Len(t, engine.queryLoggers, 5)
+	assert.Len(t, engine.queryLoggers, 4)
 	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 3)
 	engine.EnableQueryDebug()
-	assert.Len(t, engine.queryLoggers, 5)
+	assert.Len(t, engine.queryLoggers, 4)
 	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 3)
 }
 

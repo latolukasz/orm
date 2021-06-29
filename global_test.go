@@ -46,12 +46,6 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 		alter.Exec()
 	}
 
-	altersElastic := engine.GetElasticIndexAlters()
-	for _, alter := range altersElastic {
-		pool := engine.GetElastic(alter.Pool)
-		pool.CreateIndex(alter.Index)
-	}
-
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
 		eType := reflect.TypeOf(entity)

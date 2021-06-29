@@ -40,12 +40,6 @@ func TestYamlLoader(t *testing.T) {
 	})
 
 	invalidYaml = make(map[string]interface{})
-	invalidYaml["default"] = map[string]interface{}{"elastic": []string{}}
-	assert.PanicsWithError(t, "elastic uri '[]' is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
-
-	invalidYaml = make(map[string]interface{})
 	invalidYaml["default"] = map[string]interface{}{"clickhouse": []string{}}
 	assert.PanicsWithError(t, "click house uri '[]' is not valid", func() {
 		NewRegistry().InitByYaml(invalidYaml)

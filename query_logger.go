@@ -15,7 +15,6 @@ type QueryLoggerSource int
 const (
 	QueryLoggerSourceDB = iota
 	QueryLoggerSourceRedis
-	QueryLoggerSourceElastic
 	QueryLoggerSourceClickHouse
 	QueryLoggerSourceLocalCache
 	QueryLoggerSourceStreams

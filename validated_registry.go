@@ -31,7 +31,6 @@ type validatedRegistry struct {
 	redisServers       map[string]RedisPoolConfig
 	redisStreamGroups  map[string]map[string]map[string]bool
 	redisStreamPools   map[string]string
-	elasticServers     map[string]*ElasticConfig
 	enums              map[string]Enum
 	timeOffset         int64
 }

@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	log2 "log"
 	"math"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -17,7 +15,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
 	"github.com/jmoiron/sqlx"
-	"github.com/olivere/elastic/v7"
 )
 
 type Registry struct {
@@ -25,10 +22,8 @@ type Registry struct {
 	clickHouseClients  map[string]*ClickHouseConfig
 	localCachePools    map[string]LocalCachePoolConfig
 	redisPools         map[string]RedisPoolConfig
-	elasticServers     map[string]*ElasticConfig
 	entities           map[string]reflect.Type
 	redisSearchIndices map[string]map[string]*RedisSearchIndex
-	elasticIndices     map[string]map[string]ElasticIndexDefinition
 	enums              map[string]Enum
 	defaultEncoding    string
 	redisStreamGroups  map[string]map[string]map[string]bool
@@ -128,12 +123,6 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 	for k, v := range r.redisPools {
 		registry.redisServers[k] = v
 	}
-	if registry.elasticServers == nil {
-		registry.elasticServers = make(map[string]*ElasticConfig)
-	}
-	for k, v := range r.elasticServers {
-		registry.elasticServers[k] = v
-	}
 	if registry.enums == nil {
 		registry.enums = make(map[string]Enum)
 	}
@@ -229,20 +218,6 @@ func (r *Registry) RegisterRedisSearchIndex(index ...*RedisSearchIndex) {
 	}
 }
 
-func (r *Registry) RegisterElasticIndex(index ElasticIndexDefinition, serverPool ...string) {
-	if r.elasticIndices == nil {
-		r.elasticIndices = make(map[string]map[string]ElasticIndexDefinition)
-	}
-	pool := "default"
-	if len(serverPool) > 0 {
-		pool = serverPool[0]
-	}
-	if r.elasticIndices[pool] == nil {
-		r.elasticIndices[pool] = make(map[string]ElasticIndexDefinition)
-	}
-	r.elasticIndices[pool][index.GetName()] = index
-}
-
 func (r *Registry) RegisterEnumStruct(code string, val interface{}, defaultValue ...string) {
 	enum := initEnum(val, defaultValue...)
 	if r.enums == nil {
@@ -270,14 +245,6 @@ func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...st
 
 func (r *Registry) RegisterMySQLPool(dataSourceName string, code ...string) {
 	r.registerSQLPool(dataSourceName, code...)
-}
-
-func (r *Registry) RegisterElastic(url string, code ...string) {
-	r.registerElastic(url, false, code...)
-}
-
-func (r *Registry) RegisterElasticWithTraceLog(url string, code ...string) {
-	r.registerElastic(url, true, code...)
 }
 
 func (r *Registry) RegisterLocalCache(size int, code ...string) {
@@ -373,27 +340,6 @@ func (r *Registry) RegisterClickHouse(url string, code ...string) {
 	r.clickHouseClients[dbCode] = db
 }
 
-func (r *Registry) registerElastic(url string, withTrace bool, code ...string) {
-	clientOptions := []elastic.ClientOptionFunc{elastic.SetSniff(false), elastic.SetURL(url),
-		elastic.SetHealthcheckInterval(5 * time.Second), elastic.SetRetrier(elastic.NewBackoffRetrier(elastic.NewExponentialBackoff(10*time.Millisecond, 5*time.Second)))}
-	if withTrace {
-		clientOptions = append(clientOptions, elastic.SetTraceLog(log2.New(os.Stdout, "", log2.LstdFlags)))
-	}
-	client, err := elastic.NewClient(
-		clientOptions...,
-	)
-	checkError(err)
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	config := &ElasticConfig{code: dbCode, client: client}
-	if r.elasticServers == nil {
-		r.elasticServers = make(map[string]*ElasticConfig)
-	}
-	r.elasticServers[dbCode] = config
-}
-
 func (r *Registry) registerRedis(client *redis.Client, code []string, address string, db int) {
 	dbCode := "default"
 	if len(code) > 0 {
@@ -434,9 +380,4 @@ func (p *redisCacheConfig) GetAddress() string {
 
 func (p *redisCacheConfig) getClient() *redis.Client {
 	return p.client
-}
-
-type ElasticConfig struct {
-	code   string
-	client *elastic.Client
 }

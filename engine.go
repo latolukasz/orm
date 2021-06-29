@@ -25,7 +25,6 @@ type Engine struct {
 	localCache                map[string]*LocalCache
 	redis                     map[string]*RedisCache
 	redisSearch               map[string]*RedisSearch
-	elastic                   map[string]*Elastic
 	logMetaData               Bind
 	dataLoader                *dataLoader
 	hasRequestCache           bool
@@ -34,7 +33,6 @@ type Engine struct {
 	hasStreamsLogger          bool
 	hasDBLogger               bool
 	hasClickHouseLogger       bool
-	hasElasticLogger          bool
 	hasLocalCacheLogger       bool
 	log                       *log
 	logDebugOnce              sync.Once
@@ -93,8 +91,7 @@ func (e *Engine) EnableDebug() {
 
 func (e *Engine) AddQueryLogger(handler logApex.Handler, level logApex.Level, source ...QueryLoggerSource) {
 	if len(source) == 0 {
-		source = []QueryLoggerSource{QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceElastic,
-			QueryLoggerSourceClickHouse, QueryLoggerSourceStreams}
+		source = []QueryLoggerSource{QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceClickHouse, QueryLoggerSourceStreams}
 	}
 	if e.queryLoggers == nil {
 		e.queryLoggers = make(map[QueryLoggerSource]*logger)
@@ -122,8 +119,6 @@ MAIN:
 				e.hasDBLogger = true
 			case QueryLoggerSourceClickHouse:
 				e.hasClickHouseLogger = true
-			case QueryLoggerSourceElastic:
-				e.hasElasticLogger = true
 			case QueryLoggerSourceLocalCache:
 				e.hasLocalCacheLogger = true
 			}
@@ -263,27 +258,6 @@ func (e *Engine) GetClickHouse(code ...string) *ClickHouse {
 		}
 	}
 	return ch
-}
-
-func (e *Engine) GetElastic(code ...string) *Elastic {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	elastic, has := e.elastic[dbCode]
-	if !has {
-		val, has := e.registry.elasticServers[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered elastic pool '%s'", dbCode))
-		}
-		elastic = &Elastic{engine: e, code: val.code, client: val.client}
-		if e.elastic == nil {
-			e.elastic = map[string]*Elastic{dbCode: elastic}
-		} else {
-			e.elastic[dbCode] = elastic
-		}
-	}
-	return elastic
 }
 
 func (e *Engine) NewFlusher() Flusher {
@@ -493,10 +467,6 @@ func (e *Engine) GetAlters() (alters []Alter) {
 
 func (e *Engine) GetRedisSearchIndexAlters() (alters []RedisSearchIndexAlter) {
 	return getRedisSearchAlters(e)
-}
-
-func (e *Engine) GetElasticIndexAlters() (alters []ElasticIndexAlter) {
-	return getElasticIndexAlters(e)
 }
 
 func (e *Engine) getSerializer() *serializer {

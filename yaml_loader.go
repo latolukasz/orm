@@ -13,10 +13,6 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 			switch dataKey {
 			case "mysql":
 				validateOrmMysqlURI(r, value, key)
-			case "elastic":
-				validateElasticURI(r, value, key, false)
-			case "elastic_trace":
-				validateElasticURI(r, value, key, true)
 			case "clickhouse":
 				validateClickHouseURI(r, value, key)
 			case "redis":
@@ -42,18 +38,6 @@ func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 		panic(fmt.Errorf("mysql uri '%v' is not valid", value))
 	}
 	registry.RegisterMySQLPool(asString, key)
-}
-
-func validateElasticURI(registry *Registry, value interface{}, key string, withTrace bool) {
-	asString, ok := value.(string)
-	if !ok {
-		panic(fmt.Errorf("elastic uri '%v' is not valid", value))
-	}
-	if withTrace {
-		registry.RegisterElasticWithTraceLog(asString, key)
-	} else {
-		registry.RegisterElastic(asString, key)
-	}
 }
 
 func validateClickHouseURI(registry *Registry, value interface{}, key string) {
