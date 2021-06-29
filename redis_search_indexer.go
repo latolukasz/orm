@@ -93,6 +93,5 @@ func (p *redisSearchIndexPusher) PushDocument() {
 func (p *redisSearchIndexPusher) Flush() {
 	if p.pipeline.commands > 0 {
 		p.pipeline.Exec()
-		p.pipeline = p.pipeline.engine.GetRedis(p.pipeline.pool).PipeLine()
 	}
 }

@@ -54,7 +54,7 @@ func (r *RedisCache) GetSet(key string, ttlSeconds int, provider func() interfac
 }
 
 func (r *RedisCache) PipeLine() *RedisPipeLine {
-	return &RedisPipeLine{ctx: r.client.Context(), pool: r.config.GetCode(), engine: r.engine, pipeLine: r.client.Pipeline()}
+	return &RedisPipeLine{ctx: r.client.Context(), pool: r.config.GetCode(), r: r, pipeLine: r.client.Pipeline()}
 }
 
 func (r *RedisCache) Info(section ...string) string {

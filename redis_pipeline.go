@@ -2,7 +2,6 @@ package orm
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	log2 "github.com/apex/log"
@@ -11,18 +10,17 @@ import (
 )
 
 type RedisPipeLine struct {
-	engine   *Engine
+	r        *RedisCache
 	pool     string
 	pipeLine redis.Pipeliner
 	ctx      context.Context
-	executed bool
 	commands int
 	log      []string
 }
 
 func (rp *RedisPipeLine) Del(key ...string) *PipeLineInt {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "DEL")
 		rp.log = append(rp.log, key...)
 	}
@@ -31,7 +29,7 @@ func (rp *RedisPipeLine) Del(key ...string) *PipeLineInt {
 
 func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "GET", key)
 	}
 	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(rp.ctx, key)}
@@ -39,7 +37,7 @@ func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
 
 func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) *PipeLineStatus {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "SET", key)
 	}
 	return &PipeLineStatus{p: rp, cmd: rp.pipeLine.Set(rp.ctx, key, value, expiration)}
@@ -47,7 +45,7 @@ func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Dura
 
 func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineBool {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "EXPIRE", key)
 	}
 	return &PipeLineBool{p: rp, cmd: rp.pipeLine.Expire(rp.ctx, key, expiration)}
@@ -55,7 +53,7 @@ func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineB
 
 func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HIncrBy", key)
 	}
 	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(rp.ctx, key, field, incr)}
@@ -63,7 +61,7 @@ func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
 
 func (rp *RedisPipeLine) HSet(key string, values ...interface{}) *PipeLineInt {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HSet", key)
 	}
 	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HSet(rp.ctx, key, values...)}
@@ -71,7 +69,7 @@ func (rp *RedisPipeLine) HSet(key string, values ...interface{}) *PipeLineInt {
 
 func (rp *RedisPipeLine) HDel(key string, values ...string) *PipeLineInt {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HDel", key)
 	}
 	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HDel(rp.ctx, key, values...)}
@@ -79,30 +77,25 @@ func (rp *RedisPipeLine) HDel(key string, values ...string) *PipeLineInt {
 
 func (rp *RedisPipeLine) XAdd(stream string, values interface{}) *PipeLineString {
 	rp.commands++
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "XAdd", stream)
 	}
 	return &PipeLineString{p: rp, cmd: rp.pipeLine.XAdd(rp.ctx, &redis.XAddArgs{Stream: stream, Values: values})}
 }
 
 func (rp *RedisPipeLine) Exec() {
-	if rp.executed {
-		panic(fmt.Errorf("pipeline is already executed"))
-	}
 	start := time.Now()
 	_, err := rp.pipeLine.Exec(rp.ctx)
-	rp.executed = true
+	rp.pipeLine = rp.r.client.Pipeline()
 	if err != nil && err == redis.Nil {
 		err = nil
 	}
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		rp.fillLogFields(start, err)
 	}
+	rp.log = nil
+	rp.commands = 0
 	checkError(err)
-}
-
-func (rp *RedisPipeLine) Executed() bool {
-	return rp.executed
 }
 
 type PipeLineGet struct {
@@ -110,13 +103,13 @@ type PipeLineGet struct {
 	cmd *redis.StringCmd
 }
 
-func (c *PipeLineGet) Result() (value string, has bool, err error) {
-	checkExecuted(c.p)
+func (c *PipeLineGet) Result() (value string, has bool) {
 	val, err := c.cmd.Result()
 	if err == redis.Nil {
-		return val, false, nil
+		return val, false
 	}
-	return val, true, err
+	checkError(err)
+	return val, true
 }
 
 type PipeLineString struct {
@@ -124,9 +117,10 @@ type PipeLineString struct {
 	cmd *redis.StringCmd
 }
 
-func (c *PipeLineString) Result() (string, error) {
-	checkExecuted(c.p)
-	return c.cmd.Result()
+func (c *PipeLineString) Result() string {
+	val, err := c.cmd.Result()
+	checkError(err)
+	return val
 }
 
 type PipeLineInt struct {
@@ -134,9 +128,10 @@ type PipeLineInt struct {
 	cmd *redis.IntCmd
 }
 
-func (c *PipeLineInt) Result() (int64, error) {
-	checkExecuted(c.p)
-	return c.cmd.Result()
+func (c *PipeLineInt) Result() int64 {
+	val, err := c.cmd.Result()
+	checkError(err)
+	return val
 }
 
 type PipeLineBool struct {
@@ -144,9 +139,10 @@ type PipeLineBool struct {
 	cmd *redis.BoolCmd
 }
 
-func (c *PipeLineBool) Result() (bool, error) {
-	checkExecuted(c.p)
-	return c.cmd.Result()
+func (c *PipeLineBool) Result() bool {
+	val, err := c.cmd.Result()
+	checkError(err)
+	return val
 }
 
 type PipeLineStatus struct {
@@ -154,18 +150,17 @@ type PipeLineStatus struct {
 	cmd *redis.StatusCmd
 }
 
-func (c *PipeLineStatus) Result() error {
-	checkExecuted(c.p)
+func (c *PipeLineStatus) Result() {
 	_, err := c.cmd.Result()
-	return err
+	checkError(err)
 }
 
 func (rp *RedisPipeLine) fillLogFields(start time.Time, err error) {
-	if rp.engine.hasRedisLogger {
+	if rp.r.engine.hasRedisLogger {
 		message := "[ORM][REDIS][EXEC]"
 		now := time.Now()
 		stop := time.Since(start).Microseconds()
-		e := rp.engine.queryLoggers[QueryLoggerSourceRedis].log.WithFields(log2.Fields{
+		e := rp.r.engine.queryLoggers[QueryLoggerSourceRedis].log.WithFields(log2.Fields{
 			"microseconds": stop,
 			"operation":    "exec",
 			"commands":     rp.log,
@@ -179,11 +174,5 @@ func (rp *RedisPipeLine) fillLogFields(start time.Time, err error) {
 		} else {
 			e.Info(message)
 		}
-	}
-}
-
-func checkExecuted(p *RedisPipeLine) {
-	if !p.Executed() {
-		panic(fmt.Errorf("pipeline must be executed first"))
 	}
 }

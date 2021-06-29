@@ -6,13 +6,6 @@ const (
 	commandHSet   = iota
 )
 
-type RedisFlusher interface {
-	Del(redisPool string, keys ...string)
-	Publish(stream string, event interface{}, meta ...string)
-	Flush()
-	HSet(redisPool, key string, values ...interface{})
-}
-
 type redisFlusherCommands struct {
 	diffs   map[int]bool
 	usePool bool

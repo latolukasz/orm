@@ -35,11 +35,11 @@ type dirtyQueueValue struct {
 type BackgroundConsumer struct {
 	eventConsumerBase
 	logLogger    func(log *LogQueueValue)
-	redisFlusher RedisFlusher
+	redisFlusher *redisFlusher
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
-	c := &BackgroundConsumer{redisFlusher: engine.NewRedisFlusher()}
+	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine}}
 	c.engine = engine
 	c.loop = true
 	c.limit = 1

@@ -290,10 +290,6 @@ func (e *Engine) NewFlusher() Flusher {
 	return &flusher{engine: e}
 }
 
-func (e *Engine) NewRedisFlusher() RedisFlusher {
-	return &redisFlusher{engine: e}
-}
-
 func (e *Engine) Flush(entity Entity) {
 	e.FlushMany(entity)
 }
