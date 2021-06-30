@@ -12,7 +12,7 @@ import (
 )
 
 type logReceiverEntity1 struct {
-	ORM      `orm:"log;asyncRedisLogs=default;redisCache"`
+	ORM      `orm:"log;redisCache"`
 	ID       uint
 	Name     string
 	LastName string
