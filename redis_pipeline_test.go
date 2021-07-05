@@ -24,7 +24,7 @@ func TestRedisPipeline(t *testing.T) {
 	r.Set("a", "A", 10)
 	r.Set("c", "C", 10)
 	testLogger := &testLogHandler{}
-	engine.AddQueryLogger(testLogger, false, true, false)
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 	c1 := pipeLine.Get("a")
 	c2 := pipeLine.Get("b")
 	c3 := pipeLine.Get("c")

@@ -30,7 +30,7 @@ func TestDB(t *testing.T) {
 	var entity *dbEntity
 	engine := PrepareTables(t, &Registry{}, 5, entity)
 	logger := &testLogHandler{}
-	engine.AddQueryLogger(logger, true, false, false)
+	engine.RegisterQueryLogger(logger, true, false, false)
 
 	db := engine.GetMysql()
 	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
@@ -85,7 +85,7 @@ func TestDBErrors(t *testing.T) {
 	engine := PrepareTables(t, &Registry{}, 5, entity)
 	db := engine.GetMysql()
 	logger := &testLogHandler{}
-	engine.AddQueryLogger(logger, true, false, false)
+	engine.RegisterQueryLogger(logger, true, false, false)
 
 	assert.PanicsWithError(t, "transaction not started", func() {
 		db.Commit()

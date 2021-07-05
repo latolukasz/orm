@@ -30,9 +30,9 @@ func TestRequestCache(t *testing.T) {
 	engine.EnableRequestCache(false)
 
 	dbLogger := &testLogHandler{}
-	engine.AddQueryLogger(dbLogger, true, false, false)
+	engine.RegisterQueryLogger(dbLogger, true, false, false)
 	redisLogger := &testLogHandler{}
-	engine.AddQueryLogger(redisLogger, false, true, false)
+	engine.RegisterQueryLogger(redisLogger, false, true, false)
 
 	entity = &requestCacheEntity{}
 	found := engine.LoadByID(1, entity)

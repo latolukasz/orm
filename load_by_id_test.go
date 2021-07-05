@@ -78,7 +78,7 @@ func TestLoadById(t *testing.T) {
 
 	entity = &loadByIDEntity{}
 	localLogger := &testLogHandler{}
-	engine.AddQueryLogger(localLogger, false, false, true)
+	engine.RegisterQueryLogger(localLogger, false, false, true)
 	found := engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo",
 		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
 	assert.True(t, found)

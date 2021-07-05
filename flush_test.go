@@ -495,7 +495,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	receiver.blockTime = time.Millisecond
 
 	testLogger := &testLogHandler{}
-	engine.AddQueryLogger(testLogger, true, false, false)
+	engine.RegisterQueryLogger(testLogger, true, false, false)
 
 	flusher = engine.NewFlusher()
 	entity1 := &flushEntity{}
@@ -592,7 +592,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	if redis && !local {
 		testLogger2 := &testLogHandler{}
-		engine.AddQueryLogger(testLogger2, true, true, false)
+		engine.RegisterQueryLogger(testLogger2, true, true, false)
 		testLogger.clear()
 		engine.GetMysql().Begin()
 		entity4.ReferenceOne = &flushEntityReference{}

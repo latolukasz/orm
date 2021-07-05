@@ -17,7 +17,7 @@ func TestLocker(t *testing.T) {
 	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	testLogger := &testLogHandler{}
-	engine.AddQueryLogger(testLogger, false, true, false)
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 
 	l := engine.GetRedis().GetLocker()
 	lock, has := l.Obtain("test_key", time.Second, 0)
@@ -71,7 +71,7 @@ func TestLocker(t *testing.T) {
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine(ctx)
 	testLogger = &testLogHandler{}
-	engine.AddQueryLogger(testLogger, false, true, false)
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 	l = engine.GetRedis().GetLocker()
 	assert.Panics(t, func() {
 		_, _ = l.Obtain("test_key", time.Second, time.Millisecond)

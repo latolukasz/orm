@@ -113,7 +113,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint(10), rows[4].ID)
 
 	dbLogger := &testLogHandler{}
-	engine.AddQueryLogger(dbLogger, true, false, false)
+	engine.RegisterQueryLogger(dbLogger, true, false, false)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)

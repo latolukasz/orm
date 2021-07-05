@@ -15,7 +15,7 @@ func TestLocalCache(t *testing.T) {
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine(ctx)
 	testLogger := &testLogHandler{}
-	engine.AddQueryLogger(testLogger, false, false, true)
+	engine.RegisterQueryLogger(testLogger, false, false, true)
 
 	c := engine.GetLocalCache()
 	val := c.GetSet("test_get_set", 10, func() interface{} {

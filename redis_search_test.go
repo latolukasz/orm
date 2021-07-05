@@ -38,7 +38,7 @@ func TestRedisSearch(t *testing.T) {
 	engine := PrepareTables(t, registry, 5)
 
 	testLog := &testLogHandler{}
-	engine.AddQueryLogger(testLog, false, true, false)
+	engine.RegisterQueryLogger(testLog, false, true, false)
 
 	search := engine.GetRedisSearch("search")
 	assert.NotNil(t, search)

@@ -63,10 +63,10 @@ func (d *defaultLogLogger) Handle(fields map[string]interface{}) {
 }
 
 type LogHandler interface {
-	Handle(fields map[string]interface{})
+	Handle(log map[string]interface{})
 }
 
-func (e *Engine) AddQueryLogger(handler LogHandler, mysql, redis, local bool) {
+func (e *Engine) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
 	if mysql {
 		e.hasDBLogger = true
 		e.queryLoggersDB = e.appendLog(e.queryLoggersDB, handler)
@@ -82,7 +82,7 @@ func (e *Engine) AddQueryLogger(handler LogHandler, mysql, redis, local bool) {
 }
 
 func (e *Engine) EnableQueryDebug(mysql, redis, local bool) {
-	e.AddQueryLogger(e.registry.defaultQueryLogger, mysql, redis, local)
+	e.RegisterQueryLogger(e.registry.defaultQueryLogger, mysql, redis, local)
 }
 
 func getNow(has bool) *time.Time {
@@ -111,8 +111,7 @@ func fillLogFields(handlers []LogHandler, pool, source, operation, query string,
 	}
 	if start != nil {
 		now := time.Now()
-		stop := time.Since(*start).Microseconds()
-		fields["microseconds"] = stop
+		fields["microseconds"] = time.Since(*start).Microseconds()
 		fields["started"] = start.UnixNano()
 		fields["finished"] = now.UnixNano()
 	}

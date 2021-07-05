@@ -206,7 +206,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	}
 	speedPrefixKey := group + "_" + redisPool
 	speedLogger := &speedHandler{}
-	eb.engine.AddQueryLogger(speedLogger, true, true, false)
+	eb.engine.RegisterQueryLogger(speedLogger, true, true, false)
 	return &eventsConsumer{eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, limit: 1, blockTime: time.Second * 30},
 		redis: eb.engine.GetRedis(redisPool), streams: streams, group: group,
 		lockTTL: time.Second * 90, lockTick: time.Minute,

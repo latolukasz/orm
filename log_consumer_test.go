@@ -175,7 +175,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher.Track(e5)
 	_ = flusher.FlushWithCheck()
 	logger := &testLogHandler{}
-	engine.AddQueryLogger(logger, true, true, false)
+	engine.RegisterQueryLogger(logger, true, true, false)
 	engine.GetMysql().Commit()
 	assert.Len(t, logger.Logs, 2)
 	assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])

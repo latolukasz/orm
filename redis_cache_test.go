@@ -28,7 +28,7 @@ func TestRedis(t *testing.T) {
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine(ctx)
 	testLogger := &testLogHandler{}
-	engine.AddQueryLogger(testLogger, false, true, false)
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
 		engine.GetRedis().Get("invalid")
 	})
@@ -38,7 +38,7 @@ func testRedis(t *testing.T, engine *Engine) {
 	r := engine.GetRedis()
 
 	testLogger := &testLogHandler{}
-	engine.AddQueryLogger(testLogger, false, true, false)
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 	r.FlushDB()
 	testLogger.clear()
 
