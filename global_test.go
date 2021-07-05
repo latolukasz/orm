@@ -10,6 +10,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testLogHandler struct {
+	Logs []Bind
+}
+
+func (h *testLogHandler) Handle(log map[string]interface{}) {
+	h.Logs = append(h.Logs, log)
+}
+
+func (h *testLogHandler) clear() {
+	h.Logs = nil
+}
+
 func PrepareTables(t *testing.T, registry *Registry, version int, entities ...Entity) *Engine {
 	if version == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
@@ -25,14 +37,18 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 
 	registry.RegisterEntity(entities...)
 	ctx := context.Background()
-	validatedRegistry, err := registry.Validate(ctx)
-	if t != nil {
-		assert.Nil(t, err)
+	vRegistry, err := registry.Validate(ctx)
+	if err != nil {
+		if t != nil {
+			assert.NoError(t, err)
+			return nil
+		}
+		panic(err)
 	}
 
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := vRegistry.CreateEngine(ctx)
 	if t != nil {
-		assert.Equal(t, engine.GetRegistry(), validatedRegistry)
+		assert.Equal(t, engine.GetRegistry(), vRegistry)
 	}
 	redisCache := engine.GetRedis()
 	redisCache.FlushDB()
@@ -52,7 +68,7 @@ func PrepareTables(t *testing.T, registry *Registry, version int, entities ...En
 		if eType.Kind() == reflect.Ptr {
 			eType = eType.Elem()
 		}
-		tableSchema := validatedRegistry.GetTableSchema(eType.String())
+		tableSchema := vRegistry.GetTableSchema(eType.String())
 		tableSchema.TruncateTable(engine)
 		tableSchema.UpdateSchema(engine)
 		localCache, has := tableSchema.GetLocalCache(engine)

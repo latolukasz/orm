@@ -3,39 +3,27 @@ package orm
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
-	"sync"
 
 	"github.com/golang/groupcache/lru"
-
-	logApex "github.com/apex/log"
-
-	levelHandler "github.com/apex/log/handlers/level"
-	"github.com/apex/log/handlers/text"
 )
-
-var defaultQueryDebug = text.New(os.Stdout)
 
 type Engine struct {
 	registry                  *validatedRegistry
 	context                   context.Context
 	dbs                       map[string]*DB
-	clickHouseDbs             map[string]*ClickHouse
 	localCache                map[string]*LocalCache
 	redis                     map[string]*RedisCache
 	redisSearch               map[string]*RedisSearch
 	logMetaData               Bind
 	dataLoader                *dataLoader
 	hasRequestCache           bool
-	queryLoggers              map[QueryLoggerSource]*logger
+	queryLoggersDB            []LogHandler
+	queryLoggersRedis         []LogHandler
+	queryLoggersLocalCache    []LogHandler
 	hasRedisLogger            bool
-	hasStreamsLogger          bool
 	hasDBLogger               bool
-	hasClickHouseLogger       bool
 	hasLocalCacheLogger       bool
-	log                       *log
-	logDebugOnce              sync.Once
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
 	afterCommitDataLoaderSets dataLoaderSets
@@ -55,13 +43,6 @@ func (e *Engine) Clone() *Engine {
 	return newEngine
 }
 
-func (e *Engine) Log() Log {
-	if e.log == nil {
-		e.log = newLog(e)
-	}
-	return e.log
-}
-
 func (e *Engine) EnableRequestCache(goroutines bool) {
 	if goroutines {
 		e.dataLoader = &dataLoader{engine: e, maxBatchSize: dataLoaderMaxPatch}
@@ -70,71 +51,6 @@ func (e *Engine) EnableRequestCache(goroutines bool) {
 		e.hasRequestCache = true
 		e.dataLoader = nil
 	}
-}
-
-func (e *Engine) EnableLogger(level logApex.Level, handlers ...logApex.Handler) {
-	if len(handlers) == 0 {
-		handlers = []logApex.Handler{&jsonHandler{}}
-	}
-	l := e.Log()
-	for _, handler := range handlers {
-		l.(*log).logger.handler.Handlers = append(e.log.logger.handler.Handlers, levelHandler.New(handler, level))
-	}
-}
-
-func (e *Engine) EnableDebug() {
-	l := e.Log()
-	e.logDebugOnce.Do(func() {
-		l.(*log).logger.handler.Handlers = append(e.log.logger.handler.Handlers, levelHandler.New(text.New(os.Stderr), logApex.DebugLevel))
-	})
-}
-
-func (e *Engine) AddQueryLogger(handler logApex.Handler, level logApex.Level, source ...QueryLoggerSource) {
-	if len(source) == 0 {
-		source = []QueryLoggerSource{QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceClickHouse, QueryLoggerSourceStreams}
-	}
-	if e.queryLoggers == nil {
-		e.queryLoggers = make(map[QueryLoggerSource]*logger)
-	}
-	newHandler := levelHandler.New(handler, level)
-MAIN:
-	for _, source := range source {
-		l, has := e.queryLoggers[source]
-		if has {
-			for _, v := range l.handler.Handlers {
-				asLevel, is := v.(*levelHandler.Handler)
-				if is && asLevel.Handler == handler {
-					continue MAIN
-				}
-			}
-			l.handler.Handlers = append(l.handler.Handlers, newHandler)
-		} else {
-			e.queryLoggers[source] = e.newLogger(newHandler, level)
-			switch source {
-			case QueryLoggerSourceRedis:
-				e.hasRedisLogger = true
-			case QueryLoggerSourceStreams:
-				e.hasStreamsLogger = true
-			case QueryLoggerSourceDB:
-				e.hasDBLogger = true
-			case QueryLoggerSourceClickHouse:
-				e.hasClickHouseLogger = true
-			case QueryLoggerSourceLocalCache:
-				e.hasLocalCacheLogger = true
-			}
-		}
-	}
-}
-
-func (e *Engine) EnableQueryDebug(source ...QueryLoggerSource) {
-	e.AddQueryLogger(defaultQueryDebug, logApex.DebugLevel, source...)
-}
-
-func (e *Engine) SetLogMetaData(key string, value interface{}) {
-	if e.logMetaData == nil {
-		e.logMetaData = make(Bind)
-	}
-	e.logMetaData[key] = value
 }
 
 func (e *Engine) GetMysql(code ...string) *DB {
@@ -239,25 +155,11 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 	return cache
 }
 
-func (e *Engine) GetClickHouse(code ...string) *ClickHouse {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
+func (e *Engine) SetLogMetaData(key string, value interface{}) {
+	if e.logMetaData == nil {
+		e.logMetaData = make(Bind)
 	}
-	ch, has := e.clickHouseDbs[dbCode]
-	if !has {
-		val, has := e.registry.clickHouseClients[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered clickhouse pool '%s'", dbCode))
-		}
-		ch = &ClickHouse{engine: e, code: val.code, client: val.db}
-		if e.clickHouseDbs == nil {
-			e.clickHouseDbs = map[string]*ClickHouse{dbCode: ch}
-		} else {
-			e.clickHouseDbs[dbCode] = ch
-		}
-	}
-	return ch
+	e.logMetaData[key] = value
 }
 
 func (e *Engine) NewFlusher() Flusher {

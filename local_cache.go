@@ -1,10 +1,10 @@
 package orm
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"time"
-
-	log2 "github.com/apex/log"
 
 	"github.com/golang/groupcache/lru"
 )
@@ -66,11 +66,7 @@ func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
 
 	value, ok = c.lru.Get(key)
 	if c.engine.hasLocalCacheLogger {
-		misses := 0
-		if !ok {
-			misses = 1
-		}
-		c.fillLogFields("[ORM][LOCAL][GET]", "get", misses, map[string]interface{}{"Key": key})
+		c.fillLogFields("GET", "GET "+key)
 	}
 	return
 }
@@ -90,7 +86,7 @@ func (c *LocalCache) MGet(keys ...string) []interface{} {
 		results[i] = value
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][MGET]", "mget", misses, map[string]interface{}{"Keys": keys})
+		c.fillLogFields("MGET", "MGET "+strings.Join(keys, " "))
 	}
 	return results
 }
@@ -100,7 +96,7 @@ func (c *LocalCache) Set(key string, value interface{}) {
 	defer c.config.m.Unlock()
 	c.lru.Add(key, value)
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][MGET]", "set", -1, map[string]interface{}{"Key": key, "value": value})
+		c.fillLogFields("SET", fmt.Sprintf("SET %v", value))
 	}
 }
 
@@ -112,7 +108,11 @@ func (c *LocalCache) MSet(pairs ...interface{}) {
 		c.lru.Add(pairs[i], pairs[i+1])
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][MSET]", "mset", -1, map[string]interface{}{"Keys": pairs})
+		message := "MSET "
+		for _, v := range pairs {
+			message += fmt.Sprintf(" %v", v)
+		}
+		c.fillLogFields("MSET", message)
 	}
 }
 
@@ -139,7 +139,7 @@ func (c *LocalCache) HMGet(key string, fields ...string) map[string]interface{} 
 		}
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][HMGET]", "hmget", misses, map[string]interface{}{"Key": key, "fields": fields})
+		c.fillLogFields("HMGET", "HMGET "+strings.Join(fields, " "))
 	}
 	return results
 }
@@ -157,7 +157,11 @@ func (c *LocalCache) HMSet(key string, fields map[string]interface{}) {
 		m.(map[string]interface{})[k] = v
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][HMSET]", "hmset", -1, map[string]interface{}{"Key": key, "fields": fields})
+		message := "HMSET "
+		for k, v := range fields {
+			message += fmt.Sprintf(" %s %v", k, v)
+		}
+		c.fillLogFields("HMSET", message)
 	}
 }
 
@@ -168,7 +172,7 @@ func (c *LocalCache) Remove(keys ...string) {
 		c.lru.Remove(v)
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][REMOVE]", "remove", -1, map[string]interface{}{"Keys": keys})
+		c.fillLogFields("REMOVE", "REMOVE "+strings.Join(keys, " "))
 	}
 }
 
@@ -177,19 +181,10 @@ func (c *LocalCache) Clear() {
 	defer c.config.m.Unlock()
 	c.lru.Clear()
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("[ORM][LOCAL][CLEAR]", "clear", -1, nil)
+		c.fillLogFields("CLEAR", "CLEAR")
 	}
 }
 
-func (c *LocalCache) fillLogFields(message string, operation string, misses int, fields log2.Fields) {
-	e := c.engine.queryLoggers[QueryLoggerSourceLocalCache].log.WithFields(log2.Fields{
-		"operation": operation,
-		"pool":      c.config.GetCode(),
-		"target":    "local_cache",
-		"misses":    misses,
-	})
-	if fields != nil {
-		e = e.WithFields(fields)
-	}
-	e.Info(message)
+func (c *LocalCache) fillLogFields(operation, query string) {
+	fillLogFields(c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, nil)
 }

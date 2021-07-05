@@ -5,9 +5,6 @@ import (
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -497,8 +494,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceDB)
+	testLogger := &testLogHandler{}
+	engine.AddQueryLogger(testLogger, true, false, false)
 
 	flusher = engine.NewFlusher()
 	entity1 := &flushEntity{}
@@ -515,11 +512,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	receiver.Digest()
 	if local {
-		assert.Len(t, testLogger.Entries, 3)
-		assert.Equal(t, "START TRANSACTION", testLogger.Entries[0].Fields["Query"])
+		assert.Len(t, testLogger.Logs, 3)
+		assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
 		assert.Equal(t, "UPDATE flushEntity SET `Age`=99 WHERE `ID` = 10;UPDATE flushEntity SET `Uint`=99 "+
-			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Entries[1].Fields["Query"])
-		assert.Equal(t, "COMMIT", testLogger.Entries[2].Fields["Query"])
+			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Logs[1]["query"])
+		assert.Equal(t, "COMMIT", testLogger.Logs[2]["query"])
 	}
 
 	entity = &flushEntity{Name: "Monica", EnumNotNull: "a", ReferenceMany: []*flushEntityReference{{Name: "Adam Junior"}}}
@@ -594,19 +591,19 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "1534", entitiesRefs[2].Name)
 
 	if redis && !local {
-		testLogger2 := memory.New()
-		engine.AddQueryLogger(testLogger2, apexLog.InfoLevel)
-		testLogger.Entries = make([]*apexLog.Entry, 0)
+		testLogger2 := &testLogHandler{}
+		engine.AddQueryLogger(testLogger2, true, true, false)
+		testLogger.clear()
 		engine.GetMysql().Begin()
 		entity4.ReferenceOne = &flushEntityReference{}
 		engine.Flush(entity4)
 		engine.GetMysql().Commit()
-		assert.Len(t, testLogger2.Entries, 5)
-		assert.Equal(t, "[ORM][MYSQL][BEGIN]", testLogger2.Entries[0].Message)
-		assert.Equal(t, "[ORM][MYSQL][EXEC]", testLogger2.Entries[1].Message)
-		assert.Equal(t, "[ORM][MYSQL][EXEC]", testLogger2.Entries[2].Message)
-		assert.Equal(t, "[ORM][MYSQL][COMMIT]", testLogger2.Entries[3].Message)
-		assert.Equal(t, "[ORM][REDIS][EXEC]", testLogger2.Entries[4].Message)
+		assert.Len(t, testLogger2.Logs, 5)
+		assert.Equal(t, "BEGIN", testLogger2.Logs[0]["operation"])
+		assert.Equal(t, "EXEC", testLogger2.Logs[1]["operation"])
+		assert.Equal(t, "EXEC", testLogger2.Logs[2]["operation"])
+		assert.Equal(t, "COMMIT", testLogger2.Logs[3]["operation"])
+		assert.Equal(t, "PIPELINE EXEC", testLogger2.Logs[4]["operation"])
 	}
 }
 

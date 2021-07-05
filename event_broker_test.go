@@ -298,7 +298,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.Equal(t, 0, iterations)
 
-	engine.GetRedis().XTrim("test-stream", 0, false)
+	engine.GetRedis().XTrim("test-stream", 0)
 	for i := 11; i <= 20; i++ {
 		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}

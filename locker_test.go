@@ -5,9 +5,6 @@ import (
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,8 +16,8 @@ func TestLocker(t *testing.T) {
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	testLogger := &testLogHandler{}
+	engine.AddQueryLogger(testLogger, false, true, false)
 
 	l := engine.GetRedis().GetLocker()
 	lock, has := l.Obtain("test_key", time.Second, 0)
@@ -73,8 +70,8 @@ func TestLocker(t *testing.T) {
 	validatedRegistry, err = registry.Validate(ctx)
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine(ctx)
-	testLogger = memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	testLogger = &testLogHandler{}
+	engine.AddQueryLogger(testLogger, false, true, false)
 	l = engine.GetRedis().GetLocker()
 	assert.Panics(t, func() {
 		_, _ = l.Obtain("test_key", time.Second, time.Millisecond)

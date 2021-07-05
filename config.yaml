@@ -8,7 +8,6 @@ default:
       - test-group-2
     stream-2:
       - test-group-1
-  clickhouse: http://localhost:9002?debug=false
   local_cache: 1000
 another:
   sentinel:

@@ -5,9 +5,6 @@ import (
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -177,21 +174,12 @@ func TestLogReceiver(t *testing.T) {
 	e5.Name = "Lucas"
 	flusher.Track(e5)
 	_ = flusher.FlushWithCheck()
-	logger := memory.New()
-	engine.AddQueryLogger(logger, apexLog.InfoLevel)
+	logger := &testLogHandler{}
+	engine.AddQueryLogger(logger, true, true, false)
 	engine.GetMysql().Commit()
-	assert.Len(t, logger.Entries, 2)
-	assert.Equal(t, "[ORM][MYSQL][COMMIT]", logger.Entries[0].Message)
-	assert.Equal(t, "[ORM][REDIS][EXEC]", logger.Entries[1].Message)
-	commands := logger.Entries[1].Fields["commands"].([]string)
-	assert.Len(t, commands, 7)
-	assert.Equal(t, "DEL", commands[0])
-	assert.Equal(t, "c65ef:1", commands[1])
-	assert.Equal(t, "c65ef:2", commands[2])
-	assert.Equal(t, "XAdd", commands[3])
-	assert.Equal(t, "orm-log-channel", commands[4])
-	assert.Equal(t, "XAdd", commands[5])
-	assert.Equal(t, "orm-log-channel", commands[6])
+	assert.Len(t, logger.Logs, 2)
+	assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
+	assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
 
 	engine.GetMysql().Begin()
 	flusher = engine.NewFlusher()
@@ -202,15 +190,9 @@ func TestLogReceiver(t *testing.T) {
 	flusher = engine.NewFlusher()
 	flusher.Track(e4)
 	flusher.Flush()
-	logger.Entries = make([]*apexLog.Entry, 0)
+	logger.clear()
 	engine.GetMysql().Commit()
-	assert.Len(t, logger.Entries, 2)
-	assert.Equal(t, "[ORM][MYSQL][COMMIT]", logger.Entries[0].Message)
-	assert.Equal(t, "[ORM][REDIS][EXEC]", logger.Entries[1].Message)
-	commands = logger.Entries[1].Fields["commands"].([]string)
-	assert.Len(t, commands, 4)
-	assert.Equal(t, "DEL", commands[0])
-	assert.Equal(t, "c65ef:1", commands[1])
-	assert.Equal(t, "XAdd", commands[2])
-	assert.Equal(t, "orm-log-channel", commands[3])
+	assert.Len(t, logger.Logs, 2)
+	assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
+	assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
 }

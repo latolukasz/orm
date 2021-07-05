@@ -13,8 +13,6 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 			switch dataKey {
 			case "mysql":
 				validateOrmMysqlURI(r, value, key)
-			case "clickhouse":
-				validateClickHouseURI(r, value, key)
 			case "redis":
 				validateRedisURI(r, value, key)
 			case "sentinel":
@@ -38,14 +36,6 @@ func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 		panic(fmt.Errorf("mysql uri '%v' is not valid", value))
 	}
 	registry.RegisterMySQLPool(asString, key)
-}
-
-func validateClickHouseURI(registry *Registry, value interface{}, key string) {
-	asString, ok := value.(string)
-	if !ok {
-		panic(fmt.Errorf("click house uri '%v' is not valid", value))
-	}
-	registry.RegisterClickHouse(asString, key)
 }
 
 func validateStreams(registry *Registry, value interface{}, key string) {

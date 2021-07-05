@@ -49,12 +49,6 @@ jobs:
           - 3312:3306
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
 
-      clickhouse:
-        image: yandex/clickhouse-server
-        ports:
-          - 9002:9000
-          - 8125:8123
-
     steps:
 
       - name: Configure sysctl limits

@@ -3,8 +3,6 @@ package orm
 import (
 	"testing"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -79,12 +77,12 @@ func TestLoadById(t *testing.T) {
 	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReference{{ID: 100}, {ID: 101}, {ID: 102}}})
 
 	entity = &loadByIDEntity{}
-	localLogger := memory.New()
-	engine.AddQueryLogger(localLogger, apexLog.InfoLevel, QueryLoggerSourceLocalCache)
+	localLogger := &testLogHandler{}
+	engine.AddQueryLogger(localLogger, false, false, true)
 	found := engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo",
 		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
 	assert.True(t, found)
-	assert.Len(t, localLogger.Entries, 5)
+	assert.Len(t, localLogger.Logs, 5)
 	assert.True(t, entity.IsLoaded())
 	assert.False(t, entity.IsLazy())
 	assert.True(t, entity.ReferenceOne.IsLoaded())

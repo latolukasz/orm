@@ -6,8 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	log2 "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,8 +29,8 @@ func (r *resultMock) RowsAffected() (int64, error) {
 func TestDB(t *testing.T) {
 	var entity *dbEntity
 	engine := PrepareTables(t, &Registry{}, 5, entity)
-	logger := memory.New()
-	engine.AddQueryLogger(logger, log2.DebugLevel, QueryLoggerSourceDB)
+	logger := &testLogHandler{}
+	engine.AddQueryLogger(logger, true, false, false)
 
 	db := engine.GetMysql()
 	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
@@ -86,8 +84,8 @@ func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
 	engine := PrepareTables(t, &Registry{}, 5, entity)
 	db := engine.GetMysql()
-	logger := memory.New()
-	engine.AddQueryLogger(logger, log2.DebugLevel, QueryLoggerSourceDB)
+	logger := &testLogHandler{}
+	engine.AddQueryLogger(logger, true, false, false)
 
 	assert.PanicsWithError(t, "transaction not started", func() {
 		db.Commit()

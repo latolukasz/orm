@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,13 +23,13 @@ func TestRedisPipeline(t *testing.T) {
 
 	r.Set("a", "A", 10)
 	r.Set("c", "C", 10)
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	testLogger := &testLogHandler{}
+	engine.AddQueryLogger(testLogger, false, true, false)
 	c1 := pipeLine.Get("a")
 	c2 := pipeLine.Get("b")
 	c3 := pipeLine.Get("c")
 	pipeLine.Exec()
-	assert.Len(t, testLogger.Entries, 1)
+	assert.Len(t, testLogger.Logs, 1)
 	val, has := c1.Result()
 	assert.Equal(t, "A", val)
 	assert.True(t, has)

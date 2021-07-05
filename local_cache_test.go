@@ -4,9 +4,6 @@ import (
 	"context"
 	"testing"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,20 +14,20 @@ func TestLocalCache(t *testing.T) {
 	validatedRegistry, err := registry.Validate(ctx)
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine(ctx)
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceLocalCache)
+	testLogger := &testLogHandler{}
+	engine.AddQueryLogger(testLogger, false, false, true)
 
 	c := engine.GetLocalCache()
 	val := c.GetSet("test_get_set", 10, func() interface{} {
 		return "hello"
 	})
 	assert.Equal(t, "hello", val)
-	assert.Len(t, testLogger.Entries, 2)
+	assert.Len(t, testLogger.Logs, 2)
 	val = c.GetSet("test_get_set", 10, func() interface{} {
 		return "hello2"
 	})
 	assert.Equal(t, "hello", val)
-	assert.Len(t, testLogger.Entries, 3)
+	assert.Len(t, testLogger.Logs, 3)
 
 	val, has := c.Get("test_get")
 	assert.False(t, has)

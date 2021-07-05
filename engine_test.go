@@ -4,11 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/apex/log/handlers/memory"
-
-	log2 "github.com/apex/log"
-	"github.com/apex/log/handlers/level"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,14 +11,6 @@ func TestEngine(t *testing.T) {
 	engine := PrepareTables(t, &Registry{}, 5)
 	source := engine.GetRegistry().GetSourceRegistry()
 	assert.NotNil(t, source)
-	engine.EnableLogger(log2.WarnLevel)
-	assert.Len(t, engine.log.logger.handler.Handlers, 1)
-	handler, is := engine.log.logger.handler.Handlers[0].(*level.Handler)
-	assert.True(t, is)
-	assert.Equal(t, log2.WarnLevel, handler.Level)
-	engine.AddQueryLogger(memory.New(), log2.InfoLevel)
-	assert.Len(t, engine.queryLoggers, 4)
-
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
 		engine.GetMysql("test")
 	})
@@ -33,22 +20,15 @@ func TestEngine(t *testing.T) {
 	assert.PanicsWithError(t, "unregistered redis cache pool 'test'", func() {
 		engine.GetRedis("test")
 	})
-	assert.PanicsWithError(t, "unregistered clickhouse pool 'test'", func() {
-		engine.GetClickHouse("test")
-	})
 
-	engine.EnableDebug()
-	assert.Len(t, engine.log.logger.handler.Handlers, 2)
-	handler, is = engine.log.logger.handler.Handlers[1].(*level.Handler)
-	assert.True(t, is)
-	assert.Equal(t, log2.DebugLevel, handler.Level)
-
-	engine.EnableQueryDebug()
-	assert.Len(t, engine.queryLoggers, 4)
-	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 3)
-	engine.EnableQueryDebug()
-	assert.Len(t, engine.queryLoggers, 4)
-	assert.Len(t, engine.queryLoggers[QueryLoggerSourceDB].handler.Handlers, 3)
+	engine.EnableQueryDebug(true, true, false)
+	assert.Len(t, engine.queryLoggersRedis, 2)
+	assert.Len(t, engine.queryLoggersDB, 2)
+	assert.Len(t, engine.queryLoggersLocalCache, 0)
+	engine.EnableQueryDebug(true, true, false)
+	assert.Len(t, engine.queryLoggersRedis, 2)
+	assert.Len(t, engine.queryLoggersDB, 2)
+	assert.Len(t, engine.queryLoggersLocalCache, 0)
 }
 
 func BenchmarkEngine(b *testing.B) {

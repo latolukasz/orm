@@ -7,9 +7,6 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,8 +27,8 @@ func TestRedis(t *testing.T) {
 	validatedRegistry, err = registry.Validate(ctx)
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine(ctx)
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	testLogger := &testLogHandler{}
+	engine.AddQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
 		engine.GetRedis().Get("invalid")
 	})
@@ -40,15 +37,15 @@ func TestRedis(t *testing.T) {
 func testRedis(t *testing.T, engine *Engine) {
 	r := engine.GetRedis()
 
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
+	testLogger := &testLogHandler{}
+	engine.AddQueryLogger(testLogger, false, true, false)
 	r.FlushDB()
-	testLogger.Entries = make([]*apexLog.Entry, 0)
+	testLogger.clear()
 
 	assert.True(t, r.RateLimit("test", time.Second, 2))
 	assert.True(t, r.RateLimit("test", time.Second, 2))
 	assert.False(t, r.RateLimit("test", time.Second, 2))
-	assert.Len(t, testLogger.Entries, 3)
+	assert.Len(t, testLogger.Logs, 3)
 
 	valid := false
 	val := r.GetSet("test_get_set", 10, func() interface{} {
@@ -165,10 +162,7 @@ func testRedis(t *testing.T, engine *Engine) {
 	id := engine.GetEventBroker().Publish("test-stream", "a")
 	assert.NotEmpty(t, id)
 	assert.Equal(t, int64(1), r.XLen("test-stream"))
-	assert.Equal(t, int64(1), r.XTrim("test-stream", 0, false))
-	assert.Equal(t, int64(0), r.XLen("test-stream"))
-	engine.GetEventBroker().Publish("test-stream", "a")
-	assert.Equal(t, int64(1), r.XTrim("test-stream", 0, true))
+	assert.Equal(t, int64(1), r.XTrim("test-stream", 0))
 	assert.Equal(t, int64(0), r.XLen("test-stream"))
 
 	engine.GetEventBroker().Publish("test-stream", "a1")

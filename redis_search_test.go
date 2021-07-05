@@ -6,9 +6,6 @@ import (
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,15 +37,15 @@ func TestRedisSearch(t *testing.T) {
 	registry.RegisterRedisSearchIndex(defaultIndex)
 	engine := PrepareTables(t, registry, 5)
 
-	testLog := memory.New()
-	engine.AddQueryLogger(testLog, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	testLog := &testLogHandler{}
+	engine.AddQueryLogger(testLog, false, true, false)
 
 	search := engine.GetRedisSearch("search")
 	assert.NotNil(t, search)
 	alters := engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 0)
 
-	testLog.Entries = make([]*apexLog.Entry, 0)
+	testLog.clear()
 	search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search"}, 100)
 
 	alters = engine.GetRedisSearchIndexAlters()

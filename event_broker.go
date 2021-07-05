@@ -10,8 +10,6 @@ import (
 
 	"github.com/shamaton/msgpack"
 
-	logApex "github.com/apex/log"
-
 	"github.com/go-redis/redis/v8"
 )
 
@@ -167,15 +165,14 @@ type speedHandler struct {
 	RedisMicroseconds int64
 }
 
-func (s *speedHandler) HandleLog(e *logApex.Entry) error {
-	if e.Fields["target"] == "mysql" {
+func (s *speedHandler) Handle(fields map[string]interface{}) {
+	if fields["source"] == sourceMySQL {
 		s.DBQueries++
-		s.DBMicroseconds += e.Fields["microseconds"].(int64)
+		s.DBMicroseconds += fields["microseconds"].(int64)
 	} else {
 		s.RedisQueries++
-		s.RedisMicroseconds += e.Fields["microseconds"].(int64)
+		s.RedisMicroseconds += fields["microseconds"].(int64)
 	}
-	return nil
 }
 
 func (s *speedHandler) Clear() {
@@ -209,7 +206,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	}
 	speedPrefixKey := group + "_" + redisPool
 	speedLogger := &speedHandler{}
-	eb.engine.AddQueryLogger(speedLogger, logApex.InfoLevel, QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
+	eb.engine.AddQueryLogger(speedLogger, true, true, false)
 	return &eventsConsumer{eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, limit: 1, blockTime: time.Second * 30},
 		redis: eb.engine.GetRedis(redisPool), streams: streams, group: group,
 		lockTTL: time.Second * 90, lockTick: time.Minute,
@@ -417,7 +414,6 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 					return true
 				}
 				if !hasLock || time.Since(lockAcquired) > r.lockTTL {
-					r.redis.engine.Log().Warn("consumer %s for group %s lost lock", nil)
 					return false
 				}
 				i := 0
@@ -461,7 +457,7 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 				}
 				r.speedEvents += totalMessages
 				r.speedLogger.Clear()
-				start := time.Now()
+				start := getNow(r.engine.hasRedisLogger)
 				func() {
 					defer func() {
 						if rec := recover(); rec != nil {
@@ -495,7 +491,7 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 					}()
 					handler(events)
 				}()
-				r.speedTimeMicroseconds += time.Since(start).Microseconds()
+				r.speedTimeMicroseconds += time.Since(*start).Microseconds()
 				r.speedDBQueries += r.speedLogger.DBQueries
 				r.speedRedisQueries += r.speedLogger.RedisQueries
 				r.speedDBMicroseconds += r.speedLogger.DBMicroseconds
@@ -578,7 +574,6 @@ func (r *eventsConsumer) garbageCollector(engine *Engine) {
 		for _, group := range info {
 			_, has := ids[group.Name]
 			if !has {
-				engine.log.Warn("not registered stream group "+group.Name+" in stream"+stream, nil)
 				continue
 			}
 			if group.LastDeliveredID == "" {

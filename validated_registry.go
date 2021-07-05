@@ -25,7 +25,6 @@ type validatedRegistry struct {
 	tableSchemas       map[reflect.Type]*tableSchema
 	entities           map[string]reflect.Type
 	redisSearchIndexes map[string]map[string]*RedisSearchIndex
-	clickHouseClients  map[string]*ClickHouseConfig
 	localCacheServers  map[string]LocalCachePoolConfig
 	mySQLServers       map[string]MySQLPoolConfig
 	redisServers       map[string]RedisPoolConfig
@@ -33,6 +32,7 @@ type validatedRegistry struct {
 	redisStreamPools   map[string]string
 	enums              map[string]Enum
 	timeOffset         int64
+	defaultQueryLogger *defaultLogLogger
 }
 
 func (r *validatedRegistry) GetSourceRegistry() *Registry {

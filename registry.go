@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -14,12 +16,10 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
-	"github.com/jmoiron/sqlx"
 )
 
 type Registry struct {
 	mysqlPools         map[string]MySQLPoolConfig
-	clickHouseClients  map[string]*ClickHouseConfig
 	localCachePools    map[string]LocalCachePoolConfig
 	redisPools         map[string]RedisPoolConfig
 	entities           map[string]reflect.Type
@@ -38,6 +38,7 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
+	maxPoolLen := 0
 	registry := &validatedRegistry{}
 	registry.registry = r
 	_, offset := time.Now().Zone()
@@ -49,6 +50,9 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 		registry.mySQLServers = make(map[string]MySQLPoolConfig)
 	}
 	for k, v := range r.mysqlPools {
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 		db, err := sql.Open("mysql", v.GetDataSourceURI())
 		if err != nil {
 			return nil, err
@@ -99,29 +103,23 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
 	}
-	if registry.clickHouseClients == nil {
-		registry.clickHouseClients = make(map[string]*ClickHouseConfig)
-	}
-	for k, v := range r.clickHouseClients {
-		db, err := sqlx.Open("clickhouse", v.url)
-		if err != nil {
-			return nil, err
-		}
-		v.db = db
-		registry.clickHouseClients[k] = v
-	}
-
 	if registry.localCacheServers == nil {
 		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
 	}
 	for k, v := range r.localCachePools {
 		registry.localCacheServers[k] = v
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 	}
 	if registry.redisServers == nil {
 		registry.redisServers = make(map[string]RedisPoolConfig)
 	}
 	for k, v := range r.redisPools {
 		registry.redisServers[k] = v
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 	}
 	if registry.enums == nil {
 		registry.enums = make(map[string]Enum)
@@ -179,6 +177,7 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
+	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	engine := registry.CreateEngine(ctx)
 	for _, schema := range registry.tableSchemas {
 		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), "")
@@ -326,18 +325,6 @@ func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
 	}
 	db.databaseName = dbName
 	r.mysqlPools[dbCode] = db
-}
-
-func (r *Registry) RegisterClickHouse(url string, code ...string) {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	db := &ClickHouseConfig{code: dbCode, url: url}
-	if r.clickHouseClients == nil {
-		r.clickHouseClients = make(map[string]*ClickHouseConfig)
-	}
-	r.clickHouseClients[dbCode] = db
 }
 
 func (r *Registry) registerRedis(client *redis.Client, code []string, address string, db int) {

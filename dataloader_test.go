@@ -4,9 +4,6 @@ import (
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,31 +34,31 @@ func TestDataLoader(t *testing.T) {
 
 	engine.EnableRequestCache(true)
 
-	DBLogger := memory.New()
-	engine.AddQueryLogger(DBLogger, apexLog.InfoLevel, QueryLoggerSourceDB)
-	redisLogger := memory.New()
-	engine.AddQueryLogger(redisLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	dbLogger := &testLogHandler{}
+	engine.AddQueryLogger(dbLogger, true, false, false)
+	redisLogger := &testLogHandler{}
+	engine.AddQueryLogger(redisLogger, false, true, false)
 
 	entity = &dataLoaderEntity{}
 	found := engine.LoadByID(1, entity)
 	assert.True(t, found)
 	assert.Equal(t, uint(1), entity.ID)
 	assert.Equal(t, "a", entity.Name)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 2)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 2)
 
 	found = engine.LoadByID(1, entity)
 	assert.True(t, found)
 	assert.Equal(t, uint(1), entity.ID)
 	assert.Equal(t, "a", entity.Name)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 2)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 2)
 	found = engine.LoadByID(2, entity)
 	assert.True(t, found)
 	assert.Equal(t, uint(2), entity.ID)
 	assert.Equal(t, "b", entity.Name)
-	assert.Len(t, DBLogger.Entries, 2)
-	assert.Len(t, redisLogger.Entries, 4)
+	assert.Len(t, dbLogger.Logs, 2)
+	assert.Len(t, redisLogger.Logs, 4)
 
 	engine.dataLoader.Clear()
 
@@ -80,14 +77,14 @@ func TestDataLoader(t *testing.T) {
 		assert.Equal(t, "b", entity3.Name)
 	}()
 	time.Sleep(time.Millisecond * 10)
-	assert.Len(t, DBLogger.Entries, 2)
-	assert.Len(t, redisLogger.Entries, 5)
+	assert.Len(t, dbLogger.Logs, 2)
+	assert.Len(t, redisLogger.Logs, 5)
 
 	entities := make([]*dataLoaderEntity, 0)
 	missing := engine.LoadByIDs([]uint64{1, 2}, &entities)
 	assert.False(t, missing)
-	assert.Len(t, DBLogger.Entries, 2)
-	assert.Len(t, redisLogger.Entries, 5)
+	assert.Len(t, dbLogger.Logs, 2)
+	assert.Len(t, redisLogger.Logs, 5)
 
 	missing = engine.LoadByIDs([]uint64{3, 4}, &entities)
 	assert.True(t, missing)
@@ -95,19 +92,19 @@ func TestDataLoader(t *testing.T) {
 	assert.Equal(t, uint(3), entities[0].ID)
 	assert.Equal(t, "c", entities[0].Name)
 	assert.Nil(t, entities[1])
-	assert.Len(t, DBLogger.Entries, 3)
-	assert.Len(t, redisLogger.Entries, 7)
+	assert.Len(t, dbLogger.Logs, 3)
+	assert.Len(t, redisLogger.Logs, 7)
 	missing = engine.LoadByIDs([]uint64{4}, &entities)
 	assert.True(t, missing)
 	assert.Len(t, entities, 1)
-	assert.Len(t, DBLogger.Entries, 3)
-	assert.Len(t, redisLogger.Entries, 7)
+	assert.Len(t, dbLogger.Logs, 3)
+	assert.Len(t, redisLogger.Logs, 7)
 
 	engine.dataLoader.Clear()
 	missing = engine.LoadByIDs([]uint64{4, 4}, &entities)
 	assert.True(t, missing)
-	assert.Len(t, DBLogger.Entries, 3)
-	assert.Len(t, redisLogger.Entries, 8)
+	assert.Len(t, dbLogger.Logs, 3)
+	assert.Len(t, redisLogger.Logs, 8)
 
 	engine.EnableRequestCache(true)
 	engine.dataLoader.maxBatchSize = 2
@@ -117,26 +114,26 @@ func TestDataLoader(t *testing.T) {
 	assert.Equal(t, "c", entities[0].Name)
 	assert.Equal(t, "a", entities[1].Name)
 	assert.Equal(t, "b", entities[2].Name)
-	assert.Len(t, DBLogger.Entries, 3)
-	assert.Len(t, redisLogger.Entries, 10)
+	assert.Len(t, dbLogger.Logs, 3)
+	assert.Len(t, redisLogger.Logs, 10)
 
 	engine.dataLoader.Clear()
-	DBLogger.Entries = make([]*apexLog.Entry, 0)
-	redisLogger.Entries = make([]*apexLog.Entry, 0)
+	dbLogger.clear()
+	redisLogger.clear()
 	entity = &dataLoaderEntity{}
 	found = engine.LoadByID(1, entity, "Ref")
 	assert.True(t, found)
 	assert.True(t, entity.Ref.IsLoaded())
 	assert.Equal(t, "r1", entity.Ref.Name)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 1)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 1)
 	entity = &dataLoaderEntity{}
 	found = engine.LoadByID(1, entity, "Ref")
 	assert.True(t, found)
 	assert.True(t, entity.Ref.IsLoaded())
 	assert.Equal(t, "r1", entity.Ref.Name)
-	assert.Len(t, DBLogger.Entries, 2)
-	assert.Len(t, redisLogger.Entries, 1)
+	assert.Len(t, dbLogger.Logs, 2)
+	assert.Len(t, redisLogger.Logs, 1)
 
 	entities[0].Name = "c2"
 	engine.Flush(entities[0])
@@ -156,43 +153,43 @@ func TestDataLoader(t *testing.T) {
 	engine.dataLoader.Clear()
 	entity = &dataLoaderEntity{Name: "d"}
 	engine.Flush(entity)
-	DBLogger.Entries = make([]*apexLog.Entry, 0)
-	redisLogger.Entries = make([]*apexLog.Entry, 0)
+	dbLogger.clear()
+	redisLogger.clear()
 	found = engine.LoadByID(4, entity)
 	assert.True(t, found)
 	assert.Equal(t, "d", entity.Name)
-	assert.Len(t, DBLogger.Entries, 0)
-	assert.Len(t, redisLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 0)
+	assert.Len(t, redisLogger.Logs, 0)
 
 	engine.dataLoader.Clear()
-	DBLogger.Entries = make([]*apexLog.Entry, 0)
-	redisLogger.Entries = make([]*apexLog.Entry, 0)
+	dbLogger.clear()
+	redisLogger.clear()
 	entity = &dataLoaderEntity{}
 	found = engine.SearchOne(NewWhere("ID = 1"), entity)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 0)
 	assert.True(t, found)
 	entity = &dataLoaderEntity{}
 	found = engine.LoadByID(1, entity)
 	assert.True(t, found)
 	assert.Equal(t, "a", entity.Name)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 0)
 
 	engine.dataLoader.Clear()
-	DBLogger.Entries = make([]*apexLog.Entry, 0)
-	redisLogger.Entries = make([]*apexLog.Entry, 0)
+	dbLogger.clear()
+	redisLogger.clear()
 	entities = make([]*dataLoaderEntity, 0)
 	engine.Search(NewWhere("ID = 1"), nil, &entities)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 0)
 	assert.True(t, found)
 	entity = &dataLoaderEntity{}
 	found = engine.LoadByID(1, entity)
 	assert.True(t, found)
 	assert.Equal(t, "a", entity.Name)
-	assert.Len(t, DBLogger.Entries, 1)
-	assert.Len(t, redisLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 1)
+	assert.Len(t, redisLogger.Logs, 0)
 
 	engine.LoadByID(4, entity)
 	engine.Delete(entity)
