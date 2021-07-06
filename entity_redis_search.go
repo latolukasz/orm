@@ -63,6 +63,66 @@ func redisSearch(e *Engine, schema *tableSchema, query *RedisSearchQuery, pager 
 	if schema.redisSearchIndex == nil {
 		panic(errors.Errorf("entity %s is not searchable", schema.t.String()))
 	}
+	for k := range query.filtersString {
+		_, has := schema.columnMapping[k]
+		if !has {
+			panic(fmt.Errorf("unknown field %s", k))
+		}
+		valid := false
+	MAIN:
+		for _, field := range schema.redisSearchIndex.Fields {
+			if field.Name == k {
+				if field.Type == "TEXT" {
+					valid = true
+					break MAIN
+				}
+				panic(fmt.Errorf("string filter on fields %s with type %s not allowed", k, field.Type))
+			}
+		}
+		if !valid {
+			panic(fmt.Errorf("missing `searchable` tag for field %s", k))
+		}
+	}
+	for k := range query.filtersNumeric {
+		_, has := schema.columnMapping[k]
+		if !has {
+			panic(fmt.Errorf("unknown field %s", k))
+		}
+		valid := false
+	MAIN2:
+		for _, field := range schema.redisSearchIndex.Fields {
+			if field.Name == k {
+				if field.Type == "NUMERIC" {
+					valid = true
+					break MAIN2
+				}
+				panic(fmt.Errorf("numeric filter on fields %s with type %s not allowed", k, field.Type))
+			}
+		}
+		if !valid {
+			panic(fmt.Errorf("missing `searchable` tag for field %s", k))
+		}
+	}
+	for k := range query.filtersTags {
+		_, has := schema.columnMapping[k]
+		if !has {
+			panic(fmt.Errorf("unknown field %s", k))
+		}
+		valid := false
+	MAIN3:
+		for _, field := range schema.redisSearchIndex.Fields {
+			if field.Name == k {
+				if field.Type == "TAG" {
+					valid = true
+					break MAIN3
+				}
+				panic(fmt.Errorf("tag filter on fields %s with type %s not allowed", k, field.Type))
+			}
+		}
+		if !valid {
+			panic(fmt.Errorf("missing `searchable` tag for field %s", k))
+		}
+	}
 	search := e.GetRedisSearch(schema.searchCacheName)
 	totalRows, res := search.search(schema.redisSearchIndex.Name, query, pager, true)
 	ids := make([]uint64, len(res))

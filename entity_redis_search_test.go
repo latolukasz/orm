@@ -31,6 +31,9 @@ type redisSearchEntity struct {
 	DateTime        time.Time          `orm:"time;searchable"`
 	DateNullable    *time.Time         `orm:"searchable"`
 	Ref             *redisSearchEntity `orm:"searchable"`
+	Another         string
+	AnotherNumeric  int64
+	AnotherTag      bool
 	FakeDelete      bool
 }
 
@@ -630,4 +633,50 @@ func TestEntityRedisSearch(t *testing.T) {
 	query = &RedisSearchQuery{}
 	query.FilterString("Name", "")
 	assert.True(t, engine.RedisSearchOne(entity, query))
+	assert.PanicsWithError(t, "unknown field Name2", func() {
+		query = &RedisSearchQuery{}
+		query.FilterString("Name2", "")
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "missing `searchable` tag for field Another", func() {
+		query = &RedisSearchQuery{}
+		query.FilterString("Another", "")
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "string filter on fields Weight with type NUMERIC not allowed", func() {
+		query = &RedisSearchQuery{}
+		query.FilterString("Weight", "")
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "unknown field Name2", func() {
+		query = &RedisSearchQuery{}
+		query.FilterInt("Name2", 23)
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "missing `searchable` tag for field AnotherNumeric", func() {
+		query = &RedisSearchQuery{}
+		query.FilterInt("AnotherNumeric", 23)
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "numeric filter on fields Name with type TEXT not allowed", func() {
+		query = &RedisSearchQuery{}
+		query.FilterInt("Name", 23)
+		engine.RedisSearchOne(entity, query)
+	})
+
+	assert.PanicsWithError(t, "unknown field Name2", func() {
+		query = &RedisSearchQuery{}
+		query.FilterTag("Name2", "test")
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "missing `searchable` tag for field AnotherTag", func() {
+		query = &RedisSearchQuery{}
+		query.FilterTag("AnotherTag", "test")
+		engine.RedisSearchOne(entity, query)
+	})
+	assert.PanicsWithError(t, "tag filter on fields Name with type TEXT not allowed", func() {
+		query = &RedisSearchQuery{}
+		query.FilterTag("Name", "test")
+		engine.RedisSearchOne(entity, query)
+	})
 }
