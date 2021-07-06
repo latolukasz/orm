@@ -2,12 +2,12 @@ package orm
 
 import (
 	"database/sql"
+	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-
-	log2 "github.com/apex/log"
 
 	"github.com/pkg/errors"
 )
@@ -233,21 +233,25 @@ func (db *DB) GetPoolConfig() MySQLPoolConfig {
 	return db.config
 }
 
+func (db *DB) IsInTransaction() bool {
+	return db.inTransaction
+}
+
 func (db *DB) Begin() {
-	start := time.Now()
+	start := getNow(db.engine.hasDBLogger)
 	err := db.client.Begin()
 	if db.engine.hasDBLogger {
-		db.fillLogFields("[ORM][MYSQL][BEGIN]", start, "transaction", "START TRANSACTION", nil, err)
+		db.fillLogFields("BEGIN", "START TRANSACTION", start, err)
 	}
 	checkError(err)
 	db.inTransaction = true
 }
 
 func (db *DB) Commit() {
-	start := time.Now()
+	start := getNow(db.engine.hasDBLogger)
 	err := db.client.Commit()
 	if db.engine.hasDBLogger {
-		db.fillLogFields("[ORM][MYSQL][COMMIT]", start, "transaction", "COMMIT", nil, err)
+		db.fillLogFields("COMMIT", "COMMIT", start, err)
 	}
 	checkError(err)
 	db.inTransaction = false
@@ -275,11 +279,11 @@ func (db *DB) Commit() {
 }
 
 func (db *DB) Rollback() {
-	start := time.Now()
+	start := getNow(db.engine.hasDBLogger)
 	has, err := db.client.Rollback()
 	if has {
 		if db.engine.hasDBLogger {
-			db.fillLogFields("[ORM][MYSQL][ROLLBACK]", start, "transaction", "ROLLBACK", nil, err)
+			db.fillLogFields("ROLLBACK", "ROLLBACK", start, err)
 		}
 	}
 	checkError(err)
@@ -289,10 +293,14 @@ func (db *DB) Rollback() {
 }
 
 func (db *DB) Exec(query string, args ...interface{}) ExecResult {
-	start := time.Now()
+	start := getNow(db.engine.hasDBLogger)
 	rows, err := db.client.Exec(query, args...)
 	if db.engine.hasDBLogger {
-		db.fillLogFields("[ORM][MYSQL][EXEC]", start, "exec", query, args, err)
+		message := query
+		if len(args) > 0 {
+			message += " " + fmt.Sprintf("%v", args)
+		}
+		db.fillLogFields("EXEC", message, start, err)
 	}
 	if err != nil {
 		panic(db.convertToError(err))
@@ -301,32 +309,43 @@ func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 }
 
 func (db *DB) QueryRow(query *Where, toFill ...interface{}) (found bool) {
-	start := time.Now()
+	start := getNow(db.engine.hasDBLogger)
 	row := db.client.QueryRow(query.String(), query.GetParameters()...)
 	err := row.Scan(toFill...)
+	message := ""
+	if db.engine.hasDBLogger {
+		message = query.String()
+		if len(query.GetParameters()) > 0 {
+			message += " " + fmt.Sprintf("%v", query.GetParameters())
+		}
+	}
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
 			if db.engine.hasDBLogger {
-				db.fillLogFields("[ORM][MYSQL][SELECT]", start, "select", query.String(), query.GetParameters(), nil)
+				db.fillLogFields("SELECT", message, start, nil)
 			}
 			return false
 		}
 		if db.engine.hasDBLogger {
-			db.fillLogFields("[ORM][MYSQL][SELECT]", start, "select", query.String(), query.GetParameters(), err)
+			db.fillLogFields("SELECT", message, start, err)
 		}
 		panic(err)
 	}
 	if db.engine.hasDBLogger {
-		db.fillLogFields("[ORM][MYSQL][SELECT]", start, "select", query.String(), query.GetParameters(), nil)
+		db.fillLogFields("SELECT", message, start, nil)
 	}
 	return true
 }
 
-func (db *DB) Query(query string, args ...interface{}) (rows Rows, deferF func()) {
-	start := time.Now()
+func (db *DB) Query(query string, args ...interface{}) (rows Rows, close func()) {
+	start := getNow(db.engine.hasDBLogger)
 	result, err := db.client.Query(query, args...)
 	if db.engine.hasDBLogger {
-		db.fillLogFields("[ORM][MYSQL][SELECT]", start, "select", query, args, err)
+		message := query
+		if len(args) > 0 {
+			message += " " + fmt.Sprintf("%v", args)
+		}
+		db.fillLogFields("SELECT", message, start, err)
 	}
 	checkError(err)
 	return &rowsStruct{result}, func() {
@@ -339,27 +358,9 @@ func (db *DB) Query(query string, args ...interface{}) (rows Rows, deferF func()
 	}
 }
 
-func (db *DB) fillLogFields(message string, start time.Time, typeCode string, query string, args []interface{}, err error) {
-	now := time.Now()
-	stop := time.Since(start).Microseconds()
-	e := db.engine.queryLoggers[QueryLoggerSourceDB].log.WithFields(log2.Fields{
-		"pool":         db.GetPoolConfig().GetCode(),
-		"db":           db.GetPoolConfig().GetDatabase(),
-		"Query":        query,
-		"microseconds": stop,
-		"target":       "mysql",
-		"type":         typeCode,
-		"started":      start.UnixNano(),
-		"finished":     now.UnixNano(),
-	})
-	if args != nil {
-		e = e.WithField("args", args)
-	}
-	if err != nil {
-		injectLogError(err, e).Error(message)
-	} else {
-		e.Info(message)
-	}
+func (db *DB) fillLogFields(operation, query string, start *time.Time, err error) {
+	query = strings.ReplaceAll(query, "\n", " ")
+	fillLogFields(db.engine.queryLoggersDB, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, err)
 }
 
 func (db *DB) convertToError(err error) error {
@@ -380,4 +381,35 @@ func (db *DB) convertToError(err error) error {
 		}
 	}
 	return err
+}
+
+func escapeSQLParam(val string) string {
+	dest := make([]byte, 0, 2*len(val))
+	var escape byte
+	for i := 0; i < len(val); i++ {
+		c := val[i]
+		escape = 0
+		switch c {
+		case 0:
+			escape = '0'
+		case '\n':
+			escape = 'n'
+		case '\r':
+			escape = 'r'
+		case '\\':
+			escape = '\\'
+		case '\'':
+			escape = '\''
+		case '"':
+			escape = '"'
+		case '\032':
+			escape = 'Z'
+		}
+		if escape != 0 {
+			dest = append(dest, '\\', escape)
+		} else {
+			dest = append(dest, c)
+		}
+	}
+	return "'" + string(dest) + "'"
 }

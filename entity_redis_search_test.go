@@ -1,7 +1,6 @@
 package orm
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
@@ -577,7 +576,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
-	receiver.Digest(context.Background())
+	receiver.Digest()
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false).FilterInt("Age", 101)
@@ -590,7 +589,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	for _, alter := range engine.GetRedisSearchIndexAlters() {
 		alter.Execute()
 	}
-	indexer.Digest(context.Background())
+	indexer.Digest()
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)
 	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 10))
@@ -609,8 +608,8 @@ func TestEntityRedisSearch(t *testing.T) {
 	total = engine.RedisSearchLazy(&entities, query, NewPager(1, 10))
 	assert.Equal(t, uint64(49), total)
 	assert.Len(t, entities, 10)
-	assert.Equal(t, "dog 2", entities[0].GetFieldLazy("Name"))
-	assert.Equal(t, "dog 11", entities[9].GetFieldLazy("Name"))
+	assert.Equal(t, "dog 2", entities[0].GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "dog 11", entities[9].GetFieldLazy(engine, "Name"))
 	assert.True(t, entities[0].IsLazy())
 
 	query.FilterInt("Age", 10)
@@ -619,7 +618,7 @@ func TestEntityRedisSearch(t *testing.T) {
 
 	query.FilterInt("Age", 10)
 	assert.True(t, engine.RedisSearchOneLazy(entity, query))
-	assert.Equal(t, "dog 10", entity.GetFieldLazy("Name"))
+	assert.Equal(t, "dog 10", entity.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.IsLazy())
 
 	query.FilterInt("Balance", 700)

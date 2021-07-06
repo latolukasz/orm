@@ -3,67 +3,47 @@ package orm
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
-	"sync"
 
 	"github.com/golang/groupcache/lru"
-
-	logApex "github.com/apex/log"
-
-	levelHandler "github.com/apex/log/handlers/level"
-	"github.com/apex/log/handlers/text"
 )
 
-var defaultQueryDebug = text.New(os.Stdout)
-
 type Engine struct {
-	mutex                     sync.Mutex
 	registry                  *validatedRegistry
 	context                   context.Context
 	dbs                       map[string]*DB
-	dbsMutex                  sync.Mutex
-	clickHouseDbs             map[string]*ClickHouse
-	clickHouseMutex           sync.Mutex
 	localCache                map[string]*LocalCache
-	localCacheMutex           sync.Mutex
 	redis                     map[string]*RedisCache
-	redisMutex                sync.Mutex
 	redisSearch               map[string]*RedisSearch
-	redisSearchMutex          sync.Mutex
-	elastic                   map[string]*Elastic
-	elasticMutex              sync.Mutex
-	logMetaData               map[string]interface{}
-	logMetaDataMutex          sync.RWMutex
+	logMetaData               Bind
 	dataLoader                *dataLoader
 	hasRequestCache           bool
-	queryLoggers              map[QueryLoggerSource]*logger
+	queryLoggersDB            []LogHandler
+	queryLoggersRedis         []LogHandler
+	queryLoggersLocalCache    []LogHandler
 	hasRedisLogger            bool
-	hasStreamsLogger          bool
 	hasDBLogger               bool
-	hasClickHouseLogger       bool
-	hasElasticLogger          bool
 	hasLocalCacheLogger       bool
-	log                       *log
-	logOnce                   sync.Once
-	logMutex                  sync.Mutex
-	logDebugOnce              sync.Once
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
 	afterCommitDataLoaderSets dataLoaderSets
 	eventBroker               *eventBroker
+	serializer                *serializer
 }
 
-func (e *Engine) Log() Log {
-	e.logOnce.Do(func() {
-		e.log = newLog(e)
-	})
-	return e.log
+func (e *Engine) GetContext() context.Context {
+	return e.context
+}
+
+func (e *Engine) Clone() *Engine {
+	newEngine := &Engine{}
+	newEngine.registry = e.registry
+	newEngine.context = e.context
+	newEngine.dataLoader = e.dataLoader
+	return newEngine
 }
 
 func (e *Engine) EnableRequestCache(goroutines bool) {
-	e.mutex.Lock()
-	defer e.mutex.Unlock()
 	if goroutines {
 		e.dataLoader = &dataLoader{engine: e, maxBatchSize: dataLoaderMaxPatch}
 		e.hasRequestCache = false
@@ -73,87 +53,11 @@ func (e *Engine) EnableRequestCache(goroutines bool) {
 	}
 }
 
-func (e *Engine) EnableLogger(level logApex.Level, handlers ...logApex.Handler) {
-	if len(handlers) == 0 {
-		handlers = []logApex.Handler{&jsonHandler{}}
-	}
-	l := e.Log()
-	e.logMutex.Lock()
-	defer e.logMutex.Unlock()
-	for _, handler := range handlers {
-		l.(*log).logger.handler.Handlers = append(e.log.logger.handler.Handlers, levelHandler.New(handler, level))
-	}
-}
-
-func (e *Engine) EnableDebug() {
-	l := e.Log()
-	e.logDebugOnce.Do(func() {
-		l.(*log).logger.handler.Handlers = append(e.log.logger.handler.Handlers, levelHandler.New(text.New(os.Stderr), logApex.DebugLevel))
-	})
-}
-
-func (e *Engine) AddQueryLogger(handler logApex.Handler, level logApex.Level, source ...QueryLoggerSource) {
-	if len(source) == 0 {
-		source = []QueryLoggerSource{QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceElastic,
-			QueryLoggerSourceClickHouse, QueryLoggerSourceStreams}
-	}
-	e.logMutex.Lock()
-	defer e.logMutex.Unlock()
-	if e.queryLoggers == nil {
-		e.queryLoggers = make(map[QueryLoggerSource]*logger)
-	}
-	newHandler := levelHandler.New(handler, level)
-MAIN:
-	for _, source := range source {
-		l, has := e.queryLoggers[source]
-		if has {
-			for _, v := range l.handler.Handlers {
-				asLevel, is := v.(*levelHandler.Handler)
-				if is && asLevel.Handler == handler {
-					continue MAIN
-				}
-			}
-			l.handler.Handlers = append(l.handler.Handlers, newHandler)
-		} else {
-			e.queryLoggers[source] = e.newLogger(newHandler, level)
-			switch source {
-			case QueryLoggerSourceRedis:
-				e.hasRedisLogger = true
-			case QueryLoggerSourceStreams:
-				e.hasStreamsLogger = true
-			case QueryLoggerSourceDB:
-				e.hasDBLogger = true
-			case QueryLoggerSourceClickHouse:
-				e.hasClickHouseLogger = true
-			case QueryLoggerSourceElastic:
-				e.hasElasticLogger = true
-			case QueryLoggerSourceLocalCache:
-				e.hasLocalCacheLogger = true
-			}
-		}
-	}
-}
-
-func (e *Engine) EnableQueryDebug(source ...QueryLoggerSource) {
-	e.AddQueryLogger(defaultQueryDebug, logApex.DebugLevel, source...)
-}
-
-func (e *Engine) SetLogMetaData(key string, value interface{}) {
-	e.logMetaDataMutex.Lock()
-	defer e.logMetaDataMutex.Unlock()
-	if e.logMetaData == nil {
-		e.logMetaData = make(map[string]interface{})
-	}
-	e.logMetaData[key] = value
-}
-
 func (e *Engine) GetMysql(code ...string) *DB {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.dbsMutex.Lock()
-	defer e.dbsMutex.Unlock()
 	db, has := e.dbs[dbCode]
 	if !has {
 		config, has := e.registry.mySQLServers[dbCode]
@@ -175,8 +79,6 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.localCacheMutex.Lock()
-	defer e.localCacheMutex.Unlock()
 	cache, has := e.localCache[dbCode]
 	if !has {
 		config, has := e.registry.localCacheServers[dbCode]
@@ -207,8 +109,6 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.redisMutex.Lock()
-	defer e.redisMutex.Unlock()
 	cache, has := e.redis[dbCode]
 	if !has {
 		config, has := e.registry.redisServers[dbCode]
@@ -234,8 +134,6 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	e.redisSearchMutex.Lock()
-	defer e.redisSearchMutex.Unlock()
 	cache, has := e.redisSearch[dbCode]
 	if !has {
 		config, has := e.registry.redisServers[dbCode]
@@ -257,58 +155,15 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 	return cache
 }
 
-func (e *Engine) GetClickHouse(code ...string) *ClickHouse {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
+func (e *Engine) SetLogMetaData(key string, value interface{}) {
+	if e.logMetaData == nil {
+		e.logMetaData = make(Bind)
 	}
-	e.clickHouseMutex.Lock()
-	defer e.clickHouseMutex.Unlock()
-	ch, has := e.clickHouseDbs[dbCode]
-	if !has {
-		val, has := e.registry.clickHouseClients[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered clickhouse pool '%s'", dbCode))
-		}
-		ch = &ClickHouse{engine: e, code: val.code, client: val.db}
-		if e.clickHouseDbs == nil {
-			e.clickHouseDbs = map[string]*ClickHouse{dbCode: ch}
-		} else {
-			e.clickHouseDbs[dbCode] = ch
-		}
-	}
-	return ch
-}
-
-func (e *Engine) GetElastic(code ...string) *Elastic {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	e.elasticMutex.Lock()
-	defer e.elasticMutex.Unlock()
-	elastic, has := e.elastic[dbCode]
-	if !has {
-		val, has := e.registry.elasticServers[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered elastic pool '%s'", dbCode))
-		}
-		elastic = &Elastic{engine: e, code: val.code, client: val.client}
-		if e.elastic == nil {
-			e.elastic = map[string]*Elastic{dbCode: elastic}
-		} else {
-			e.elastic[dbCode] = elastic
-		}
-	}
-	return elastic
+	e.logMetaData[key] = value
 }
 
 func (e *Engine) NewFlusher() Flusher {
 	return &flusher{engine: e}
-}
-
-func (e *Engine) NewRedisFlusher() RedisFlusher {
-	return &redisFlusher{engine: e}
 }
 
 func (e *Engine) Flush(entity Entity) {
@@ -336,6 +191,11 @@ func (e *Engine) Delete(entity Entity) {
 	e.Flush(entity)
 }
 
+func (e *Engine) DeleteLazy(entity Entity) {
+	entity.markToDelete()
+	e.FlushLazy(entity)
+}
+
 func (e *Engine) ForceDelete(entity Entity) {
 	entity.forceMarkToDelete()
 	e.Flush(entity)
@@ -355,6 +215,15 @@ func (e *Engine) DeleteMany(entities ...Entity) {
 	e.FlushMany(entities...)
 }
 
+func (e *Engine) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
+	entityName := e.GetRegistry().GetTableSchemaForEntity(entity).GetType().String()
+	flusher := e.GetEventBroker().NewFlusher()
+	for _, id := range ids {
+		flusher.Publish(queueCode, dirtyEvent{A: "u", I: id, E: entityName})
+	}
+	flusher.Flush()
+}
+
 func (e *Engine) GetRegistry() ValidatedRegistry {
 	return e.registry
 }
@@ -363,7 +232,7 @@ func (e *Engine) SearchWithCount(where *Where, pager *Pager, entities interface{
 	return search(true, e, where, pager, true, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
-func (e *Engine) SearchWithCountLAzy(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
+func (e *Engine) SearchWithCountLazy(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
 	return search(true, e, where, pager, true, true, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
@@ -445,7 +314,7 @@ func (e *Engine) CachedSearchWithReferencesLazy(entities interface{}, indexName 
 	return total
 }
 
-func (e *Engine) ClearByIDs(entity Entity, ids ...uint64) {
+func (e *Engine) ClearCacheByIDs(entity Entity, ids ...uint64) {
 	clearByIDs(e, entity, ids...)
 }
 
@@ -502,6 +371,9 @@ func (e *Engine) GetRedisSearchIndexAlters() (alters []RedisSearchIndexAlter) {
 	return getRedisSearchAlters(e)
 }
 
-func (e *Engine) GetElasticIndexAlters() (alters []ElasticIndexAlter) {
-	return getElasticIndexAlters(e)
+func (e *Engine) getSerializer() *serializer {
+	if e.serializer == nil {
+		e.serializer = newSerializer()
+	}
+	return e.serializer
 }

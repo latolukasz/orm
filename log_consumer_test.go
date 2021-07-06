@@ -1,19 +1,15 @@
 package orm
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
-
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type logReceiverEntity1 struct {
-	ORM      `orm:"log;asyncRedisLogs=default;redisCache"`
+	ORM      `orm:"log;redisCache"`
 	ID       uint
 	Name     string
 	LastName string
@@ -46,16 +42,11 @@ func TestLogReceiver(t *testing.T) {
 	engine.Flush(e2)
 
 	valid := false
-	validHeartBeat := false
 	consumer.SetLogLogger(func(log *LogQueueValue) {
 		valid = true
 	})
-	consumer.SetHeartBeat(time.Minute, func() {
-		validHeartBeat = true
-	})
-	consumer.Digest(context.Background())
+	consumer.Digest()
 	assert.True(t, valid)
-	assert.True(t, validHeartBeat)
 
 	var entityID int
 	var meta sql.NullString
@@ -84,7 +75,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher.Track(e2)
 	flusher.Flush()
 
-	consumer.Digest(context.Background())
+	consumer.Digest()
 
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 2")
 	engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
@@ -102,14 +93,14 @@ func TestLogReceiver(t *testing.T) {
 
 	e1.Country = "Germany"
 	engine.Flush(e1)
-	consumer.Digest(context.Background())
+	consumer.Digest()
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
 	found := engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.False(t, found)
 
 	e1.LastName = "Summer"
 	engine.Flush(e1)
-	consumer.Digest(context.Background())
+	consumer.Digest()
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -119,7 +110,7 @@ func TestLogReceiver(t *testing.T) {
 	assert.Equal(t, "{\"user_id\": 12}", meta.String)
 
 	engine.Delete(e1)
-	consumer.Digest(context.Background())
+	consumer.Digest()
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 4")
 	var changesNullable sql.NullString
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNullable)
@@ -134,7 +125,7 @@ func TestLogReceiver(t *testing.T) {
 	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 5")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -146,7 +137,7 @@ func TestLogReceiver(t *testing.T) {
 	engine.LoadByID(3, e3)
 	e3.Name = "Eva"
 	engine.FlushLazy(e3)
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 6")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -160,7 +151,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher = engine.NewFlusher()
 	flusher.Delete(e3)
 	flusher.FlushLazy()
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 7")
 	var changesNull sql.NullString
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNull)
@@ -183,21 +174,12 @@ func TestLogReceiver(t *testing.T) {
 	e5.Name = "Lucas"
 	flusher.Track(e5)
 	_ = flusher.FlushWithCheck()
-	logger := memory.New()
-	engine.AddQueryLogger(logger, apexLog.InfoLevel)
+	logger := &testLogHandler{}
+	engine.RegisterQueryLogger(logger, true, true, false)
 	engine.GetMysql().Commit()
-	assert.Len(t, logger.Entries, 2)
-	assert.Equal(t, "[ORM][MYSQL][COMMIT]", logger.Entries[0].Message)
-	assert.Equal(t, "[ORM][REDIS][EXEC]", logger.Entries[1].Message)
-	commands := logger.Entries[1].Fields["commands"].([]string)
-	assert.Len(t, commands, 7)
-	assert.Equal(t, "DEL", commands[0])
-	assert.Equal(t, "d06b9:1", commands[1])
-	assert.Equal(t, "d06b9:2", commands[2])
-	assert.Equal(t, "XAdd", commands[3])
-	assert.Equal(t, "orm-log-channel", commands[4])
-	assert.Equal(t, "XAdd", commands[5])
-	assert.Equal(t, "orm-log-channel", commands[6])
+	assert.Len(t, logger.Logs, 2)
+	assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
+	assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
 
 	engine.GetMysql().Begin()
 	flusher = engine.NewFlusher()
@@ -208,15 +190,9 @@ func TestLogReceiver(t *testing.T) {
 	flusher = engine.NewFlusher()
 	flusher.Track(e4)
 	flusher.Flush()
-	logger.Entries = make([]*apexLog.Entry, 0)
+	logger.clear()
 	engine.GetMysql().Commit()
-	assert.Len(t, logger.Entries, 2)
-	assert.Equal(t, "[ORM][MYSQL][COMMIT]", logger.Entries[0].Message)
-	assert.Equal(t, "[ORM][REDIS][EXEC]", logger.Entries[1].Message)
-	commands = logger.Entries[1].Fields["commands"].([]string)
-	assert.Len(t, commands, 4)
-	assert.Equal(t, "DEL", commands[0])
-	assert.Equal(t, "d06b9:1", commands[1])
-	assert.Equal(t, "XAdd", commands[2])
-	assert.Equal(t, "orm-log-channel", commands[3])
+	assert.Len(t, logger.Logs, 2)
+	assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
+	assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
 }

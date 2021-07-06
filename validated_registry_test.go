@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -23,7 +24,8 @@ func TestValidatedRegistry(t *testing.T) {
 	registry.RegisterEnum("enum_map", []string{"a", "b"}, "b")
 	entity := &validatedRegistryEntity{}
 	registry.RegisterEntity(entity)
-	validated, err := registry.Validate()
+	ctx := context.Background()
+	validated, err := registry.Validate(ctx)
 	assert.NoError(t, err)
 	source := validated.GetSourceRegistry()
 	assert.NotNil(t, source)
@@ -39,7 +41,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.False(t, enum.Has("c"))
 
 	registry.RegisterEnum("enum_map", []string{"a", "b"})
-	validated, err = registry.Validate()
+	validated, err = registry.Validate(ctx)
 	assert.NoError(t, err)
 	enum = validated.GetEnum("enum_map")
 	assert.Equal(t, []string{"a", "b"}, enum.GetFields())

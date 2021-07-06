@@ -14,6 +14,16 @@ func (where *Where) String() string {
 	return where.query
 }
 
+func (where *Where) SetParameter(index int, param interface{}) *Where {
+	where.parameters[index-1] = param
+	return where
+}
+
+func (where *Where) SetParameters(params ...interface{}) *Where {
+	where.parameters = params
+	return where
+}
+
 func (where *Where) GetParameters() []interface{} {
 	return where.parameters
 }

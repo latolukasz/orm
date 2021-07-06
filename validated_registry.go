@@ -7,7 +7,7 @@ import (
 )
 
 type ValidatedRegistry interface {
-	CreateEngine() *Engine
+	CreateEngine(ctx context.Context) *Engine
 	GetTableSchema(entityName string) TableSchema
 	GetTableSchemaForEntity(entity Entity) TableSchema
 	GetSourceRegistry() *Registry
@@ -25,14 +25,14 @@ type validatedRegistry struct {
 	tableSchemas       map[reflect.Type]*tableSchema
 	entities           map[string]reflect.Type
 	redisSearchIndexes map[string]map[string]*RedisSearchIndex
-	clickHouseClients  map[string]*ClickHouseConfig
 	localCacheServers  map[string]LocalCachePoolConfig
 	mySQLServers       map[string]MySQLPoolConfig
 	redisServers       map[string]RedisPoolConfig
 	redisStreamGroups  map[string]map[string]map[string]bool
 	redisStreamPools   map[string]string
-	elasticServers     map[string]*ElasticConfig
 	enums              map[string]Enum
+	timeOffset         int64
+	defaultQueryLogger *defaultLogLogger
 }
 
 func (r *validatedRegistry) GetSourceRegistry() *Registry {
@@ -82,8 +82,8 @@ func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
 	return r.redisServers
 }
 
-func (r *validatedRegistry) CreateEngine() *Engine {
-	return &Engine{registry: r, context: context.Background()}
+func (r *validatedRegistry) CreateEngine(ctx context.Context) *Engine {
+	return &Engine{registry: r, context: ctx}
 }
 
 func (r *validatedRegistry) GetTableSchema(entityName string) TableSchema {

@@ -9,13 +9,11 @@ import (
 )
 
 type RedisStreamStatistics struct {
-	Stream    string
-	RedisPool string
-	Len       uint64
-	Hours     int
-	Minutes   int
-	Seconds   int
-	Groups    []*RedisStreamGroupStatistics
+	Stream             string
+	RedisPool          string
+	Len                uint64
+	OldestEventSeconds int
+	Groups             []*RedisStreamGroupStatistics
 }
 
 type RedisStreamGroupSpeedStatistics struct {
@@ -31,11 +29,9 @@ type RedisStreamGroupStatistics struct {
 	Group                 string
 	Pending               uint64
 	LastDeliveredID       string
-	LastDeliveredDuration string
-	Lower                 string
-	LowerDuration         string
-	Higher                string
-	HigherDuration        string
+	LastDeliveredDuration time.Duration
+	LowerID               string
+	LowerDuration         time.Duration
 	*RedisStreamGroupSpeedStatistics
 	Consumers    []*RedisStreamConsumerStatistics
 	SpeedHistory []*RedisStreamGroupSpeedStatistics
@@ -76,21 +72,16 @@ func GetRedisStreamsStatistics(engine *orm.Engine) []*RedisStreamStatistics {
 
 				pending := r.XPending(stream, group.Name)
 				if pending.Count > 0 {
-					groupStats.Lower = pending.Lower
+					groupStats.LowerID = pending.Lower
 					lower, t := idToSince(pending.Lower, now)
 					groupStats.LowerDuration = lower
-					if lower != "0" {
+					if lower != 0 {
 						since := time.Since(t)
 						if minPending == -1 || int(since.Seconds()) > minPending {
-							stat.Hours = int(since.Hours())
-							stat.Minutes = int(since.Minutes()) - stat.Hours*60
-							stat.Seconds = int(since.Seconds()) - stat.Hours*3600 - stat.Minutes*60
+							stat.OldestEventSeconds = int(since.Seconds())
 							minPending = int(since.Seconds())
 						}
 					}
-					groupStats.Higher = pending.Higher
-					groupStats.HigherDuration, _ = idToSince(pending.Higher, now)
-
 					for name, pending := range pending.Consumers {
 						consumer := &RedisStreamConsumerStatistics{Name: name, Pending: uint64(pending)}
 						groupStats.Consumers = append(groupStats.Consumers, consumer)
@@ -130,15 +121,15 @@ func calculateSpeedStatistics(groupStats *RedisStreamGroupSpeedStatistics, group
 	}
 }
 
-func idToSince(id string, now time.Time) (string, time.Time) {
+func idToSince(id string, now time.Time) (time.Duration, time.Time) {
 	if id == "" || id == "0-0" {
-		return "0", time.Now()
+		return 0, time.Now()
 	}
 	unixInt, _ := strconv.ParseInt(strings.Split(id, "-")[0], 10, 64)
 	unix := time.Unix(0, unixInt*1000000)
 	s := now.Sub(unix)
 	if s < 0 {
-		return "0", time.Now()
+		return 0, time.Now()
 	}
-	return s.String(), unix
+	return s, unix
 }

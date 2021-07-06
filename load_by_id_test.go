@@ -3,8 +3,6 @@ package orm
 import (
 	"testing"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,7 +65,6 @@ func TestLoadById(t *testing.T) {
 	var subReference *loadByIDSubReference
 	var subReference2 *loadByIDSubReference2
 	engine := PrepareTables(t, &Registry{}, 5, entity, entityRedis, entityNoCache, reference, subReference, subReference2)
-
 	e := &loadByIDEntity{Name: "a", ReferenceOne: &loadByIDReference{Name: "r1", ReferenceTwo: &loadByIDSubReference{Name: "s1"}}}
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
@@ -79,12 +76,12 @@ func TestLoadById(t *testing.T) {
 	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReference{{ID: 100}, {ID: 101}, {ID: 102}}})
 
 	entity = &loadByIDEntity{}
-	localLogger := memory.New()
-	engine.AddQueryLogger(localLogger, apexLog.InfoLevel, QueryLoggerSourceLocalCache)
+	localLogger := &testLogHandler{}
+	engine.RegisterQueryLogger(localLogger, false, false, true)
 	found := engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo",
 		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
 	assert.True(t, found)
-	assert.Len(t, localLogger.Entries, 5)
+	assert.Len(t, localLogger.Logs, 5)
 	assert.True(t, entity.IsLoaded())
 	assert.False(t, entity.IsLazy())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
@@ -107,26 +104,26 @@ func TestLoadById(t *testing.T) {
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.IsLazy())
 	assert.Equal(t, "", entity.Name)
-	assert.Equal(t, "a", entity.GetFieldLazy("Name"))
+	assert.Equal(t, "a", entity.GetFieldLazy(engine, "Name"))
 	entity.Fill(engine)
 	assert.Equal(t, "a", entity.Name)
 	assert.IsType(t, reference, entity.ReferenceOne)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLazy())
-	assert.Equal(t, "r1", entity.ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "r1", entity.ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.IsLoaded())
-	assert.Equal(t, "r11", entity.ReferenceSecond.GetFieldLazy("Name"))
+	assert.Equal(t, "r11", entity.ReferenceSecond.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceSecond.ReferenceTwo.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceTwo.IsLazy())
-	assert.Equal(t, "s1", entity.ReferenceSecond.ReferenceTwo.GetFieldLazy("Name"))
+	assert.Equal(t, "s1", entity.ReferenceSecond.ReferenceTwo.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLazy())
-	assert.Equal(t, "s11", entity.ReferenceSecond.ReferenceThree.GetFieldLazy("Name"))
+	assert.Equal(t, "s11", entity.ReferenceSecond.ReferenceThree.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLazy())
-	assert.Equal(t, "hello", entity.ReferenceSecond.ReferenceThree.ReferenceTwo.GetFieldLazy("Name"))
+	assert.Equal(t, "hello", entity.ReferenceSecond.ReferenceThree.ReferenceTwo.GetFieldLazy(engine, "Name"))
 
 	entity = &loadByIDEntity{}
 	found = engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo")
@@ -151,12 +148,12 @@ func TestLoadById(t *testing.T) {
 	entity = &loadByIDEntity{ID: 1}
 	engine.LoadLazy(entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "", entity.Name)
-	assert.Equal(t, "a", entity.GetFieldLazy("Name"))
+	assert.Equal(t, "a", entity.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.IsLazy())
-	assert.Equal(t, "r1", entity.ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "r1", entity.ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceOne.IsLazy())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.GetFieldLazy("Name"))
+	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLazy())
 
@@ -206,9 +203,9 @@ func TestLoadById(t *testing.T) {
 	assert.True(t, entity.ReferenceMany[0].IsLoaded())
 	assert.True(t, entity.ReferenceMany[1].IsLoaded())
 	assert.True(t, entity.ReferenceMany[2].IsLoaded())
-	assert.Equal(t, "rm1", entity.ReferenceMany[0].GetFieldLazy("Name"))
-	assert.Equal(t, "rm2", entity.ReferenceMany[1].GetFieldLazy("Name"))
-	assert.Equal(t, "rm3", entity.ReferenceMany[2].GetFieldLazy("Name"))
+	assert.Equal(t, "rm1", entity.ReferenceMany[0].GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "rm2", entity.ReferenceMany[1].GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "rm3", entity.ReferenceMany[2].GetFieldLazy(engine, "Name"))
 	entity.ReferenceMany[0].Fill(engine)
 	assert.Equal(t, "rm1", entity.ReferenceMany[0].Name)
 	entity.ReferenceMany[0].Fill(engine)

@@ -14,9 +14,10 @@ func TestRedisStreamsStatus(t *testing.T) {
 	registry.RegisterRedis("localhost:6382", 11)
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	r := engine.GetRedis()
 	r.FlushDB()
 
@@ -36,8 +37,11 @@ func TestRedisStreamsStatus(t *testing.T) {
 
 	r.XGroupCreateMkStream("test-stream", "test-group", "0")
 	flusher := engine.GetEventBroker().NewFlusher()
+	type testEvent struct {
+		Name string
+	}
 	for i := 1; i <= 10001; i++ {
-		flusher.PublishMap("test-stream", orm.EventAsMap{"a": "b"})
+		flusher.Publish("test-stream", testEvent{"b"})
 	}
 	flusher.Flush()
 	time.Sleep(time.Millisecond * 500)
@@ -56,12 +60,9 @@ func TestRedisStreamsStatus(t *testing.T) {
 	}
 	assert.True(t, valid)
 
-	consumer := engine.GetEventBroker().Consumer("test-consumer", "test-group")
+	consumer := engine.GetEventBroker().Consumer("test-group")
 	consumer.DisableLoop()
-	consumer.Consume(context.Background(), 11000, false, func(events []orm.Event) {
-		for _, event := range events {
-			event.Skip()
-		}
+	consumer.Consume(11000, func(events []orm.Event) {
 		engine.GetRedis().Get("hello")
 		engine.GetRedis().Get("hello2")
 		engine.GetMysql().Query("SELECT 1")
@@ -75,11 +76,8 @@ func TestRedisStreamsStatus(t *testing.T) {
 			assert.Equal(t, uint64(10001), stream.Len)
 			assert.Len(t, stream.Groups, 1)
 			assert.Equal(t, "test-group", stream.Groups[0].Group)
-			assert.Equal(t, uint64(10001), stream.Groups[0].Pending)
-			assert.Len(t, stream.Groups[0].Consumers, 1)
-			assert.Equal(t, "test-consumer-1", stream.Groups[0].Consumers[0].Name)
-			assert.Equal(t, uint64(10001), stream.Groups[0].Consumers[0].Pending)
-			assert.Equal(t, int64(10001), stream.Groups[0].SpeedEvents)
+			assert.Equal(t, uint64(0), stream.Groups[0].Pending)
+			assert.Len(t, stream.Groups[0].Consumers, 0)
 			assert.GreaterOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.01)
 			assert.LessOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.012)
 			assert.GreaterOrEqual(t, stream.Groups[0].RedisQueriesPerEvent, 0.00019)

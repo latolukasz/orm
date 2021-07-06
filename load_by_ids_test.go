@@ -69,7 +69,6 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		&loadByIdsEntity{Name: "c"})
 
 	var rows []*loadByIdsEntity
-
 	missing := engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "*")
 	assert.True(t, missing)
 	assert.Len(t, rows, 4)
@@ -134,15 +133,15 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.True(t, rows[1].IsLazy())
 	assert.True(t, rows[2].IsLazy())
 	assert.Nil(t, rows[3])
-	assert.Equal(t, "a", rows[0].GetFieldLazy("Name"))
+	assert.Equal(t, "a", rows[0].GetFieldLazy(engine, "Name"))
 	assert.Equal(t, "", rows[0].ReferenceOne.Name)
-	assert.Equal(t, "r1", rows[0].ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "r1", rows[0].ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.Equal(t, "", rows[1].Name)
-	assert.Equal(t, "b", rows[1].GetFieldLazy("Name"))
+	assert.Equal(t, "b", rows[1].GetFieldLazy(engine, "Name"))
 	assert.Equal(t, "", rows[1].ReferenceOne.Name)
-	assert.Equal(t, "r2", rows[1].ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "r2", rows[1].ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.Equal(t, "", rows[2].Name)
-	assert.Equal(t, "c", rows[2].GetFieldLazy("Name"))
+	assert.Equal(t, "c", rows[2].GetFieldLazy(engine, "Name"))
 	missing = engine.LoadByIDsLazy([]uint64{1, 2, 4, 3}, &rows, "*")
 	assert.True(t, missing)
 	assert.NotNil(t, rows[0])

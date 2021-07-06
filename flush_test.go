@@ -1,13 +1,9 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
-
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -134,7 +130,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	}
 
 	now := time.Now()
-	layout := "2006-01-02 15:04:05"
 	entity = &flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982}
 	entity.NameTranslated = map[string]string{"pl": "kot", "en": "cat"}
 	entity.ReferenceOne = &flushEntityReference{Name: "John", Age: 30}
@@ -144,17 +139,19 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.SetNotNull = []string{"a", "b"}
 	entity.EnumNotNull = "a"
 	entity.TimeWithTime = now
+	entity.Float64 = 2.12
+	entity.Decimal = 6.15
 	entity.TimeWithTimeNullable = &now
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
-	assert.True(t, entity.IsDirty())
-	assert.True(t, entity.ReferenceOne.IsDirty())
+	assert.True(t, entity.IsDirty(engine))
+	assert.True(t, entity.ReferenceOne.IsDirty(engine))
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Flush()
 	flusher.Flush()
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.False(t, entity.IsDirty())
-	assert.False(t, entity.ReferenceOne.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
+	assert.False(t, entity.ReferenceOne.IsDirty(engine))
 	assert.Equal(t, uint(1), entity.ID)
 	assert.NotEqual(t, uint(0), entity.ReferenceOne.ID)
 	assert.True(t, entity.IsLoaded())
@@ -177,9 +174,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
-	assert.Equal(t, now.Format(layout), entity.TimeWithTime.Format(layout))
+	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
 	assert.Equal(t, now.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, now.Format(layout), entity.TimeWithTimeNullable.Format(layout))
+	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTimeNullable.Format(timeFormat))
 	assert.Equal(t, now.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
@@ -189,7 +186,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.BoolNullable)
 	assert.Nil(t, entity.FloatNullable)
 	assert.Nil(t, entity.Float32Nullable)
-	assert.False(t, entity.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
 	assert.True(t, entity.IsLoaded())
 	assert.False(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, refOneID, entity.ReferenceOne.ID)
@@ -281,12 +278,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 134.35, entity.Decimal)
 	assert.Equal(t, 134.35, *entity.DecimalNullable)
 	assert.Nil(t, entity.ReferenceMany)
-	assert.False(t, entity.IsDirty())
-	assert.False(t, reference.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
+	assert.False(t, reference.IsDirty(engine))
 	assert.True(t, reference.IsLoaded())
 
 	entity.ReferenceMany = []*flushEntityReference{}
-	assert.False(t, entity.IsDirty())
+	assert.False(t, entity.IsDirty(engine))
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
@@ -335,9 +332,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.BoolNullable = &i4
 	entity2.FloatNullable = &i5
 	entity2.City = "War'saw '; New"
-	assert.True(t, entity2.IsDirty())
+	assert.True(t, entity2.IsDirty(engine))
 	engine.Flush(entity2)
-	assert.False(t, entity2.IsDirty())
+	assert.False(t, entity2.IsDirty(engine))
 	engine.LoadByID(10, entity2)
 	assert.Equal(t, 21, entity2.Age)
 	entity2.City = "War\\'saw"
@@ -356,9 +353,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.BoolNullable = nil
 	entity2.FloatNullable = nil
 	entity2.City = ""
-	assert.True(t, entity2.IsDirty())
+	assert.True(t, entity2.IsDirty(engine))
+
 	engine.Flush(entity2)
-	assert.False(t, entity2.IsDirty())
+	assert.False(t, entity2.IsDirty(engine))
 	entity2 = &flushEntity{}
 	engine.LoadByID(10, entity2)
 	assert.Nil(t, entity2.UintNullable)
@@ -367,7 +365,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "", entity2.City)
 
 	entity2.markToDelete()
-	assert.True(t, entity2.IsDirty())
+	assert.True(t, entity2.IsDirty(engine))
 	engine.Delete(entity2)
 	found = engine.LoadByID(10, entity2)
 	assert.True(t, found)
@@ -399,8 +397,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity4 := &flushEntity{}
 	found = engine.LoadByID(12, entity4)
 	assert.True(t, found)
-	assert.Nil(t, entity4.SetNullable)
 	assert.Nil(t, entity4.SetNotNull)
+	assert.Nil(t, entity4.SetNullable)
 	entity4.SetNullable = []string{"a", "c"}
 	engine.Flush(entity4)
 	entity4 = &flushEntity{}
@@ -449,7 +447,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity7 = &flushEntity{Name: "test_check_3", EnumNotNull: "Y"}
 	flusher.Track(entity7)
 	err = flusher.FlushWithFullCheck()
-	assert.EqualError(t, err, "Error 1265: Data truncated for column 'EnumNotNull' at row 1")
+	assert.EqualError(t, err, "unknown enum value for EnumNotNull - Y")
 	flusher.Track(entity7)
 	assert.Panics(t, func() {
 		_ = flusher.FlushWithCheck()
@@ -496,8 +494,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceDB)
+	testLogger := &testLogHandler{}
+	engine.RegisterQueryLogger(testLogger, true, false, false)
 
 	flusher = engine.NewFlusher()
 	entity1 := &flushEntity{}
@@ -512,13 +510,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity1, entity2, entity3)
 	flusher.Flush()
 
-	receiver.Digest(context.Background())
+	receiver.Digest()
 	if local {
-		assert.Len(t, testLogger.Entries, 3)
-		assert.Equal(t, "START TRANSACTION", testLogger.Entries[0].Fields["Query"])
+		assert.Len(t, testLogger.Logs, 3)
+		assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
 		assert.Equal(t, "UPDATE flushEntity SET `Age`=99 WHERE `ID` = 10;UPDATE flushEntity SET `Uint`=99 "+
-			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Entries[1].Fields["Query"])
-		assert.Equal(t, "COMMIT", testLogger.Entries[2].Fields["Query"])
+			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Logs[1]["query"])
+		assert.Equal(t, "COMMIT", testLogger.Logs[2]["query"])
 	}
 
 	entity = &flushEntity{Name: "Monica", EnumNotNull: "a", ReferenceMany: []*flushEntityReference{{Name: "Adam Junior"}}}
@@ -593,19 +591,19 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "1534", entitiesRefs[2].Name)
 
 	if redis && !local {
-		testLogger2 := memory.New()
-		engine.AddQueryLogger(testLogger2, apexLog.InfoLevel)
-		testLogger.Entries = make([]*apexLog.Entry, 0)
+		testLogger2 := &testLogHandler{}
+		engine.RegisterQueryLogger(testLogger2, true, true, false)
+		testLogger.clear()
 		engine.GetMysql().Begin()
 		entity4.ReferenceOne = &flushEntityReference{}
 		engine.Flush(entity4)
 		engine.GetMysql().Commit()
-		assert.Len(t, testLogger2.Entries, 5)
-		assert.Equal(t, "[ORM][MYSQL][BEGIN]", testLogger2.Entries[0].Message)
-		assert.Equal(t, "[ORM][MYSQL][EXEC]", testLogger2.Entries[1].Message)
-		assert.Equal(t, "[ORM][MYSQL][EXEC]", testLogger2.Entries[2].Message)
-		assert.Equal(t, "[ORM][MYSQL][COMMIT]", testLogger2.Entries[3].Message)
-		assert.Equal(t, "[ORM][REDIS][EXEC]", testLogger2.Entries[4].Message)
+		assert.Len(t, testLogger2.Logs, 5)
+		assert.Equal(t, "BEGIN", testLogger2.Logs[0]["operation"])
+		assert.Equal(t, "EXEC", testLogger2.Logs[1]["operation"])
+		assert.Equal(t, "EXEC", testLogger2.Logs[2]["operation"])
+		assert.Equal(t, "COMMIT", testLogger2.Logs[3]["operation"])
+		assert.Equal(t, "PIPELINE EXEC", testLogger2.Logs[4]["operation"])
 	}
 }
 

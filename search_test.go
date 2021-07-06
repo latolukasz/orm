@@ -61,8 +61,8 @@ func TestSearch(t *testing.T) {
 	assert.Equal(t, uint(1), entity.ID)
 	assert.Equal(t, "", entity.Name)
 	assert.Equal(t, "", entity.ReferenceOne.Name)
-	assert.Equal(t, "name 1", entity.GetFieldLazy("Name"))
-	assert.Equal(t, "name 1", entity.ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "name 1", entity.GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "name 1", entity.ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLazy())
 
@@ -79,8 +79,8 @@ func TestSearch(t *testing.T) {
 	assert.Equal(t, uint(1), rows[0].ID)
 	assert.Equal(t, "", rows[0].Name)
 	assert.Equal(t, "", rows[0].ReferenceOne.Name)
-	assert.Equal(t, "name 1", rows[0].GetFieldLazy("Name"))
-	assert.Equal(t, "name 1", rows[0].ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "name 1", rows[0].GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "name 1", rows[0].ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.True(t, rows[0].ReferenceOne.IsLoaded())
 	assert.True(t, rows[0].ReferenceOne.IsLazy())
 
@@ -89,7 +89,7 @@ func TestSearch(t *testing.T) {
 	assert.Len(t, rows, 8)
 	assert.False(t, rows[0].IsLazy())
 
-	total = engine.SearchWithCountLAzy(NewWhere("ID > 2"), nil, &rows)
+	total = engine.SearchWithCountLazy(NewWhere("ID > 2"), nil, &rows)
 	assert.Equal(t, 8, total)
 	assert.Len(t, rows, 8)
 	assert.True(t, rows[0].IsLazy())

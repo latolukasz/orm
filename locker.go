@@ -2,11 +2,10 @@ package orm
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
-
-	log2 "github.com/apex/log"
 
 	"github.com/bsm/redislock"
 )
@@ -33,14 +32,12 @@ func (r *RedisCache) GetLocker() *Locker {
 	if r.locker != nil {
 		return r.locker
 	}
-	r.engine.redisMutex.Lock()
-	defer r.engine.redisMutex.Unlock()
 	lockerClient := &standardLockerClient{client: redislock.New(r.client)}
 	r.locker = &Locker{locker: lockerClient, engine: r.engine, code: r.config.GetCode()}
 	return r.locker
 }
 
-func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
+func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
 	if ttl == 0 {
 		panic(errors.New("ttl must be higher than zero"))
 	}
@@ -54,20 +51,20 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 		}
 		options = &redislock.Options{RetryStrategy: redislock.LimitRetry(redislock.ExponentialBackoff(minInterval, maxInterval), max)}
 	}
-	start := time.Now()
-	redisLock, err := l.locker.Obtain(ctx, key, ttl, options)
+	start := getNow(l.engine.hasRedisLogger)
+	redisLock, err := l.locker.Obtain(l.engine.context, key, ttl, options)
 	if err != nil {
 		if err == redislock.ErrNotObtained {
 			if l.engine.hasRedisLogger {
-				l.fillLogFields("[ORM][LOCKER][OBTAIN]", start, key, "obtain lock", nil,
-					log2.Fields{"ttl": ttl.String(), "waitTimeout": waitTimeout.String()})
+				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
+				l.fillLogFields("LOCK OBTAIN", message, start, nil)
 			}
 			return nil, false
 		}
 	}
 	if l.engine.hasRedisLogger {
-		l.fillLogFields("[ORM][LOCKER][OBTAIN]", start, key, "obtain lock", err,
-			log2.Fields{"ttl": ttl.String(), "waitTimeout": waitTimeout.String()})
+		message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
+		l.fillLogFields("LOCK OBTAIN", message, start, nil)
 	}
 	checkError(err)
 	lock = &Lock{lock: redisLock, locker: l, key: key, has: true, engine: l.engine}
@@ -76,7 +73,7 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 	go func() {
 		for {
 			select {
-			case <-ctx.Done():
+			case <-l.engine.context.Done():
 				lock.Release()
 				return
 			case <-lock.timer.C:
@@ -104,33 +101,34 @@ func (l *Lock) Release() {
 		return
 	}
 	l.has = false
-	start := time.Now()
-	err := l.lock.Release(l.engine.context)
+	start := getNow(l.engine.hasRedisLogger)
+	err := l.lock.Release(context.Background())
 	if err == redislock.ErrLockNotHeld {
 		err = nil
 	}
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("[ORM][LOCKER][RELEASE]", start, l.key, "release lock", err, nil)
+		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, err)
 	}
+	checkError(err)
 	close(l.done)
 }
 
 func (l *Lock) TTL() time.Duration {
-	start := time.Now()
+	start := getNow(l.engine.hasRedisLogger)
 	d, err := l.lock.TTL(l.engine.context)
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("[ORM][LOCKER][TTL]", start, l.key, "ttl lock", err, nil)
+		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, err)
 	}
 	checkError(err)
 	return d
 }
 
-func (l *Lock) Refresh(ctx context.Context, ttl time.Duration) bool {
+func (l *Lock) Refresh(ttl time.Duration) bool {
 	if !l.has {
 		return false
 	}
-	start := time.Now()
-	err := l.lock.Refresh(ctx, ttl, nil)
+	start := getNow(l.engine.hasRedisLogger)
+	err := l.lock.Refresh(l.engine.context, ttl, nil)
 	has := true
 	if err == redislock.ErrNotObtained {
 		has = false
@@ -139,31 +137,13 @@ func (l *Lock) Refresh(ctx context.Context, ttl time.Duration) bool {
 	}
 	l.timer.Reset(ttl)
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("[ORM][LOCKER][REFRESH]", start,
-			l.key, "refresh lock", err, log2.Fields{"ttl": ttl.String()})
+		message := fmt.Sprintf("LOCK REFRESH %s %s", l.key, ttl.String())
+		l.locker.fillLogFields("LOCK REFRESH", message, start, err)
 	}
 	checkError(err)
 	return has
 }
 
-func (l *Locker) fillLogFields(message string, start time.Time, key string, operation string, err error, extra log2.Fields) {
-	now := time.Now()
-	stop := time.Since(start).Microseconds()
-	e := l.engine.queryLoggers[QueryLoggerSourceRedis].log.WithFields(log2.Fields{
-		"Key":          key,
-		"microseconds": stop,
-		"operation":    operation,
-		"pool":         l.code,
-		"target":       "redis",
-		"started":      start.UnixNano(),
-		"finished":     now.UnixNano(),
-	})
-	if extra != nil {
-		e = e.WithFields(extra)
-	}
-	if err != nil {
-		injectLogError(err, e).Error(message)
-	} else {
-		e.Info(message)
-	}
+func (l *Locker) fillLogFields(operation, query string, start *time.Time, err error) {
+	fillLogFields(l.engine.queryLoggersRedis, l.code, sourceRedis, operation, query, start, err)
 }

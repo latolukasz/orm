@@ -1,9 +1,10 @@
 package orm
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	log2 "log"
+	"log"
 	"math"
 	"os"
 	"reflect"
@@ -15,19 +16,14 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
-	"github.com/jmoiron/sqlx"
-	"github.com/olivere/elastic/v7"
 )
 
 type Registry struct {
 	mysqlPools         map[string]MySQLPoolConfig
-	clickHouseClients  map[string]*ClickHouseConfig
 	localCachePools    map[string]LocalCachePoolConfig
 	redisPools         map[string]RedisPoolConfig
-	elasticServers     map[string]*ElasticConfig
 	entities           map[string]reflect.Type
 	redisSearchIndices map[string]map[string]*RedisSearchIndex
-	elasticIndices     map[string]map[string]ElasticIndexDefinition
 	enums              map[string]Enum
 	defaultEncoding    string
 	redisStreamGroups  map[string]map[string]map[string]bool
@@ -38,12 +34,15 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate() (ValidatedRegistry, error) {
+func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
+	maxPoolLen := 0
 	registry := &validatedRegistry{}
 	registry.registry = r
+	_, offset := time.Now().Zone()
+	registry.timeOffset = int64(offset)
 	l := len(r.entities)
 	registry.tableSchemas = make(map[reflect.Type]*tableSchema, l)
 	registry.entities = make(map[string]reflect.Type)
@@ -51,6 +50,9 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		registry.mySQLServers = make(map[string]MySQLPoolConfig)
 	}
 	for k, v := range r.mysqlPools {
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 		db, err := sql.Open("mysql", v.GetDataSourceURI())
 		if err != nil {
 			return nil, err
@@ -101,35 +103,23 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
 	}
-	if registry.clickHouseClients == nil {
-		registry.clickHouseClients = make(map[string]*ClickHouseConfig)
-	}
-	for k, v := range r.clickHouseClients {
-		db, err := sqlx.Open("clickhouse", v.url)
-		if err != nil {
-			return nil, err
-		}
-		v.db = db
-		registry.clickHouseClients[k] = v
-	}
-
 	if registry.localCacheServers == nil {
 		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
 	}
 	for k, v := range r.localCachePools {
 		registry.localCacheServers[k] = v
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 	}
 	if registry.redisServers == nil {
 		registry.redisServers = make(map[string]RedisPoolConfig)
 	}
 	for k, v := range r.redisPools {
 		registry.redisServers[k] = v
-	}
-	if registry.elasticServers == nil {
-		registry.elasticServers = make(map[string]*ElasticConfig)
-	}
-	for k, v := range r.elasticServers {
-		registry.elasticServers[k] = v
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 	}
 	if registry.enums == nil {
 		registry.enums = make(map[string]Enum)
@@ -187,7 +177,8 @@ func (r *Registry) Validate() (ValidatedRegistry, error) {
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
-	engine := registry.CreateEngine()
+	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
+	engine := registry.CreateEngine(ctx)
 	for _, schema := range registry.tableSchemas {
 		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), "")
 		if err != nil {
@@ -226,20 +217,6 @@ func (r *Registry) RegisterRedisSearchIndex(index ...*RedisSearchIndex) {
 	}
 }
 
-func (r *Registry) RegisterElasticIndex(index ElasticIndexDefinition, serverPool ...string) {
-	if r.elasticIndices == nil {
-		r.elasticIndices = make(map[string]map[string]ElasticIndexDefinition)
-	}
-	pool := "default"
-	if len(serverPool) > 0 {
-		pool = serverPool[0]
-	}
-	if r.elasticIndices[pool] == nil {
-		r.elasticIndices[pool] = make(map[string]ElasticIndexDefinition)
-	}
-	r.elasticIndices[pool][index.GetName()] = index
-}
-
 func (r *Registry) RegisterEnumStruct(code string, val interface{}, defaultValue ...string) {
 	enum := initEnum(val, defaultValue...)
 	if r.enums == nil {
@@ -255,9 +232,9 @@ func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...st
 	if len(defaultValue) > 0 {
 		e.defaultValue = defaultValue[0]
 	}
-	e.mapping = make(map[string]string)
-	for _, name := range values {
-		e.mapping[name] = name
+	e.mapping = make(map[string]int)
+	for i, name := range values {
+		e.mapping[name] = i + 1
 	}
 	if r.enums == nil {
 		r.enums = make(map[string]Enum)
@@ -267,14 +244,6 @@ func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...st
 
 func (r *Registry) RegisterMySQLPool(dataSourceName string, code ...string) {
 	r.registerSQLPool(dataSourceName, code...)
-}
-
-func (r *Registry) RegisterElastic(url string, code ...string) {
-	r.registerElastic(url, false, code...)
-}
-
-func (r *Registry) RegisterElasticWithTraceLog(url string, code ...string) {
-	r.registerElastic(url, true, code...)
 }
 
 func (r *Registry) RegisterLocalCache(size int, code ...string) {
@@ -358,39 +327,6 @@ func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
 	r.mysqlPools[dbCode] = db
 }
 
-func (r *Registry) RegisterClickHouse(url string, code ...string) {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	db := &ClickHouseConfig{code: dbCode, url: url}
-	if r.clickHouseClients == nil {
-		r.clickHouseClients = make(map[string]*ClickHouseConfig)
-	}
-	r.clickHouseClients[dbCode] = db
-}
-
-func (r *Registry) registerElastic(url string, withTrace bool, code ...string) {
-	clientOptions := []elastic.ClientOptionFunc{elastic.SetSniff(false), elastic.SetURL(url),
-		elastic.SetHealthcheckInterval(5 * time.Second), elastic.SetRetrier(elastic.NewBackoffRetrier(elastic.NewExponentialBackoff(10*time.Millisecond, 5*time.Second)))}
-	if withTrace {
-		clientOptions = append(clientOptions, elastic.SetTraceLog(log2.New(os.Stdout, "", log2.LstdFlags)))
-	}
-	client, err := elastic.NewClient(
-		clientOptions...,
-	)
-	checkError(err)
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	config := &ElasticConfig{code: dbCode, client: client}
-	if r.elasticServers == nil {
-		r.elasticServers = make(map[string]*ElasticConfig)
-	}
-	r.elasticServers[dbCode] = config
-}
-
 func (r *Registry) registerRedis(client *redis.Client, code []string, address string, db int) {
 	dbCode := "default"
 	if len(code) > 0 {
@@ -405,7 +341,7 @@ func (r *Registry) registerRedis(client *redis.Client, code []string, address st
 
 type RedisPoolConfig interface {
 	GetCode() string
-	GetDB() int
+	GetDatabase() int
 	GetAddress() string
 	getClient() *redis.Client
 }
@@ -421,7 +357,7 @@ func (p *redisCacheConfig) GetCode() string {
 	return p.code
 }
 
-func (p *redisCacheConfig) GetDB() int {
+func (p *redisCacheConfig) GetDatabase() int {
 	return p.db
 }
 
@@ -431,9 +367,4 @@ func (p *redisCacheConfig) GetAddress() string {
 
 func (p *redisCacheConfig) getClient() *redis.Client {
 	return p.client
-}
-
-type ElasticConfig struct {
-	code   string
-	client *elastic.Client
 }

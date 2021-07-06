@@ -1,15 +1,14 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	jsoniter "github.com/json-iterator/go"
+
+	"github.com/pkg/errors"
 )
 
 const lazyChannelName = "orm-lazy-channel"
@@ -29,19 +28,19 @@ type LogQueueValue struct {
 }
 
 type dirtyQueueValue struct {
-	Event   EventAsMap
+	Event   *dirtyEvent
 	Streams []string
 }
 
 type BackgroundConsumer struct {
 	eventConsumerBase
-	engine       *Engine
 	logLogger    func(log *LogQueueValue)
-	redisFlusher RedisFlusher
+	redisFlusher *redisFlusher
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
-	c := &BackgroundConsumer{engine: engine, redisFlusher: engine.NewRedisFlusher()}
+	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine}}
+	c.engine = engine
 	c.loop = true
 	c.limit = 1
 	c.blockTime = time.Second * 30
@@ -52,10 +51,10 @@ func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
 	r.logLogger = logger
 }
 
-func (r *BackgroundConsumer) Digest(ctx context.Context) {
-	consumer := r.engine.GetEventBroker().Consumer("default-consumer", asyncConsumerGroupName).(*eventsConsumer)
+func (r *BackgroundConsumer) Digest() {
+	consumer := r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
 	consumer.eventConsumerBase = r.eventConsumerBase
-	consumer.Consume(ctx, 100, true, func(events []Event) {
+	consumer.Consume(100, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:
@@ -71,11 +70,7 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) {
 
 func (r *BackgroundConsumer) handleLogEvent(event Event) {
 	var value LogQueueValue
-	err := event.Unserialize(&value)
-	if err != nil {
-		event.Ack()
-		return
-	}
+	event.Unserialize(&value)
 	r.handleLog(&value)
 	event.Ack()
 }
@@ -99,7 +94,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 			poolDB.Begin()
 		}
 		defer poolDB.Rollback()
-		res := poolDB.Exec(query, value.ID, value.Updated.Format("2006-01-02 15:04:05"), meta, before, changes)
+		res := poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
 		if r.logLogger != nil {
 			value.LogID = res.LastInsertId()
 			r.logLogger(value)
@@ -110,11 +105,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 
 func (r *BackgroundConsumer) handleLazy(event Event) {
 	var data map[string]interface{}
-	err := event.Unserialize(&data)
-	if err != nil {
-		event.Ack()
-		return
-	}
+	event.Unserialize(&data)
 	ids := r.handleQueries(r.engine, data)
 	r.handleCache(data, ids)
 	event.Ack()
@@ -145,14 +136,14 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			logEvents, has := validMap["l"]
 			if has {
 				for _, row := range logEvents.([]interface{}) {
-					row.(map[string]interface{})["ID"] = id
+					row.(map[interface{}]interface{})["ID"] = id
 					id += db.GetPoolConfig().getAutoincrement()
 				}
 			}
 			dirtyEvents, has := validMap["d"]
 			if has {
 				for _, row := range dirtyEvents.([]interface{}) {
-					row.(map[string]interface{})["Event"].(map[string]interface{})["I"] = id
+					row.(map[interface{}]interface{})["Event"].(map[interface{}]interface{})["I"] = id
 					id += db.GetPoolConfig().getAutoincrement()
 				}
 			}
@@ -164,19 +155,19 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 	if has {
 		for _, row := range logEvents.([]interface{}) {
 			logEvent := &LogQueueValue{}
-			asMap := row.(map[string]interface{})
+			asMap := row.(map[interface{}]interface{})
 			logEvent.ID, _ = strconv.ParseUint(fmt.Sprintf("%v", asMap["ID"]), 10, 64)
 			logEvent.PoolName = asMap["PoolName"].(string)
 			logEvent.TableName = asMap["TableName"].(string)
 			logEvent.Updated = time.Now()
 			if asMap["Meta"] != nil {
-				logEvent.Meta = asMap["Meta"].(map[string]interface{})
+				logEvent.Meta = r.convertMap(asMap["Meta"].(map[interface{}]interface{}))
 			}
 			if asMap["Before"] != nil {
-				logEvent.Before = asMap["Before"].(map[string]interface{})
+				logEvent.Before = r.convertMap(asMap["Before"].(map[interface{}]interface{}))
 			}
 			if asMap["Changes"] != nil {
-				logEvent.Changes = asMap["Changes"].(map[string]interface{})
+				logEvent.Changes = r.convertMap(asMap["Changes"].(map[interface{}]interface{}))
 			}
 			r.handleLog(logEvent)
 		}
@@ -184,10 +175,10 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 	dirtyEvents, has := validMap["d"]
 	if has {
 		for _, row := range dirtyEvents.([]interface{}) {
-			asMap := row.(map[string]interface{})
-			event := asMap["Event"].(map[string]interface{})
+			asMap := row.(map[interface{}]interface{})
+			e := asMap["Event"].(map[interface{}]interface{})
 			for _, stream := range asMap["Streams"].([]interface{}) {
-				r.redisFlusher.PublishMap(stream.(string), event)
+				r.redisFlusher.Publish(stream.(string), e)
 			}
 		}
 		r.redisFlusher.Flush()
@@ -195,11 +186,19 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 	return ids
 }
 
+func (r *BackgroundConsumer) convertMap(value map[interface{}]interface{}) map[string]interface{} {
+	newMap := make(map[string]interface{}, len(value))
+	for k, v := range value {
+		newMap[k.(string)] = v
+	}
+	return newMap
+}
+
 func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []uint64) {
 	keys, has := validMap["cr"]
 	if has {
 		idKey := 0
-		validKeys := keys.(map[string]interface{})
+		validKeys := keys.(map[interface{}]interface{})
 		for cacheCode, allKeys := range validKeys {
 			validAllKeys := allKeys.([]interface{})
 			stringKeys := make([]string, len(validAllKeys))
@@ -214,31 +213,27 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 				}
 				stringKeys[i] = strings.Join(parts, ":")
 			}
-			cache := r.engine.GetRedis(cacheCode)
+			cache := r.engine.GetRedis(cacheCode.(string))
 			cache.Del(stringKeys...)
 		}
 	}
 	localCache, has := validMap["cl"]
 	if has {
-		validKeys := localCache.(map[string]interface{})
+		validKeys := localCache.(map[interface{}]interface{})
 		for cacheCode, allKeys := range validKeys {
 			validAllKeys := allKeys.([]interface{})
 			stringKeys := make([]string, len(validAllKeys))
 			for i, v := range validAllKeys {
 				stringKeys[i] = v.(string)
 			}
-			r.engine.GetLocalCache(cacheCode).Remove(stringKeys...)
+			r.engine.GetLocalCache(cacheCode.(string)).Remove(stringKeys...)
 		}
 	}
 }
 
 func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 	indexEvent := &redisIndexerEvent{}
-	err := event.Unserialize(indexEvent)
-	if err != nil {
-		event.Ack()
-		return
-	}
+	event.Unserialize(indexEvent)
 	var indexDefinition *RedisSearchIndex
 	redisPool := ""
 	for pool, list := range r.engine.registry.redisSearchIndexes {

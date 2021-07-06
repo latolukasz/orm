@@ -25,11 +25,12 @@ type Enum interface {
 	GetFields() []string
 	GetDefault() string
 	Has(value string) bool
+	Index(value string) int
 }
 
 type enum struct {
 	fields       []string
-	mapping      map[string]string
+	mapping      map[string]int
 	defaultValue string
 }
 
@@ -46,15 +47,19 @@ func (enum *enum) Has(value string) bool {
 	return has
 }
 
+func (enum *enum) Index(value string) int {
+	return enum.mapping[value]
+}
+
 func initEnum(ref interface{}, defaultValue ...string) *enum {
 	enum := &enum{}
 	e := reflect.ValueOf(ref)
-	enum.mapping = make(map[string]string)
+	enum.mapping = make(map[string]int)
 	enum.fields = make([]string, 0)
 	for i := 0; i < e.Type().NumField(); i++ {
 		name := e.Field(i).String()
 		enum.fields = append(enum.fields, name)
-		enum.mapping[name] = name
+		enum.mapping[name] = i + 1
 	}
 	if len(defaultValue) > 0 {
 		enum.defaultValue = defaultValue[0]
@@ -67,6 +72,7 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 type TableSchema interface {
 	GetTableName() string
 	GetType() reflect.Type
+	NewEntity() Entity
 	DropTable(engine *Engine)
 	TruncateTable(engine *Engine)
 	UpdateSchema(engine *Engine)
@@ -97,6 +103,7 @@ type tableSchema struct {
 	dirtyFields          map[string][]string
 	refOne               []string
 	refMany              []string
+	idIndex              int
 	localCacheName       string
 	hasLocalCache        bool
 	redisCacheName       string
@@ -119,29 +126,40 @@ type mapBindToScanPointer map[string]func() interface{}
 type mapPointerToValue map[string]func(val interface{}) interface{}
 
 type tableFields struct {
-	t                 reflect.Type
-	fields            map[int]reflect.StructField
-	prefix            string
-	uintegers         []int
-	uintegersNullable []int
-	integers          []int
-	integersNullable  []int
-	strings           []int
-	sliceStrings      []int
-	bytes             []int
-	fakeDelete        int
-	booleans          []int
-	booleansNullable  []int
-	floats            []int
-	floatsNullable    []int
-	timesNullable     []int
-	times             []int
-	jsons             []int
-	structs           map[int]*tableFields
-	refs              []int
-	refsTypes         []reflect.Type
-	refsMany          []int
-	refsManyTypes     []reflect.Type
+	t                       reflect.Type
+	fields                  map[int]reflect.StructField
+	prefix                  string
+	uintegers               []int
+	integers                []int
+	uintegersNullable       []int
+	uintegersNullableSize   []int
+	integersNullable        []int
+	integersNullableSize    []int
+	strings                 []int
+	stringsEnums            []int
+	enums                   []Enum
+	sliceStringsSets        []int
+	sets                    []Enum
+	bytes                   []int
+	fakeDelete              int
+	booleans                []int
+	booleansNullable        []int
+	floats                  []int
+	floatsPrecision         []int
+	floatsNullable          []int
+	floatsNullablePrecision []int
+	floatsNullableSize      []int
+	timesNullable           []int
+	datesNullable           []int
+	times                   []int
+	dates                   []int
+	jsons                   []int
+	structs                 []int
+	structsFields           []*tableFields
+	refs                    []int
+	refsTypes               []reflect.Type
+	refsMany                []int
+	refsManyTypes           []reflect.Type
 }
 
 func getTableSchema(registry *validatedRegistry, entityType reflect.Type) *tableSchema {
@@ -537,14 +555,14 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	} else {
 		redisSearchIndex = nil
 	}
-	columns := fields.getColumnNames()
+	columns, fieldsQuery := fields.getColumnNames()
 	columnMapping := make(map[string]int)
+	idIndex := 0
 	for i, name := range columns {
 		columnMapping[name] = i
-	}
-	fieldsQuery := ""
-	for _, column := range columns {
-		fieldsQuery += ",`" + column + "`"
+		if name == "ID" {
+			idIndex = i
+		}
 	}
 	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+fieldsQuery)))
 	cachePrefix = cachePrefix[0:5]
@@ -555,11 +573,12 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		mysqlPoolName:        mysql,
 		t:                    entityType,
 		fields:               fields,
-		fieldsQuery:          fieldsQuery[1:],
+		fieldsQuery:          fieldsQuery,
 		redisSearchPrefix:    searchPrefix,
 		redisSearchIndex:     redisSearchIndex,
 		mapBindToRedisSearch: mapBindToRedisSearch,
 		tags:                 tags,
+		idIndex:              idIndex,
 		columnNames:          columns,
 		columnMapping:        columnMapping,
 		cachedIndexes:        cachedQueries,
@@ -679,11 +698,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchIndex,
 	mapBindToRedisSearch mapBindToRedisSearch, mapBindToScanPointer mapBindToScanPointer, mapPointerToValue mapPointerToValue,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
-	fields := &tableFields{t: t, prefix: prefix, uintegers: make([]int, 0), uintegersNullable: make([]int, 0),
-		integers: make([]int, 0), integersNullable: make([]int, 0), strings: make([]int, 0), fields: make(map[int]reflect.StructField),
-		sliceStrings: make([]int, 0), bytes: make([]int, 0), booleans: make([]int, 0), booleansNullable: make([]int, 0), floats: make([]int, 0),
-		timesNullable: make([]int, 0), times: make([]int, 0), jsons: make([]int, 0), structs: make(map[int]*tableFields),
-		floatsNullable: make([]int, 0), refs: make([]int, 0), refsTypes: make([]reflect.Type, 0), refsMany: make([]int, 0), refsManyTypes: make([]reflect.Type, 0)}
+	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
 		fields.fields[i] = f
@@ -706,14 +721,31 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
 			}
-			mapBindToScanPointer[prefix+f.Name] = scanUintPointer
-			mapPointerToValue[prefix+f.Name] = pointerUintScan
+			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
+				v := uint64(0)
+				return &v
+			}
+			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
+				return *val.(*uint64)
+			}
 		case "*uint",
 			"*uint8",
 			"*uint16",
 			"*uint32",
 			"*uint64":
 			fields.uintegersNullable = append(fields.uintegersNullable, i)
+			switch typeName {
+			case "*uint":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 0)
+			case "*uint8":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 8)
+			case "*uint16":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 16)
+			case "*uint32":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 32)
+			case "*uint64":
+				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 64)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -730,14 +762,31 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
 			}
-			mapBindToScanPointer[prefix+f.Name] = scanIntPointer
-			mapPointerToValue[prefix+f.Name] = pointerIntScan
+			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
+				v := int64(0)
+				return &v
+			}
+			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
+				return *val.(*int64)
+			}
 		case "*int",
 			"*int8",
 			"*int16",
 			"*int32",
 			"*int64":
 			fields.integersNullable = append(fields.integersNullable, i)
+			switch typeName {
+			case "*int":
+				fields.integersNullableSize = append(fields.integersNullableSize, 0)
+			case "*int8":
+				fields.integersNullableSize = append(fields.integersNullableSize, 8)
+			case "*int16":
+				fields.integersNullableSize = append(fields.integersNullableSize, 16)
+			case "*int32":
+				fields.integersNullableSize = append(fields.integersNullableSize, 32)
+			case "*int64":
+				fields.integersNullableSize = append(fields.integersNullableSize, 64)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -745,9 +794,14 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerIntNullableScan
 		case "string":
-			fields.strings = append(fields.strings, i)
+			enumCode, hasEnum := tags["enum"]
+			if hasEnum {
+				fields.stringsEnums = append(fields.stringsEnums, i)
+				fields.enums = append(fields.enums, registry.enums[enumCode])
+			} else {
+				fields.strings = append(fields.strings, i)
+			}
 			if hasSearchable || hasSortable {
-				_, hasEnum := tags["enum"]
 				if hasEnum {
 					index.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
 					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
@@ -768,10 +822,16 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 				return nil
 			}
 		case "[]string":
-			fields.sliceStrings = append(fields.sliceStrings, i)
-			if hasSearchable || hasSortable {
-				index.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
-				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
+			setCode, hasSet := tags["set"]
+			if hasSet {
+				fields.sliceStringsSets = append(fields.sliceStringsSets, i)
+				fields.sets = append(fields.sets, registry.enums[setCode])
+				if hasSearchable || hasSortable {
+					index.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
+					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
+				}
+			} else {
+				fields.jsons = append(fields.jsons, i)
 			}
 			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
@@ -799,16 +859,55 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapPointerToValue[prefix+f.Name] = pointerBoolNullableScan
 		case "float32",
 			"float64":
+			precision := 8
+			if typeName == "float32" {
+				precision = 4
+			}
+			precisionAttribute, has := tags["precision"]
+			if has {
+				userPrecision, _ := strconv.Atoi(precisionAttribute)
+				precision = userPrecision
+			} else {
+				decimal, has := tags["decimal"]
+				if has {
+					decimalArgs := strings.Split(decimal, ",")
+					precision, _ = strconv.Atoi(decimalArgs[1])
+				}
+			}
 			fields.floats = append(fields.floats, i)
+			fields.floatsPrecision = append(fields.floatsPrecision, precision)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
 			}
-			mapBindToScanPointer[prefix+f.Name] = scanFloatPointer
-			mapPointerToValue[prefix+f.Name] = pointerFloatScan
+			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
+				v := float64(0)
+				return &v
+			}
+			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
+				return *val.(*float64)
+			}
 		case "*float32",
 			"*float64":
+			precision := 8
+			if typeName == "*float32" {
+				precision = 4
+				fields.floatsNullableSize = append(fields.floatsNullableSize, 32)
+			} else {
+				fields.floatsNullableSize = append(fields.floatsNullableSize, 64)
+			}
+			precisionAttribute, has := tags["precision"]
+			if has {
+				userPrecision, _ := strconv.Atoi(precisionAttribute)
+				precision = userPrecision
+			} else {
+				precisionAttribute, has := tags["decimal"]
+				if has {
+					precision, _ = strconv.Atoi(strings.Split(precisionAttribute, ",")[1])
+				}
+			}
 			fields.floatsNullable = append(fields.floatsNullable, i)
+			fields.floatsNullablePrecision = append(fields.floatsNullablePrecision, precision)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -816,7 +915,12 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapBindToScanPointer[prefix+f.Name] = scanFloatNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerFloatNullableScan
 		case "*time.Time":
-			fields.timesNullable = append(fields.timesNullable, i)
+			_, hasTime := tags["time"]
+			if hasTime {
+				fields.timesNullable = append(fields.timesNullable, i)
+			} else {
+				fields.datesNullable = append(fields.datesNullable, i)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableTime
@@ -824,7 +928,12 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
 		case "time.Time":
-			fields.times = append(fields.times, i)
+			_, hasTime := tags["time"]
+			if hasTime {
+				fields.times = append(fields.times, i)
+			} else {
+				fields.dates = append(fields.dates, i)
+			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableTime
@@ -834,13 +943,15 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 		default:
 			k := f.Type.Kind().String()
 			if k == "struct" {
-				fields.structs[i] = buildTableFields(f.Type, registry, index, mapBindToRedisSearch,
+				fields.structs = append(fields.structs, i)
+				subFields := buildTableFields(f.Type, registry, index, mapBindToRedisSearch,
 					mapBindToScanPointer, mapPointerToValue, 0, f.Name, schemaTags)
+				fields.structsFields = append(fields.structsFields, subFields)
 			} else if k == "ptr" {
 				modelType := reflect.TypeOf((*Entity)(nil)).Elem()
 				if f.Type.Implements(modelType) {
 					fields.refs = append(fields.refs, i)
-					fields.refsTypes = append(fields.refsTypes, f.Type)
+					fields.refsTypes = append(fields.refsTypes, f.Type.Elem())
 					if hasSearchable || hasSortable {
 						index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
 						mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
@@ -952,7 +1063,7 @@ func (tableSchema *tableSchema) getCacheKey(id uint64) string {
 	return tableSchema.cachePrefix + ":" + strconv.FormatUint(id, 10)
 }
 
-func (tableSchema *tableSchema) newEntity() Entity {
+func (tableSchema *tableSchema) NewEntity() Entity {
 	val := reflect.New(tableSchema.t)
 	e := val.Interface().(Entity)
 	orm := e.getORM()
@@ -964,35 +1075,50 @@ func (tableSchema *tableSchema) newEntity() Entity {
 	return e
 }
 
-func (fields *tableFields) getColumnNames() []string {
+func (fields *tableFields) getColumnNames() ([]string, string) {
+	fieldsQuery := ""
 	columns := make([]string, 0)
-	ids := fields.uintegers
-	ids = append(ids, fields.uintegersNullable...)
+	ids := fields.refs
+	ids = append(ids, fields.uintegers...)
 	ids = append(ids, fields.integers...)
-	ids = append(ids, fields.integersNullable...)
-	ids = append(ids, fields.strings...)
-	ids = append(ids, fields.sliceStrings...)
-	ids = append(ids, fields.bytes...)
+	ids = append(ids, fields.booleans...)
+	ids = append(ids, fields.floats...)
+	timesStart := len(ids)
+	ids = append(ids, fields.times...)
+	ids = append(ids, fields.dates...)
+	timesEnd := len(ids)
 	if fields.fakeDelete > 0 {
 		ids = append(ids, fields.fakeDelete)
 	}
-	ids = append(ids, fields.booleans...)
+	ids = append(ids, fields.strings...)
+	ids = append(ids, fields.uintegersNullable...)
+	ids = append(ids, fields.integersNullable...)
+	ids = append(ids, fields.stringsEnums...)
+	ids = append(ids, fields.bytes...)
+	ids = append(ids, fields.sliceStringsSets...)
 	ids = append(ids, fields.booleansNullable...)
-	ids = append(ids, fields.floats...)
 	ids = append(ids, fields.floatsNullable...)
+	timesNullableStart := len(ids)
 	ids = append(ids, fields.timesNullable...)
-	ids = append(ids, fields.times...)
+	ids = append(ids, fields.datesNullable...)
+	timesNullableEnd := len(ids)
 	ids = append(ids, fields.jsons...)
-	ids = append(ids, fields.refs...)
 	ids = append(ids, fields.refsMany...)
-	for _, i := range ids {
+	for k, i := range ids {
 		name := fields.prefix + fields.fields[i].Name
 		columns = append(columns, name)
+		if (k >= timesStart && k < timesEnd) || (k >= timesNullableStart && k < timesNullableEnd) {
+			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
+		} else {
+			fieldsQuery += ",`" + name + "`"
+		}
 	}
-	for _, subFields := range fields.structs {
-		columns = append(columns, subFields.getColumnNames()...)
+	for _, subFields := range fields.structsFields {
+		subColumns, subQuery := subFields.getColumnNames()
+		columns = append(columns, subColumns...)
+		fieldsQuery += "," + subQuery
 	}
-	return columns
+	return columns, fieldsQuery[1:]
 }
 
 var defaultRedisSearchMapper = func(val interface{}) interface{} {
@@ -1032,20 +1158,11 @@ var defaultRedisSearchMapperNullableTime = func(val interface{}) interface{} {
 		return 0
 	}
 	if len(v) == 19 {
-		t, _ := time.ParseInLocation("2006-01-02 15:04:05", v, time.Local)
+		t, _ := time.ParseInLocation(timeFormat, v, time.Local)
 		return t.Unix()
 	}
-	t, _ := time.ParseInLocation("2006-01-02", v, time.Local)
+	t, _ := time.ParseInLocation(dateformat, v, time.Local)
 	return t.Unix()
-}
-
-var scanUintPointer = func() interface{} {
-	v := uint64(0)
-	return &v
-}
-
-var pointerUintScan = func(val interface{}) interface{} {
-	return *val.(*uint64)
 }
 
 var scanIntNullablePointer = func() interface{} {
@@ -1058,15 +1175,6 @@ var pointerUintNullableScan = func(val interface{}) interface{} {
 		return uint64(v.Int64)
 	}
 	return nil
-}
-
-var scanIntPointer = func() interface{} {
-	v := int64(0)
-	return &v
-}
-
-var pointerIntScan = func(val interface{}) interface{} {
-	return *val.(*int64)
 }
 
 var pointerIntNullableScan = func(val interface{}) interface{} {
@@ -1108,15 +1216,6 @@ var pointerBoolNullableScan = func(val interface{}) interface{} {
 		return v.Bool
 	}
 	return nil
-}
-
-var scanFloatPointer = func() interface{} {
-	v := float64(0)
-	return &v
-}
-
-var pointerFloatScan = func(val interface{}) interface{} {
-	return *val.(*float64)
 }
 
 var scanFloatNullablePointer = func() interface{} {

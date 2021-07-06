@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references []string, lazy bool) (missing bool, schema *tableSchema) {
@@ -32,8 +30,8 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			if row == nil {
 				missing = true
 			} else {
-				entity := schema.newEntity()
-				fillFromDBRow(ids[i], engine, row, entity, false, lazy)
+				entity := schema.NewEntity()
+				fillFromBinary(ids[i], engine, row, entity, false, lazy)
 				newSlice.Index(i).Set(entity.getORM().value)
 				hasValid = true
 			}
@@ -70,14 +68,14 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		if localCache == nil {
 			localCache, _ = schema.GetLocalCache(engine)
 		}
-		inCache := localCache.MGetFast(cacheKeys...)
+		inCache := localCache.MGet(cacheKeys...)
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
 				if val != cacheNilValue {
-					e := schema.newEntity()
+					e := schema.NewEntity()
 					newSlice.Index(i).Set(e.getORM().value)
-					fillFromDBRow(ids[i], engine, val.([]interface{}), e, false, lazy)
+					fillFromBinary(ids[i], engine, val.([]byte), e, false, lazy)
 					hasValid = true
 				} else {
 					missing = true
@@ -109,7 +107,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 	}
 	if hasRedis && len(ids) > 0 {
 		redisCache, _ = schema.GetRedisCache(engine)
-		inCache := redisCache.MGetFast(cacheKeys...)
+		inCache := redisCache.MGet(cacheKeys...)
 		j := 0
 		for i, val := range inCache {
 			if val != nil {
@@ -118,15 +116,12 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 					if hasLocalCache {
 						k = cacheMap[k]
 					}
-					var decoded []interface{}
-					_ = jsoniter.ConfigFastest.UnmarshalFromString(val.(string), &decoded)
-					convertDataFromJSON(schema.fields, 0, decoded)
-					e := schema.newEntity()
+					e := schema.NewEntity()
 					newSlice.Index(k).Set(e.getORM().value)
-					fillFromDBRow(ids[k], engine, decoded, e, false, lazy)
+					fillFromBinary(ids[k], engine, []byte(val.(string)), e, false, lazy)
 					hasValid = true
 					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKeys[i], buildLocalCacheValue(decoded))
+						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
 					}
 				} else {
 					missing = true
@@ -173,22 +168,21 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 		for results.Next() {
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
-			convertScan(schema.fields, 0, pointers)
-			id := pointers[0].(uint64)
+			id := *pointers[schema.idIndex].(*uint64)
 			k := idsMap[id]
 			if dbMap != nil {
 				k = dbMap[k]
 			}
-			e := schema.newEntity()
+			e := schema.NewEntity()
 			newSlice.Index(k).Set(e.getORM().value)
 			fillFromDBRow(id, engine, pointers, e, true, lazy)
 			if hasCache {
 				cacheKey := cacheKeys[idsMap[id]]
 				if hasLocalCache {
-					localCacheToSet = append(localCacheToSet, cacheKey, buildLocalCacheValue(pointers))
+					localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().copyBinary())
 				}
 				if hasRedis {
-					redisCacheToSet = append(redisCacheToSet, cacheKey, buildRedisValue(pointers))
+					redisCacheToSet = append(redisCacheToSet, cacheKey, e.getORM().binary)
 				}
 			}
 			hasValid = true
@@ -204,11 +198,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			}
 		}
 		if hasCache && found < len(ids) {
-			for _, id := range ids {
-				k := idsMap[id]
-				if dbMap != nil {
-					k = dbMap[k]
-				}
+			for k, id := range ids {
 				if newSlice.Index(k).IsZero() {
 					cacheKey := schema.getCacheKey(id)
 					if hasLocalCache {
@@ -307,14 +297,9 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 				if !lazy {
 					continue
 				}
-				dbData := refEntity.Interface().(Entity).getORM().dBData
-				idVal := dbData[schema.columnMapping[refName]]
-				if idVal == nil {
-					continue
-				}
 				if manyRef {
-					ids := make([]uint64, 0)
-					_ = jsoniter.ConfigFastest.UnmarshalFromString(idVal.(string), &ids)
+					orm := refEntity.Interface().(Entity).getORM()
+					ids := getFieldByName(engine, orm.tableSchema, orm.binary, refName).([]uint64)
 					length := len(ids)
 					slice := reflect.MakeSlice(reflect.SliceOf(ref.Type().Elem()), length, length)
 					for k, id := range ids {
@@ -326,12 +311,13 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 					}
 					ref.Set(slice)
 				} else {
-					id := idVal.(uint64)
+					orm := refEntity.Interface().(Entity).getORM()
+					id := getFieldByName(engine, orm.tableSchema, orm.binary, refName).(uint64)
 					if id == 0 {
 						continue
 					}
 					n := reflect.New(ref.Type().Elem())
-					orm := initIfNeeded(engine.registry, n.Interface().(Entity))
+					orm = initIfNeeded(engine.registry, n.Interface().(Entity))
 					orm.idElem.SetUint(id)
 					orm.inDB = true
 					ref.Set(n)
@@ -369,9 +355,9 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			}
 			fromCache, has := engine.GetLocalCache(k).Get(key)
 			if has && fromCache != cacheNilValue {
-				data := fromCache.([]interface{})
+				data := fromCache.([]byte)
 				for _, r := range v[key] {
-					fillFromDBRow(data[0].(uint64), engine, data, r, false, lazy)
+					fillFromBinary(r.GetID(), engine, data, r, false, lazy)
 				}
 				fillRef(key, localMap, redisMap, dbMap)
 			}
@@ -383,12 +369,12 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 				i++
 			}
 			for key, fromCache := range engine.GetLocalCache(k).MGet(keys...) {
-				if fromCache != nil {
-					data := fromCache.([]interface{})
-					for _, r := range v[key] {
-						fillFromDBRow(data[0].(uint64), engine, data, r, false, lazy)
+				if fromCache != nil && fromCache != cacheNilValue {
+					data := fromCache.([]byte)
+					for _, r := range v[keys[key]] {
+						fillFromBinary(r.GetID(), engine, data, r, false, lazy)
 					}
-					fillRef(key, localMap, redisMap, dbMap)
+					fillRef(keys[key], localMap, redisMap, dbMap)
 				}
 			}
 		}
@@ -406,14 +392,10 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 		}
 		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
 			if fromCache != nil && fromCache != cacheNilValue {
-				schema := v[key][0].(Entity).getORM().tableSchema
-				decoded := make([]interface{}, len(schema.columnNames))
-				_ = jsoniter.ConfigFastest.UnmarshalFromString(fromCache.(string), &decoded)
-				convertDataFromJSON(schema.fields, 0, decoded)
-				for _, r := range v[key] {
-					fillFromDBRow(decoded[0].(uint64), engine, decoded, r, false, lazy)
+				for _, r := range v[keys[key]] {
+					fillFromBinary(r.GetID(), engine, []byte(fromCache.(string)), r, false, lazy)
 				}
-				fillRef(key, nil, redisMap, dbMap)
+				fillRef(keys[key], nil, redisMap, dbMap)
 			}
 		}
 	}
@@ -436,8 +418,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 			for results.Next() {
 				pointers := prepareScan(schema)
 				results.Scan(pointers...)
-				convertScan(schema.fields, 0, pointers)
-				id := pointers[0].(uint64)
+				id := *pointers[schema.idIndex].(*uint64)
 				for _, r := range v2[schema.getCacheKey(id)] {
 					fillFromDBRow(id, engine, pointers, r, false, lazy)
 				}
@@ -453,7 +434,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 		for cacheKey, refs := range v {
 			e := refs[0].(Entity)
 			if e.IsLoaded() {
-				values = append(values, cacheKey, buildRedisValue(e.getORM().dBData))
+				values = append(values, cacheKey, e.getORM().binary)
 			} else {
 				values = append(values, cacheKey, cacheNilValue)
 			}
@@ -468,7 +449,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 		for cacheKey, refs := range v {
 			e := refs[0].(Entity)
 			if e.IsLoaded() {
-				values = append(values, cacheKey, buildLocalCacheValue(e.getORM().dBData))
+				values = append(values, cacheKey, e.getORM().binary)
 			} else {
 				values = append(values, cacheKey, cacheNilValue)
 			}

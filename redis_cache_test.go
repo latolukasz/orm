@@ -1,15 +1,11 @@
 package orm
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
-
-	"github.com/go-redis/redis_rate/v9"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -20,18 +16,19 @@ func TestRedis(t *testing.T) {
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
-	validatedRegistry, err := registry.Validate()
+	ctx := context.Background()
+	validatedRegistry, err := registry.Validate(ctx)
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine()
+	engine := validatedRegistry.CreateEngine(ctx)
 	testRedis(t, engine)
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6389", 15)
-	validatedRegistry, err = registry.Validate()
+	validatedRegistry, err = registry.Validate(ctx)
 	assert.NoError(t, err)
-	engine = validatedRegistry.CreateEngine()
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis)
+	engine = validatedRegistry.CreateEngine(ctx)
+	testLogger := &testLogHandler{}
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
 		engine.GetRedis().Get("invalid")
 	})
@@ -40,15 +37,15 @@ func TestRedis(t *testing.T) {
 func testRedis(t *testing.T, engine *Engine) {
 	r := engine.GetRedis()
 
-	testLogger := memory.New()
-	engine.AddQueryLogger(testLogger, apexLog.InfoLevel, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
+	testLogger := &testLogHandler{}
+	engine.RegisterQueryLogger(testLogger, false, true, false)
 	r.FlushDB()
-	testLogger.Entries = make([]*apexLog.Entry, 0)
+	testLogger.clear()
 
-	assert.True(t, r.RateLimit("test", redis_rate.PerSecond(2)))
-	assert.True(t, r.RateLimit("test", redis_rate.PerSecond(2)))
-	assert.False(t, r.RateLimit("test", redis_rate.PerSecond(2)))
-	assert.Len(t, testLogger.Entries, 3)
+	assert.True(t, r.RateLimit("test", time.Second, 2))
+	assert.True(t, r.RateLimit("test", time.Second, 2))
+	assert.False(t, r.RateLimit("test", time.Second, 2))
+	assert.Len(t, testLogger.Logs, 3)
 
 	valid := false
 	val := r.GetSet("test_get_set", 10, func() interface{} {
@@ -102,7 +99,7 @@ func testRedis(t *testing.T, engine *Engine) {
 
 	r.HSet("test_map", "last", "Summer", "age", "16")
 	assert.Equal(t, map[string]string{"age": "16", "last": "Summer", "name": "Tom"}, r.HGetAll("test_map"))
-	assert.Equal(t, map[string]interface{}{"age": "16", "missing": nil, "name": "Tom"}, r.HMget("test_map",
+	assert.Equal(t, map[string]interface{}{"age": "16", "missing": nil, "name": "Tom"}, r.HMGet("test_map",
 		"name", "age", "missing"))
 
 	r.HDel("test_map", "age")
@@ -148,7 +145,7 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, int64(0), r.ZCount("test_z", "10", "20"))
 
 	r.MSet("key_1", "a", "key_2", "b")
-	assert.Equal(t, map[string]interface{}{"key_1": "a", "key_2": "b", "missing": nil}, r.MGet("key_1", "key_2", "missing"))
+	assert.Equal(t, []interface{}{"a", "b", nil}, r.MGet("key_1", "key_2", "missing"))
 
 	added = r.SAdd("test_s", "a", "b", "c", "d", "a")
 	assert.Equal(t, int64(4), added)
@@ -162,20 +159,17 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, "", val)
 	assert.False(t, has)
 
-	id := engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a", "code": "b"})
+	id := engine.GetEventBroker().Publish("test-stream", "a")
 	assert.NotEmpty(t, id)
 	assert.Equal(t, int64(1), r.XLen("test-stream"))
-	assert.Equal(t, int64(1), r.XTrim("test-stream", 0, false))
-	assert.Equal(t, int64(0), r.XLen("test-stream"))
-	engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a", "code": "b"})
-	assert.Equal(t, int64(1), r.XTrim("test-stream", 0, true))
+	assert.Equal(t, int64(1), r.XTrim("test-stream", 0))
 	assert.Equal(t, int64(0), r.XLen("test-stream"))
 
-	engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a1", "code": "b1"})
-	engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a2", "code": "b2"})
-	engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a3", "code": "b3"})
-	engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a4", "code": "b4"})
-	engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "a5", "code": "b5"})
+	engine.GetEventBroker().Publish("test-stream", "a1")
+	engine.GetEventBroker().Publish("test-stream", "a2")
+	engine.GetEventBroker().Publish("test-stream", "a3")
+	engine.GetEventBroker().Publish("test-stream", "a4")
+	engine.GetEventBroker().Publish("test-stream", "a5")
 	res, has := r.XGroupCreate("test-stream", "test-group", "0")
 	assert.Equal(t, "OK", res)
 	assert.False(t, has)
@@ -206,30 +200,30 @@ func testRedis(t *testing.T, engine *Engine) {
 
 	events := r.XRange("test-stream", "-", "+", 2)
 	assert.Len(t, events, 2)
-	assert.Equal(t, "a1", events[0].Values["name"])
-	assert.Equal(t, "a2", events[1].Values["name"])
+	assert.Equal(t, "\xa2a1", events[0].Values["s"])
+	assert.Equal(t, "\xa2a2", events[1].Values["s"])
 
 	infoGroups = r.XInfoGroups("test-stream-invalid")
 	assert.Len(t, infoGroups, 0)
 
 	events = r.XRevRange("test-stream", "+", "-", 2)
 	assert.Len(t, events, 2)
-	assert.Equal(t, "a5", events[0].Values["name"])
-	assert.Equal(t, "a4", events[1].Values["name"])
+	assert.Equal(t, "\xa2a5", events[0].Values["s"])
+	assert.Equal(t, "\xa2a4", events[1].Values["s"])
 
-	tmpEventID := engine.GetEventBroker().PublishMap("test-stream", EventAsMap{"name": "new"})
+	tmpEventID := engine.GetEventBroker().Publish("test-stream", "new")
 	assert.Equal(t, int64(1), r.XDel("test-stream", tmpEventID))
 	events = r.XRevRange("test-stream", "+", "-", 2)
 	assert.Len(t, events, 2)
-	assert.Equal(t, "a5", events[0].Values["name"])
-	assert.Equal(t, "a4", events[1].Values["name"])
+	assert.Equal(t, "\xa2a5", events[0].Values["s"])
+	assert.Equal(t, "\xa2a4", events[1].Values["s"])
 
 	streams := r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", ">"},
 		Consumer: "test-consumer"})
 	assert.Len(t, streams, 1)
 	assert.Equal(t, "test-stream", streams[0].Stream)
 	assert.Len(t, streams[0].Messages, 5)
-	assert.Equal(t, "a1", streams[0].Messages[0].Values["name"])
+	assert.Equal(t, "\xa2a1", streams[0].Messages[0].Values["s"])
 	assert.Equal(t, int64(5), r.XLen("test-stream"))
 	infoGroups = r.XInfoGroups("test-stream")
 	assert.Len(t, infoGroups, 1)
@@ -283,8 +277,8 @@ func testRedis(t *testing.T, engine *Engine) {
 	infoGroups = r.XInfoGroups("test-stream")
 	assert.Equal(t, int64(1), infoGroups[0].Consumers)
 
-	engine.GetEventBroker().PublishMap("test-stream-a", EventAsMap{"name": "a1"})
-	engine.GetEventBroker().PublishMap("test-stream-b", EventAsMap{"name": "b1"})
+	engine.GetEventBroker().Publish("test-stream-a", "a1")
+	engine.GetEventBroker().Publish("test-stream-b", "b1")
 	r.XGroupCreate("test-stream-a", "test-group-ab", "0")
 	r.XGroupCreate("test-stream-b", "test-group-ab", "0")
 	streams = r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group-ab", Streams: []string{"test-stream-a", "test-stream-b", ">", ">"},

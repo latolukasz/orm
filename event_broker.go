@@ -1,33 +1,28 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	logApex "github.com/apex/log"
+	"github.com/pkg/errors"
+
+	"github.com/shamaton/msgpack"
 
 	"github.com/go-redis/redis/v8"
-	jsoniter "github.com/json-iterator/go"
 )
 
 const countPending = 100
 const pendingClaimCheckDuration = time.Minute * 2
 const speedHSetKey = "_orm_ss"
 
-type EventAsMap map[string]interface{}
-
 type Event interface {
 	Ack()
-	Skip()
 	ID() string
 	Stream() string
-	RawData() map[string]interface{}
-	Unserialize(val interface{}) error
-	IsSerialized() bool
+	Tag(key string) (value string)
+	Unserialize(val interface{})
 }
 
 type event struct {
@@ -35,16 +30,11 @@ type event struct {
 	stream   string
 	message  redis.XMessage
 	ack      bool
-	skip     bool
 }
 
 func (ev *event) Ack() {
 	ev.consumer.redis.XAck(ev.stream, ev.consumer.group, ev.message.ID)
 	ev.ack = true
-}
-
-func (ev *event) Skip() {
-	ev.skip = true
 }
 
 func (ev *event) ID() string {
@@ -55,78 +45,67 @@ func (ev *event) Stream() string {
 	return ev.stream
 }
 
-func (ev *event) RawData() map[string]interface{} {
-	return ev.message.Values
-}
-
-func (ev *event) Unserialize(value interface{}) error {
-	val, has := ev.message.Values["_s"]
-	if !has {
-		return fmt.Errorf("event without struct data")
+func (ev *event) Tag(key string) (value string) {
+	val, has := ev.message.Values[key]
+	if has {
+		return val.(string)
 	}
-	return jsoniter.ConfigFastest.UnmarshalFromString(val.(string), &value)
+	return ""
 }
 
-func (ev *event) IsSerialized() bool {
-	_, has := ev.message.Values["_s"]
-	return has
+func (ev *event) Unserialize(value interface{}) {
+	val := ev.message.Values["s"]
+	err := msgpack.Unmarshal([]byte(val.(string)), &value)
+	checkError(err)
 }
 
 type EventBroker interface {
-	PublishMap(stream string, event EventAsMap) (id string)
-	Publish(stream string, event interface{}) (id string)
-	Consumer(name, group string) EventsConsumer
+	Publish(stream string, body interface{}, meta ...string) (id string)
+	Consumer(group string) EventsConsumer
 	NewFlusher() EventFlusher
 }
 
 type EventFlusher interface {
-	PublishMap(stream string, event EventAsMap)
-	Publish(stream string, event interface{})
+	Publish(stream string, body interface{}, meta ...string)
 	Flush()
 }
 
 type eventFlusher struct {
 	eb     *eventBroker
-	mutex  sync.Mutex
-	events map[string][]EventAsMap
+	events map[string][][]string
 }
 
 type eventBroker struct {
 	engine *Engine
 }
 
-func (ef *eventFlusher) PublishMap(stream string, event EventAsMap) {
-	ef.mutex.Lock()
-	defer ef.mutex.Unlock()
-	if ef.events[stream] == nil {
-		ef.events[stream] = []EventAsMap{event}
-	} else {
-		ef.events[stream] = append(ef.events[stream], event)
+func createEventSlice(body interface{}, meta []string) []string {
+	if body == nil {
+		return meta
 	}
-}
-
-func (ef *eventFlusher) Publish(stream string, event interface{}) {
-	asJSON, err := jsoniter.ConfigFastest.Marshal(event)
+	asString, err := msgpack.Marshal(body)
 	if err != nil {
 		panic(err)
 	}
-	ef.mutex.Lock()
-	defer ef.mutex.Unlock()
-	if ef.events[stream] == nil {
-		ef.events[stream] = []EventAsMap{{"_s": string(asJSON)}}
-	} else {
-		ef.events[stream] = append(ef.events[stream], EventAsMap{"_s": string(asJSON)})
+	values := make([]string, len(meta)+2)
+	values[0] = "s"
+	values[1] = string(asString)
+	for k, v := range meta {
+		values[k+2] = v
 	}
+	return values
+}
+
+func (ef *eventFlusher) Publish(stream string, body interface{}, meta ...string) {
+	ef.events[stream] = append(ef.events[stream], createEventSlice(body, meta))
 }
 
 func (ef *eventFlusher) Flush() {
-	ef.mutex.Lock()
-	defer ef.mutex.Unlock()
-	grouped := make(map[*RedisCache]map[string][]EventAsMap)
+	grouped := make(map[*RedisCache]map[string][][]string)
 	for stream, events := range ef.events {
 		r := getRedisForStream(ef.eb.engine, stream)
 		if grouped[r] == nil {
-			grouped[r] = make(map[string][]EventAsMap)
+			grouped[r] = make(map[string][][]string)
 		}
 		if grouped[r][stream] == nil {
 			grouped[r][stream] = events
@@ -138,13 +117,12 @@ func (ef *eventFlusher) Flush() {
 		p := r.PipeLine()
 		for stream, list := range events {
 			for _, e := range list {
-				var v map[string]interface{} = e
-				p.XAdd(stream, v)
+				p.XAdd(stream, e)
 			}
 		}
 		p.Exec()
 	}
-	ef.events = make(map[string][]EventAsMap)
+	ef.events = make(map[string][][]string)
 }
 
 func (e *Engine) GetEventBroker() EventBroker {
@@ -155,21 +133,11 @@ func (e *Engine) GetEventBroker() EventBroker {
 }
 
 func (eb *eventBroker) NewFlusher() EventFlusher {
-	return &eventFlusher{eb: eb, events: make(map[string][]EventAsMap)}
+	return &eventFlusher{eb: eb, events: make(map[string][][]string)}
 }
 
-func (eb *eventBroker) PublishMap(stream string, event EventAsMap) (id string) {
-	var v map[string]interface{} = event
-	id = getRedisForStream(eb.engine, stream).xAdd(stream, v)
-	return id
-}
-
-func (eb *eventBroker) Publish(stream string, event interface{}) (id string) {
-	asJSON, err := jsoniter.ConfigFastest.Marshal(event)
-	if err != nil {
-		panic(err)
-	}
-	return eb.PublishMap(stream, EventAsMap{"_s": string(asJSON)})
+func (eb *eventBroker) Publish(stream string, body interface{}, meta ...string) (id string) {
+	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(body, meta))
 }
 
 func getRedisForStream(engine *Engine, stream string) *RedisCache {
@@ -181,13 +149,12 @@ func getRedisForStream(engine *Engine, stream string) *RedisCache {
 }
 
 type EventConsumerHandler func([]Event)
-type ConsumerErrorHandler func(err interface{}, event Event) error
+type ConsumerErrorHandler func(err error, event Event)
 
 type EventsConsumer interface {
-	Consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler)
+	Consume(count int, handler EventConsumerHandler)
 	DisableLoop()
 	SetLimit(limit int)
-	SetHeartBeat(duration time.Duration, beat func())
 	SetErrorHandler(handler ConsumerErrorHandler)
 }
 
@@ -198,15 +165,14 @@ type speedHandler struct {
 	RedisMicroseconds int64
 }
 
-func (s *speedHandler) HandleLog(e *logApex.Entry) error {
-	if e.Fields["target"] == "mysql" {
+func (s *speedHandler) Handle(fields map[string]interface{}) {
+	if fields["source"] == sourceMySQL {
 		s.DBQueries++
-		s.DBMicroseconds += e.Fields["microseconds"].(int64)
+		s.DBMicroseconds += fields["microseconds"].(int64)
 	} else {
 		s.RedisQueries++
-		s.RedisMicroseconds += e.Fields["microseconds"].(int64)
+		s.RedisMicroseconds += fields["microseconds"].(int64)
 	}
-	return nil
 }
 
 func (s *speedHandler) Clear() {
@@ -216,7 +182,7 @@ func (s *speedHandler) Clear() {
 	s.RedisMicroseconds = 0
 }
 
-func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
+func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	streams := make([]string, 0)
 	for _, row := range eb.engine.registry.redisStreamGroups {
 		for stream, groups := range row {
@@ -240,9 +206,9 @@ func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
 	}
 	speedPrefixKey := group + "_" + redisPool
 	speedLogger := &speedHandler{}
-	eb.engine.AddQueryLogger(speedLogger, logApex.InfoLevel, QueryLoggerSourceDB, QueryLoggerSourceRedis, QueryLoggerSourceStreams)
-	return &eventsConsumer{eventConsumerBase: eventConsumerBase{loop: true, limit: 1, blockTime: time.Second * 30},
-		redis: eb.engine.GetRedis(redisPool), name: name, streams: streams, group: group,
+	eb.engine.RegisterQueryLogger(speedLogger, true, true, false)
+	return &eventsConsumer{eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, limit: 1, blockTime: time.Second * 30},
+		redis: eb.engine.GetRedis(redisPool), streams: streams, group: group,
 		lockTTL: time.Second * 90, lockTick: time.Minute,
 		garbageTick: time.Second * 30, minIdle: pendingClaimCheckDuration,
 		claimDuration: pendingClaimCheckDuration, speedLimit: 10000, speedPrefixKey: speedPrefixKey,
@@ -250,19 +216,16 @@ func (eb *eventBroker) Consumer(name, group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	loop              bool
-	limit             int
-	errorHandler      ConsumerErrorHandler
-	heartBeat         func()
-	heartBeatDuration time.Duration
-	heartBeatTime     time.Time
-	blockTime         time.Duration
+	engine       *Engine
+	loop         bool
+	limit        int
+	errorHandler ConsumerErrorHandler
+	blockTime    time.Duration
 }
 
 type eventsConsumer struct {
 	eventConsumerBase
 	redis                  *RedisCache
-	name                   string
 	nr                     int
 	speedPrefixKey         string
 	deadConsumers          int
@@ -293,25 +256,13 @@ func (b *eventConsumerBase) SetLimit(limit int) {
 	b.limit = limit
 }
 
-func (b *eventConsumerBase) SetHeartBeat(duration time.Duration, beat func()) {
-	b.heartBeat = beat
-	b.heartBeatDuration = duration
-}
-
 func (b *eventConsumerBase) SetErrorHandler(handler ConsumerErrorHandler) {
 	b.errorHandler = handler
 }
 
-func (b *eventConsumerBase) HeartBeat(force bool) {
-	if b.heartBeat != nil && (force || time.Since(b.heartBeatTime) >= b.heartBeatDuration) {
-		b.heartBeat()
-		b.heartBeatTime = time.Now()
-	}
-}
-
-func (r *eventsConsumer) Consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler) {
+func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) {
 	for {
-		valid := r.consume(ctx, count, blocking, handler)
+		valid := r.consume(count, handler)
 		if valid || !r.loop {
 			break
 		}
@@ -319,8 +270,8 @@ func (r *eventsConsumer) Consume(ctx context.Context, count int, blocking bool, 
 	}
 }
 
-func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, handler EventConsumerHandler) bool {
-	uniqueLockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
+func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
+	uniqueLockKey := r.group + "_" + r.redis.config.GetCode()
 	runningKey := uniqueLockKey + "_running"
 	locker := r.redis.GetLocker()
 	nr := 0
@@ -329,12 +280,12 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	for {
 		nr++
 		lockName = uniqueLockKey + "-" + strconv.Itoa(nr)
-		locked, has := locker.Obtain(ctx, lockName, r.lockTTL, 0)
+		locked, has := locker.Obtain(lockName, r.lockTTL, 0)
 		if !has {
 			if nr < r.limit {
 				continue
 			}
-			panic(fmt.Errorf("consumer %s for group %s limit %d reached", r.name, r.group, r.limit))
+			panic(fmt.Errorf("consumer for group %s limit %d reached", r.group, r.limit))
 		}
 		lock = locked
 		r.nr = nr
@@ -357,13 +308,13 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	go func() {
 		for {
 			select {
-			case <-ctx.Done():
+			case <-r.engine.context.Done():
 				canceled = true
 				return
 			case <-done:
 				return
 			case <-ticker.C:
-				if !lock.Refresh(ctx, r.lockTTL) {
+				if !lock.Refresh(r.lockTTL) {
 					hasLock = false
 					return
 				}
@@ -374,17 +325,17 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 		}
 	}()
 	garbageTicker := time.NewTicker(r.garbageTick)
-	engine := r.redis.engine.registry.CreateEngine()
+	subEngine := r.redis.engine.Clone()
 	go func() {
-		r.garbageCollector(ctx, engine)
+		r.garbageCollector(subEngine)
 		for {
 			select {
-			case <-ctx.Done():
+			case <-r.redis.engine.context.Done():
 				return
 			case <-done:
 				return
 			case <-garbageTicker.C:
-				r.garbageCollector(ctx, engine)
+				r.garbageCollector(subEngine)
 			}
 		}
 	}()
@@ -395,13 +346,10 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 	}
 	keys := []string{"pending", "0", ">"}
 	streams := make([]string, len(r.streams)*2)
-	if r.heartBeat != nil {
-		r.heartBeatTime = time.Now()
-	}
 	pendingChecked := false
 	var pendingCheckedTime time.Time
 	b := r.blockTime
-	if !blocking {
+	if !r.loop {
 		b = -1
 	}
 	for {
@@ -409,8 +357,6 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 		for _, key := range keys {
 			invalidCheck := key == "0"
 			pendingCheck := key == "pending"
-			normalCheck := key == ">"
-			started := time.Now()
 			if pendingCheck {
 				if pendingChecked && time.Since(pendingCheckedTime) < r.claimDuration {
 					continue
@@ -468,7 +414,6 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 					return true
 				}
 				if !hasLock || time.Since(lockAcquired) > r.lockTTL {
-					r.redis.engine.Log().Warn("consumer %s for group %s lost lock", nil)
 					return false
 				}
 				i := 0
@@ -499,11 +444,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 						}
 					}
 				}
-				r.HeartBeat(false)
 				if totalMessages == 0 {
-					if r.loop && !blocking && normalCheck {
-						time.Sleep(time.Second * 30)
-					}
 					continue KEYS
 				}
 				events := make([]Event, totalMessages)
@@ -516,7 +457,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 				}
 				r.speedEvents += totalMessages
 				r.speedLogger.Clear()
-				start := time.Now()
+				start := getNow(r.engine.hasRedisLogger)
 				func() {
 					defer func() {
 						if rec := recover(); rec != nil {
@@ -524,7 +465,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 								finalEvents := make([]Event, 0)
 								for _, row := range events {
 									e := row.(*event)
-									if !e.ack && !e.skip {
+									if !e.ack {
 										finalEvents = append(finalEvents, row)
 									}
 								}
@@ -532,10 +473,11 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 									func() {
 										defer func() {
 											if rec := recover(); rec != nil {
-												err := r.errorHandler(rec, e)
-												if err != nil {
-													panic(err)
+												asErr, isError := rec.(error)
+												if !isError {
+													asErr = errors.New(fmt.Sprintf("%v", rec))
 												}
+												r.errorHandler(asErr, e)
 											}
 										}()
 										handler([]Event{e})
@@ -549,7 +491,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 					}()
 					handler(events)
 				}()
-				r.speedTimeMicroseconds += time.Since(start).Microseconds()
+				r.speedTimeMicroseconds += time.Since(*start).Microseconds()
 				r.speedDBQueries += r.speedLogger.DBQueries
 				r.speedRedisQueries += r.speedLogger.RedisQueries
 				r.speedDBMicroseconds += r.speedLogger.DBMicroseconds
@@ -560,7 +502,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 					ev := ev.(*event)
 					if ev.ack {
 						totalACK++
-					} else if !ev.skip {
+					} else {
 						if toAck == nil {
 							toAck = make(map[string][]string)
 						}
@@ -593,13 +535,9 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 				if r.deadConsumers > 0 && time.Since(pendingCheckedTime) >= r.claimDuration {
 					break
 				}
-				if normalCheck && time.Since(started) > time.Minute*10 {
-					break
-				}
 			}
 		}
 		if !r.loop {
-			r.HeartBeat(true)
 			break
 		}
 	}
@@ -607,7 +545,7 @@ func (r *eventsConsumer) consume(ctx context.Context, count int, blocking bool, 
 }
 
 func (r *eventsConsumer) getName() string {
-	return r.name + "-" + r.nrString
+	return r.group + "-" + r.nrString
 }
 
 func (r *eventsConsumer) incrementID(id string) string {
@@ -616,11 +554,11 @@ func (r *eventsConsumer) incrementID(id string) string {
 	return s[0] + "-" + strconv.Itoa(counter+1)
 }
 
-func (r *eventsConsumer) garbageCollector(ctx context.Context, engine *Engine) {
+func (r *eventsConsumer) garbageCollector(engine *Engine) {
 	redisGarbage := engine.GetRedis(r.redis.config.GetCode())
 	if r.limit > 1 {
-		lockKey := r.group + "_" + r.name + "_" + r.redis.config.GetCode()
-		_, has := redisGarbage.GetLocker().Obtain(ctx, lockKey, time.Second*20, 0)
+		lockKey := r.group + "_" + r.redis.config.GetCode()
+		_, has := redisGarbage.GetLocker().Obtain(lockKey, time.Second*20, 0)
 		if !has {
 			return
 		}
@@ -636,7 +574,6 @@ func (r *eventsConsumer) garbageCollector(ctx context.Context, engine *Engine) {
 		for _, group := range info {
 			_, has := ids[group.Name]
 			if !has {
-				engine.log.Warn("not registered stream group "+group.Name+" in stream"+stream, nil)
 				continue
 			}
 			if group.LastDeliveredID == "" {

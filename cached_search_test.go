@@ -1,14 +1,11 @@
 package orm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
-	apexLog "github.com/apex/log"
-	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -115,8 +112,8 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint(9), rows[3].ID)
 	assert.Equal(t, uint(10), rows[4].ID)
 
-	DBLogger := memory.New()
-	engine.AddQueryLogger(DBLogger, apexLog.InfoLevel, QueryLoggerSourceDB)
+	dbLogger := &testLogHandler{}
+	engine.RegisterQueryLogger(dbLogger, true, false, false)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
@@ -125,21 +122,21 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint(8), rows[2].ID)
 	assert.Equal(t, uint(9), rows[3].ID)
 	assert.Equal(t, uint(10), rows[4].ID)
-	assert.Len(t, DBLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 0)
 
 	pager = NewPager(2, 4)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, uint(10), rows[0].ID)
-	assert.Len(t, DBLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 0)
 
 	pager = NewPager(1, 5)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
 	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Len(t, DBLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 0)
 
 	rows[0].Age = 18
 	engine.Flush(rows[0])
@@ -183,7 +180,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, 10, totalRows)
 	assert.Len(t, rows, 10)
 
-	engine.ClearByIDs(entity, 1, 3)
+	engine.ClearCacheByIDs(entity, 1, 3)
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 10, totalRows)
 	assert.Len(t, rows, 10)
@@ -201,11 +198,11 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.True(t, row.IsLazy())
 
 	row = cachedSearchEntity{}
-	DBLogger.Entries = make([]*apexLog.Entry, 0)
+	dbLogger.clear()
 	has = engine.CachedSearchOne(&row, "IndexName", "Name 6")
 	assert.True(t, has)
 	assert.Equal(t, uint(6), row.ID)
-	assert.Len(t, DBLogger.Entries, 0)
+	assert.Len(t, dbLogger.Logs, 0)
 
 	row = cachedSearchEntity{}
 	has = engine.CachedSearchOneWithReferences(&row, "IndexName", []interface{}{"Name 4"}, []string{"ReferenceOne"})
@@ -220,7 +217,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.True(t, has)
 	assert.Equal(t, uint(4), row.ID)
 	assert.NotNil(t, row.ReferenceOne)
-	assert.Equal(t, "Name 4", row.ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "Name 4", row.ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.True(t, row.IsLazy())
 
 	has = engine.CachedSearchOne(&row, "IndexName", "Name 99")
@@ -246,9 +243,9 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 
 	totalRows = engine.CachedSearchWithReferencesLazy(&rows, "IndexAge", nil, []interface{}{10}, []string{"ReferenceOne"})
 	assert.Equal(t, 3, totalRows)
-	assert.Equal(t, "Name 3", rows[0].ReferenceOne.GetFieldLazy("Name"))
-	assert.Equal(t, "Name 4", rows[1].ReferenceOne.GetFieldLazy("Name"))
-	assert.Equal(t, "Name 5", rows[2].ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "Name 3", rows[0].ReferenceOne.GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "Name 4", rows[1].ReferenceOne.GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "Name 5", rows[2].ReferenceOne.GetFieldLazy(engine, "Name"))
 	assert.True(t, rows[0].IsLazy())
 
 	assert.PanicsWithError(t, "reference WrongReference in cachedSearchEntity is not valid", func() {
@@ -288,7 +285,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		receiver := NewBackgroundConsumer(engine)
 		receiver.DisableLoop()
 		receiver.blockTime = time.Millisecond
-		receiver.Digest(context.Background())
+		receiver.Digest()
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
 }

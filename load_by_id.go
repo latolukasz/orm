@@ -3,8 +3,6 @@ package orm
 import (
 	"fmt"
 	"reflect"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 const cacheNilValue = ""
@@ -19,7 +17,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 		if e == nil {
 			return false, schema
 		}
-		fillFromDBRow(id, engine, e, entity, false, lazy)
+		fillFromBinary(id, engine, e, entity, false, lazy)
 		if len(references) > 0 {
 			warmUpReferences(engine, schema, orm.elem, references, false, lazy)
 		}
@@ -40,8 +38,8 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 				if e == cacheNilValue {
 					return false, schema
 				}
-				data := e.([]interface{})
-				fillFromDBRow(id, engine, data, entity, false, lazy)
+				data := e.([]byte)
+				fillFromBinary(id, engine, data, entity, false, lazy)
 				if len(references) > 0 {
 					warmUpReferences(engine, schema, orm.value, references, false, lazy)
 				}
@@ -55,10 +53,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 				if row == cacheNilValue {
 					return false, schema
 				}
-				decoded := make([]interface{}, len(schema.columnNames))
-				_ = jsoniter.ConfigFastest.UnmarshalFromString(row, &decoded)
-				convertDataFromJSON(schema.fields, 0, decoded)
-				fillFromDBRow(id, engine, decoded, entity, false, lazy)
+				fillFromBinary(id, engine, []byte(row), entity, false, lazy)
 				if len(references) > 0 {
 					warmUpReferences(engine, schema, orm.value, references, false, lazy)
 				}
@@ -79,10 +74,10 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	}
 	if useCache {
 		if localCache != nil {
-			localCache.Set(cacheKey, buildLocalCacheValue(data))
+			localCache.Set(cacheKey, orm.copyBinary())
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, buildRedisValue(data), 0)
+			redisCache.Set(cacheKey, orm.binary, 0)
 		}
 	}
 
@@ -92,17 +87,6 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 		data[0] = id
 	}
 	return true, schema
-}
-
-func buildRedisValue(data []interface{}) string {
-	encoded, _ := jsoniter.ConfigFastest.Marshal(buildLocalCacheValue(data))
-	return string(encoded)
-}
-
-func buildLocalCacheValue(data []interface{}) []interface{} {
-	b := make([]interface{}, len(data))
-	copy(b, data)
-	return b
 }
 
 func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {
@@ -122,48 +106,4 @@ func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {
 		orm.idElem = elem.Field(1)
 	}
 	return orm
-}
-
-func convertDataFromJSON(fields *tableFields, start int, encoded []interface{}) int {
-	for i := 0; i < len(fields.uintegers); i++ {
-		encoded[start] = uint64(encoded[start].(float64))
-		start++
-	}
-	for i := 0; i < len(fields.uintegersNullable); i++ {
-		v := encoded[start]
-		if v != nil {
-			encoded[start] = uint64(v.(float64))
-		}
-		start++
-	}
-	for i := 0; i < len(fields.integers); i++ {
-		encoded[start] = int64(encoded[start].(float64))
-		start++
-	}
-	for i := 0; i < len(fields.integersNullable); i++ {
-		v := encoded[start]
-		if v != nil {
-			encoded[start] = int64(v.(float64))
-		}
-		start++
-	}
-	start += len(fields.strings) + len(fields.sliceStrings) + len(fields.bytes)
-	if fields.fakeDelete > 0 {
-		encoded[start] = uint64(encoded[start].(float64))
-		start++
-	}
-	start += len(fields.booleans) + len(fields.booleansNullable) + len(fields.floats) + len(fields.floatsNullable) +
-		len(fields.timesNullable) + len(fields.times) + len(fields.jsons)
-	for i := 0; i < len(fields.refs); i++ {
-		v := encoded[start]
-		if v != nil {
-			encoded[start] = uint64(v.(float64))
-		}
-		start++
-	}
-	start += len(fields.refsMany)
-	for _, subFields := range fields.structs {
-		start = convertDataFromJSON(subFields, start, encoded)
-	}
-	return start
 }
