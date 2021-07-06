@@ -180,7 +180,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, 10, totalRows)
 	assert.Len(t, rows, 10)
 
-	engine.ClearByIDs(entity, 1, 3)
+	engine.ClearCacheByIDs(entity, 1, 3)
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 10, totalRows)
 	assert.Len(t, rows, 10)

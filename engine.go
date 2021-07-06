@@ -314,7 +314,7 @@ func (e *Engine) CachedSearchWithReferencesLazy(entities interface{}, indexName 
 	return total
 }
 
-func (e *Engine) ClearByIDs(entity Entity, ids ...uint64) {
+func (e *Engine) ClearCacheByIDs(entity Entity, ids ...uint64) {
 	clearByIDs(e, entity, ids...)
 }
 

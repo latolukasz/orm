@@ -124,7 +124,7 @@ func TestRequestCache(t *testing.T) {
 
 	found = engine.LoadByID(1, entity)
 	assert.True(t, found)
-	engine.ClearByIDs(entity, 1)
+	engine.ClearCacheByIDs(entity, 1)
 	dbLogger.clear()
 	redisLogger.clear()
 	engine.LoadByID(1, entity)
