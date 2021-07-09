@@ -571,10 +571,10 @@ func (r *RedisSearch) ForceReindex(index string) {
 	indexID := time.Now().UnixNano()
 	indexIDString := strconv.FormatInt(indexID, 10)
 	r.createIndex(def, uint64(indexID))
-	event := redisIndexerEvent{Index: index, IndexID: uint64(indexID)}
-	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
 	indexName := def.Name + ":" + indexIDString
 	r.aliasUpdate(def.Name, indexName)
+	event := redisIndexerEvent{Index: index, IndexID: uint64(indexID)}
+	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
 }
 
 func (r *RedisSearch) SearchRaw(index string, query *RedisSearchQuery, pager *Pager) (total uint64, rows []interface{}) {
