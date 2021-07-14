@@ -240,6 +240,11 @@ func (q *RedisSearchQuery) QueryRaw(query string) *RedisSearchQuery {
 	return q
 }
 
+func (q *RedisSearchQuery) AppendQueryRaw(query string) *RedisSearchQuery {
+	q.query += query
+	return q
+}
+
 func (q *RedisSearchQuery) filterNumericMinMax(field string, min, max string) *RedisSearchQuery {
 	if q.filtersNumeric == nil {
 		q.filtersNumeric = make(map[string][][]string)
