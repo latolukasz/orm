@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -704,5 +705,12 @@ func TestEntityRedisSearch(t *testing.T) {
 		query = &RedisSearchQuery{}
 		query.FilterTag("Name", "test")
 		engine.RedisSearchOne(entity, query)
+	})
+
+	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
+		entity = &redisSearchEntity{}
+		engine.LoadByID(9, entity)
+		entity.Balance = math.MaxInt64
+		engine.Flush(entity)
 	})
 }

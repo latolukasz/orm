@@ -4,11 +4,14 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"math"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type CachedQuery struct{}
@@ -719,7 +722,16 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			fields.uintegers = append(fields.uintegers, i)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
+				if hasSortable && typeName == "uint64" {
+					mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
+						if val.(uint64) > math.MaxInt32 {
+							panic(errors.New("integer too high for redis search sort field"))
+						}
+						return val
+					}
+				} else {
+					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
+				}
 			}
 			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
 				v := uint64(0)
@@ -748,7 +760,18 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
+				if hasSortable && typeName == "*uint64" {
+					mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
+						if val == nil {
+							return RedisSearchNullNumber
+						} else if *val.(*uint64) > math.MaxInt32 {
+							panic(errors.New("integer too high for redis search sort field"))
+						}
+						return val
+					}
+				} else {
+					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
+				}
 			}
 			mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerUintNullableScan
@@ -760,7 +783,16 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			fields.integers = append(fields.integers, i)
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
+				if hasSortable && typeName == "int64" {
+					mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
+						if val.(int64) > math.MaxInt32 {
+							panic(errors.New("integer too high for redis search sort field"))
+						}
+						return val
+					}
+				} else {
+					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
+				}
 			}
 			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
 				v := int64(0)
@@ -789,7 +821,18 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			}
 			if hasSearchable || hasSortable {
 				index.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
+				if hasSortable && typeName == "*int64" {
+					mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
+						if val == nil {
+							return RedisSearchNullNumber
+						} else if *val.(*int64) > math.MaxInt32 {
+							panic(errors.New("integer too high for redis search sort field"))
+						}
+						return val
+					}
+				} else {
+					mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
+				}
 			}
 			mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerIntNullableScan
