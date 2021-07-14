@@ -178,9 +178,12 @@ func NewRedisSearchQuery() *RedisSearchQuery {
 type RedisSearchQuery struct {
 	query              string
 	filtersNumeric     map[string][][]string
+	filtersNotNumeric  map[string][]string
 	filtersGeo         map[string][]interface{}
 	filtersTags        map[string][][]string
+	filtersNotTags     map[string][][]string
 	filtersString      map[string][][]string
+	filtersNotString   map[string][][]string
 	inKeys             []interface{}
 	inFields           []interface{}
 	toReturn           []interface{}
@@ -235,11 +238,24 @@ func (q *RedisSearchQuery) QueryRaw(query string) *RedisSearchQuery {
 	return q
 }
 
+func (q *RedisSearchQuery) AppendQueryRaw(query string) *RedisSearchQuery {
+	q.query += query
+	return q
+}
+
 func (q *RedisSearchQuery) filterNumericMinMax(field string, min, max string) *RedisSearchQuery {
 	if q.filtersNumeric == nil {
 		q.filtersNumeric = make(map[string][][]string)
 	}
 	q.filtersNumeric[field] = append(q.filtersNumeric[field], []string{min, max})
+	return q
+}
+
+func (q *RedisSearchQuery) filterNotNumeric(field string, val string) *RedisSearchQuery {
+	if q.filtersNotNumeric == nil {
+		q.filtersNotNumeric = make(map[string][]string)
+	}
+	q.filtersNotNumeric[field] = append(q.filtersNotNumeric[field], val)
 	return q
 }
 
@@ -254,8 +270,19 @@ func (q *RedisSearchQuery) FilterInt(field string, value ...int64) *RedisSearchQ
 	return q
 }
 
+func (q *RedisSearchQuery) FilterNotInt(field string, value ...int64) *RedisSearchQuery {
+	for _, val := range value {
+		q.filterNotNumeric(field, strconv.FormatInt(val, 10))
+	}
+	return q
+}
+
 func (q *RedisSearchQuery) FilterIntNull(field string) *RedisSearchQuery {
 	return q.FilterInt(field, RedisSearchNullNumber)
+}
+
+func (q *RedisSearchQuery) FilterNotIntNull(field string) *RedisSearchQuery {
+	return q.FilterNotInt(field, RedisSearchNullNumber)
 }
 
 func (q *RedisSearchQuery) FilterIntGreaterEqual(field string, value int64) *RedisSearchQuery {
@@ -306,20 +333,31 @@ func (q *RedisSearchQuery) FilterUintLess(field string, value uint64) *RedisSear
 }
 
 func (q *RedisSearchQuery) FilterString(field string, value ...string) *RedisSearchQuery {
-	return q.filterString(field, true, value...)
+	return q.filterString(field, true, false, value...)
+}
+
+func (q *RedisSearchQuery) FilterNotString(field string, value ...string) *RedisSearchQuery {
+	return q.filterString(field, true, true, value...)
 }
 
 func (q *RedisSearchQuery) QueryField(field string, value ...string) *RedisSearchQuery {
-	return q.filterString(field, false, value...)
+	return q.filterString(field, false, false, value...)
 }
 
-func (q *RedisSearchQuery) filterString(field string, exactPhrase bool, value ...string) *RedisSearchQuery {
+func (q *RedisSearchQuery) filterString(field string, exactPhrase, not bool, value ...string) *RedisSearchQuery {
 	if len(value) == 0 {
 		return q
 	}
-	if q.filtersString == nil {
-		q.filtersString = make(map[string][][]string)
+	if not {
+		if q.filtersNotString == nil {
+			q.filtersNotString = make(map[string][][]string)
+		}
+	} else {
+		if q.filtersString == nil {
+			q.filtersString = make(map[string][][]string)
+		}
 	}
+
 	valueEscaped := make([]string, len(value))
 	for i, v := range value {
 		if v == "" {
@@ -332,7 +370,11 @@ func (q *RedisSearchQuery) filterString(field string, exactPhrase bool, value ..
 			}
 		}
 	}
-	q.filtersString[field] = append(q.filtersString[field], valueEscaped)
+	if not {
+		q.filtersNotString[field] = append(q.filtersNotString[field], valueEscaped)
+	} else {
+		q.filtersString[field] = append(q.filtersString[field], valueEscaped)
+	}
 	return q
 }
 
@@ -377,8 +419,16 @@ func (q *RedisSearchQuery) FilterDate(field string, date time.Time) *RedisSearch
 	return q.FilterIntMinMax(field, unix, unix)
 }
 
+func (q *RedisSearchQuery) FilterNotDate(field string, date time.Time) *RedisSearchQuery {
+	return q.filterNotNumeric(field, strconv.FormatInt(q.cutDate(date), 10))
+}
+
 func (q *RedisSearchQuery) FilterDateNull(field string) *RedisSearchQuery {
 	return q.FilterInt(field, RedisSearchNullNumber)
+}
+
+func (q *RedisSearchQuery) FilterNotDateNull(field string) *RedisSearchQuery {
+	return q.FilterNotInt(field, RedisSearchNullNumber)
 }
 
 func (q *RedisSearchQuery) FilterDateGreaterEqual(field string, date time.Time) *RedisSearchQuery {
@@ -440,6 +490,23 @@ func (q *RedisSearchQuery) FilterTag(field string, tag ...string) *RedisSearchQu
 		tagEscaped[i] = v
 	}
 	q.filtersTags[field] = append(q.filtersTags[field], tagEscaped)
+	return q
+}
+
+func (q *RedisSearchQuery) FilterNotTag(field string, tag ...string) *RedisSearchQuery {
+	if q.filtersNotTags == nil {
+		q.filtersNotTags = make(map[string][][]string)
+	}
+	tagEscaped := make([]string, len(tag))
+	for i, v := range tag {
+		if v == "" {
+			v = "NULL"
+		} else {
+			v = EscapeRedisSearchString(v)
+		}
+		tagEscaped[i] = v
+	}
+	q.filtersNotTags[field] = append(q.filtersNotTags[field], tagEscaped)
 	return q
 }
 
@@ -569,10 +636,10 @@ func (r *RedisSearch) ForceReindex(index string) {
 	indexID := time.Now().UnixNano()
 	indexIDString := strconv.FormatInt(indexID, 10)
 	r.createIndex(def, uint64(indexID))
-	event := redisIndexerEvent{Index: index, IndexID: uint64(indexID)}
-	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
 	indexName := def.Name + ":" + indexIDString
 	r.aliasUpdate(def.Name, indexName)
+	event := redisIndexerEvent{Index: index, IndexID: uint64(indexID)}
+	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
 }
 
 func (r *RedisSearch) SearchRaw(index string, query *RedisSearchQuery, pager *Pager) (total uint64, rows []interface{}) {
@@ -640,6 +707,17 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 			q += "[" + v[0] + " " + v[1] + "]"
 		}
 	}
+	for field, in := range query.filtersNotNumeric {
+		if q != "" {
+			q += " "
+		}
+		for i, v := range in {
+			if i > 0 {
+				q += "|"
+			}
+			q += "-@" + field + ":" + v
+		}
+	}
 	for field, in := range query.filtersTags {
 		for _, v := range in {
 			if q != "" {
@@ -648,12 +726,28 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 			q += "@" + field + ":{ " + strings.Join(v, " | ") + " }"
 		}
 	}
+	for field, in := range query.filtersNotTags {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "-@" + field + ":{ " + strings.Join(v, " | ") + " }"
+		}
+	}
 	for field, in := range query.filtersString {
 		for _, v := range in {
 			if q != "" {
 				q += " "
 			}
 			q += "@" + field + ":( " + strings.Join(v, " | ") + " )"
+		}
+	}
+	for field, in := range query.filtersNotString {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "-@" + field + ":( " + strings.Join(v, " | ") + " )"
 		}
 	}
 	if q == "" {
