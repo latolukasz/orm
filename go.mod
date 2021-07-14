@@ -5,21 +5,21 @@ go 1.16
 require (
 	github.com/ClickHouse/clickhouse-go v1.4.5
 	github.com/apex/log v1.9.0
-	github.com/bsm/redislock v0.7.0
-	github.com/go-redis/redis/v8 v8.8.2
+	github.com/bsm/redislock v0.7.1
+	github.com/go-redis/redis/v8 v8.11.0
 	github.com/go-redis/redis_rate/v9 v9.1.1
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
-	github.com/google/go-cmp v0.5.5
-	github.com/jmoiron/sqlx v1.3.3
+	github.com/google/go-cmp v0.5.6
+	github.com/jmoiron/sqlx v1.3.4
 	github.com/json-iterator/go v1.1.11
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
-	github.com/olivere/elastic/v7 v7.0.24
+	github.com/olivere/elastic/v7 v7.0.26
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/fasthash v1.0.3
 	github.com/stretchr/testify v1.7.0
-	go.opentelemetry.io/otel v0.20.0 // indirect
+	go.opentelemetry.io/otel/internal/metric v0.21.0 // indirect
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
 	golang.org/x/tools v0.1.5 // indirect
