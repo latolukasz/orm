@@ -265,7 +265,7 @@ func searchRow(skipFakeDelete bool, engine *Engine, where *Where, entity Entity,
 	def()
 	convertScan(schema.fields, 0, pointers)
 	id := pointers[0].(uint64)
-	fillFromDBRow(id, engine, pointers, entity, true, lazy)
+	fillFromDBRow(id, engine, pointers, entity, lazy)
 	if len(references) > 0 {
 		warmUpReferences(engine, schema, entity.getORM().value, references, false, lazy)
 	}
@@ -303,7 +303,7 @@ func search(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, wit
 		convertScan(schema.fields, 0, pointers)
 		value := reflect.New(entityType)
 		id := pointers[0].(uint64)
-		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), true, lazy)
+		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), lazy)
 		val = reflect.Append(val, value)
 		i++
 	}
@@ -366,7 +366,7 @@ func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, sc
 	return totalRows
 }
 
-func fillFromDBRow(id uint64, engine *Engine, data []interface{}, entity Entity, fillDataLoader bool, lazy bool) {
+func fillFromDBRow(id uint64, engine *Engine, data []interface{}, entity Entity, lazy bool) {
 	orm := initIfNeeded(engine.registry, entity)
 	elem := orm.elem
 	orm.idElem.SetUint(id)
@@ -377,13 +377,6 @@ func fillFromDBRow(id uint64, engine *Engine, data []interface{}, entity Entity,
 	orm.loaded = true
 	orm.lazy = lazy
 	orm.dBData = data
-	if !fillDataLoader {
-		return
-	}
-	schema := entity.getORM().tableSchema
-	if !schema.hasLocalCache && engine.dataLoader != nil {
-		engine.dataLoader.Prime(schema, id, data)
-	}
 }
 
 func fillStruct(registry *validatedRegistry, index uint16, data []interface{}, fields *tableFields, orm *ORM, value reflect.Value) uint16 {

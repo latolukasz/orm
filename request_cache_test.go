@@ -30,7 +30,7 @@ func TestRequestCache(t *testing.T) {
 	flusher.Track(&requestCacheEntity{Name: "d", Code: "a5"})
 	flusher.Flush()
 
-	engine.EnableRequestCache(false)
+	engine.EnableRequestCache()
 
 	DBLogger := memory.New()
 	engine.AddQueryLogger(DBLogger, apexLog.InfoLevel, QueryLoggerSourceDB)

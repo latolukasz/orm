@@ -18,7 +18,6 @@ import (
 var defaultQueryDebug = text.New(os.Stdout)
 
 type Engine struct {
-	mutex                     sync.Mutex
 	registry                  *validatedRegistry
 	context                   context.Context
 	dbs                       map[string]*DB
@@ -35,7 +34,6 @@ type Engine struct {
 	elasticMutex              sync.Mutex
 	logMetaData               map[string]interface{}
 	logMetaDataMutex          sync.RWMutex
-	dataLoader                *dataLoader
 	hasRequestCache           bool
 	queryLoggers              map[QueryLoggerSource]*logger
 	hasRedisLogger            bool
@@ -50,7 +48,6 @@ type Engine struct {
 	logDebugOnce              sync.Once
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
-	afterCommitDataLoaderSets dataLoaderSets
 	eventBroker               *eventBroker
 }
 
@@ -61,16 +58,8 @@ func (e *Engine) Log() Log {
 	return e.log
 }
 
-func (e *Engine) EnableRequestCache(goroutines bool) {
-	e.mutex.Lock()
-	defer e.mutex.Unlock()
-	if goroutines {
-		e.dataLoader = &dataLoader{engine: e, maxBatchSize: dataLoaderMaxPatch}
-		e.hasRequestCache = false
-	} else {
-		e.hasRequestCache = true
-		e.dataLoader = nil
-	}
+func (e *Engine) EnableRequestCache() {
+	e.hasRequestCache = true
 }
 
 func (e *Engine) EnableLogger(level logApex.Level, handlers ...logApex.Handler) {

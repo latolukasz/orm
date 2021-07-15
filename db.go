@@ -263,15 +263,6 @@ func (db *DB) Commit() {
 		db.engine.afterCommitRedisFlusher.Flush()
 		db.engine.afterCommitRedisFlusher = nil
 	}
-
-	if db.engine.afterCommitDataLoaderSets != nil {
-		for schema, rows := range db.engine.afterCommitDataLoaderSets {
-			for id, value := range rows {
-				db.engine.dataLoader.Prime(schema, id, value)
-			}
-		}
-	}
-	db.engine.afterCommitDataLoaderSets = nil
 }
 
 func (db *DB) Rollback() {
