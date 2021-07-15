@@ -145,7 +145,7 @@ func searchRow(skipFakeDelete bool, engine *Engine, where *Where, entity Entity,
 	results.Scan(pointers...)
 	def()
 	id := *pointers[schema.idIndex].(*uint64)
-	fillFromDBRow(id, engine, pointers, entity, true, lazy)
+	fillFromDBRow(id, engine, pointers, entity, lazy)
 	if len(references) > 0 {
 		warmUpReferences(engine, schema, entity.getORM().value, references, false, lazy)
 	}
@@ -182,7 +182,7 @@ func search(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, wit
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
 		id := *pointers[schema.idIndex].(*uint64)
-		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), true, lazy)
+		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), lazy)
 		val = reflect.Append(val, value)
 		i++
 	}
@@ -245,7 +245,7 @@ func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, sc
 	return totalRows
 }
 
-func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Entity, fillDataLoader bool, lazy bool) {
+func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Entity, lazy bool) {
 	orm := initIfNeeded(engine.registry, entity)
 	orm.idElem.SetUint(id)
 	orm.inDB = true
@@ -255,16 +255,9 @@ func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Ent
 	if !lazy {
 		orm.deserialize(engine)
 	}
-	if !fillDataLoader {
-		return
-	}
-	schema := entity.getORM().tableSchema
-	if !schema.hasLocalCache && engine.dataLoader != nil {
-		engine.dataLoader.Prime(schema, id, orm.copyBinary())
-	}
 }
 
-func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, fillDataLoader bool, lazy bool) {
+func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, lazy bool) {
 	orm := initIfNeeded(engine.registry, entity)
 	orm.inDB = true
 	orm.loaded = true
@@ -275,13 +268,6 @@ func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, fil
 		orm.deserialize(engine)
 	} else {
 		orm.idElem.SetUint(id)
-	}
-	if !fillDataLoader {
-		return
-	}
-	schema := entity.getORM().tableSchema
-	if !schema.hasLocalCache && engine.dataLoader != nil {
-		engine.dataLoader.Prime(schema, id, orm.copyBinary())
 	}
 }
 

@@ -27,7 +27,7 @@ func TestRequestCache(t *testing.T) {
 	flusher.Track(&requestCacheEntity{Name: "d", Code: "a5"})
 	flusher.Flush()
 
-	engine.EnableRequestCache(false)
+	engine.EnableRequestCache()
 
 	dbLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(dbLogger, true, false, false)

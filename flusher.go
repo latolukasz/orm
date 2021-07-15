@@ -28,8 +28,6 @@ func (err *ForeignKeyError) Error() string {
 	return err.Message
 }
 
-type dataLoaderSets map[*tableSchema]map[uint64][]byte
-
 type Flusher interface {
 	Track(entity ...Entity) Flusher
 	Flush()
@@ -53,7 +51,6 @@ type flusher struct {
 	lazyMap                map[string]interface{}
 	localCacheDeletes      map[string][]string
 	localCacheSets         map[string][]interface{}
-	dataLoaderSets         map[*tableSchema]map[uint64][]byte
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
@@ -589,9 +586,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 						f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 					}
 				}
-				if !hasLocalCache && f.engine.dataLoader != nil {
-					f.addToDataLoader(schema, id, nil)
-				}
 				if schema.hasSearchCache {
 					key := schema.redisSearchPrefix + strconv.FormatUint(id, 10)
 					f.getRedisFlusher().Del(schema.searchCacheName, key)
@@ -638,23 +632,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	} else if transaction {
 		f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
 	}
-	for schema, rows := range f.dataLoaderSets {
-		if !transaction {
-			for id, value := range rows {
-				f.engine.dataLoader.Prime(schema, id, value)
-			}
-		} else {
-			if f.engine.afterCommitDataLoaderSets == nil {
-				f.engine.afterCommitDataLoaderSets = make(map[*tableSchema]map[uint64][]byte)
-			}
-			if f.engine.afterCommitDataLoaderSets[schema] == nil {
-				f.engine.afterCommitDataLoaderSets[schema] = make(map[uint64][]byte)
-			}
-			for id, value := range rows {
-				f.engine.afterCommitDataLoaderSets[schema][id] = value
-			}
-		}
-	}
 	if len(f.lazyMap) > 0 {
 		f.getRedisFlusher().Publish(lazyChannelName, f.lazyMap)
 		f.lazyMap = nil
@@ -687,9 +664,6 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), cacheKey)
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 		}
-	}
-	if !hasLocalCache && !lazy && f.engine.dataLoader != nil {
-		f.addToDataLoader(schema, id, entity.getORM().copyBinary())
 	}
 	f.fillRedisSearchFromBind(schema, bind, id)
 	return f.addToLogQueue(schema, id, nil, bind, entity.getORM().logMeta, lazy), f.addDirtyQueues(bind, schema, id, "i", lazy)
@@ -734,9 +708,6 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, sche
 			redisFlusher.Del(redisCache.config.GetCode(), keysOld...)
 			redisFlusher.Del(redisCache.config.GetCode(), keysNew...)
 		}
-	}
-	if !hasLocalCache && f.engine.dataLoader != nil {
-		f.addToDataLoader(schema, currentID, entity.getORM().copyBinary())
 	}
 	f.fillRedisSearchFromBind(schema, bind, entity.GetID())
 	dirtyValue := f.addDirtyQueues(bind, schema, currentID, "u", lazy)
@@ -871,16 +842,6 @@ func (f *flusher) addLocalCacheSet(cacheCode string, keys ...interface{}) {
 	f.localCacheSets[cacheCode] = append(f.localCacheSets[cacheCode], keys...)
 }
 
-func (f *flusher) addToDataLoader(schema *tableSchema, id uint64, value []byte) {
-	if f.dataLoaderSets == nil {
-		f.dataLoaderSets = make(map[*tableSchema]map[uint64][]byte)
-	}
-	if f.dataLoaderSets[schema] == nil {
-		f.dataLoaderSets[schema] = make(map[uint64][]byte)
-	}
-	f.dataLoaderSets[schema][id] = value
-}
-
 func (f *flusher) addLocalCacheDeletes(cacheCode string, keys ...string) {
 	if len(keys) == 0 {
 		return
@@ -916,5 +877,4 @@ func (f *flusher) clear() {
 	f.deleteBinds = nil
 	f.localCacheDeletes = nil
 	f.localCacheSets = nil
-	f.dataLoaderSets = nil
 }

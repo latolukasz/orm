@@ -16,7 +16,6 @@ type Engine struct {
 	redis                     map[string]*RedisCache
 	redisSearch               map[string]*RedisSearch
 	logMetaData               Bind
-	dataLoader                *dataLoader
 	hasRequestCache           bool
 	queryLoggersDB            []LogHandler
 	queryLoggersRedis         []LogHandler
@@ -26,7 +25,6 @@ type Engine struct {
 	hasLocalCacheLogger       bool
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
-	afterCommitDataLoaderSets dataLoaderSets
 	eventBroker               *eventBroker
 	serializer                *serializer
 }
@@ -39,18 +37,11 @@ func (e *Engine) Clone() *Engine {
 	newEngine := &Engine{}
 	newEngine.registry = e.registry
 	newEngine.context = e.context
-	newEngine.dataLoader = e.dataLoader
 	return newEngine
 }
 
-func (e *Engine) EnableRequestCache(goroutines bool) {
-	if goroutines {
-		e.dataLoader = &dataLoader{engine: e, maxBatchSize: dataLoaderMaxPatch}
-		e.hasRequestCache = false
-	} else {
-		e.hasRequestCache = true
-		e.dataLoader = nil
-	}
+func (e *Engine) EnableRequestCache() {
+	e.hasRequestCache = true
 }
 
 func (e *Engine) GetMysql(code ...string) *DB {

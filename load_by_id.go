@@ -12,18 +12,6 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	schema = orm.tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
 	redisCache, hasRedis := schema.GetRedisCache(engine)
-	if !hasLocalCache && engine.dataLoader != nil {
-		e := engine.dataLoader.Load(schema, id)
-		if e == nil {
-			return false, schema
-		}
-		fillFromBinary(id, engine, e, entity, false, lazy)
-		if len(references) > 0 {
-			warmUpReferences(engine, schema, orm.elem, references, false, lazy)
-		}
-		return true, schema
-	}
-
 	var cacheKey string
 	if useCache {
 		if !hasLocalCache && engine.hasRequestCache {
@@ -39,7 +27,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 					return false, schema
 				}
 				data := e.([]byte)
-				fillFromBinary(id, engine, data, entity, false, lazy)
+				fillFromBinary(id, engine, data, entity, lazy)
 				if len(references) > 0 {
 					warmUpReferences(engine, schema, orm.value, references, false, lazy)
 				}
@@ -53,7 +41,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 				if row == cacheNilValue {
 					return false, schema
 				}
-				fillFromBinary(id, engine, []byte(row), entity, false, lazy)
+				fillFromBinary(id, engine, []byte(row), entity, lazy)
 				if len(references) > 0 {
 					warmUpReferences(engine, schema, orm.value, references, false, lazy)
 				}
