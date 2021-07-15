@@ -1,5 +1,9 @@
 # orm
 
+DEPRECATED 
+
+USE [https://github.com/latolukasz/beeorm](https://github.com/latolukasz/beeorm)
+
 
 ![Check & test](https://github.com/latolukasz/orm/workflows/Check%20&%20test/badge.svg)
 [![codecov](https://codecov.io/gh/latolukasz/orm/branch/main/graph/badge.svg?token=90GL4IJRWI)](https://codecov.io/gh/latolukasz/orm)
