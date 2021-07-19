@@ -801,7 +801,7 @@ func (orm *ORM) fillBind(id uint64, bind Bind, updateBind map[string]string, tab
 		if valString != "" {
 			bind[name] = valString
 			if hasUpdate {
-				updateBind[name] = "'" + valString + "'"
+				updateBind[name] = orm.escapeSQLParam(valString)
 			}
 		} else {
 			attributes := tableSchema.tags[name]
